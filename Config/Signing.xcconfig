@@ -1,0 +1,36 @@
+// Identity and signing. Canonical identifiers — see docs/DEVELOPMENT.md → Identifiers.
+// Defined once here; targets, entitlements and Info.plist files reference these settings.
+PF_BUNDLE_ID = io.github.troskinpavel.pf
+PF_WIDGETS_BUNDLE_ID = $(PF_BUNDLE_ID).widgets
+PF_APP_GROUP = group.io.github.troskinpavel.pf
+PF_ICLOUD_CONTAINER = iCloud.io.github.troskinpavel.pf
+
+// Builds ad hoc ("Sign to Run Locally") out of the box. Put your own team in
+// Config/Signing.local.xcconfig (gitignored). App Groups (widgets) and iCloud need a
+// provisioning profile, i.e. automatic signing:
+//   DEVELOPMENT_TEAM = ABCDE12345
+//   CODE_SIGN_IDENTITY = Apple Development
+//   CODE_SIGN_STYLE = Automatic
+//   PF_APP_ENTITLEMENTS = Config/PFTerminal-iCloud.entitlements   // optional: iCloud sync
+CODE_SIGN_STYLE = Manual
+CODE_SIGN_IDENTITY = -
+DEVELOPMENT_TEAM =
+
+// The app and widget only touch the App Group container when the build is provisioned for
+// it (automatic signing); unprovisioned builds would otherwise hit a macOS access prompt.
+PF_APP_GROUP_RUNTIME_Automatic = $(PF_APP_GROUP)
+PF_APP_GROUP_RUNTIME = $(PF_APP_GROUP_RUNTIME_$(CODE_SIGN_STYLE))
+
+// Entitlements follow the signing style: Xcode refuses a `group.` App Group without a
+// provisioning profile, so unprovisioned (Manual/ad hoc) builds leave it out.
+PF_APP_ENTITLEMENTS_Manual = Config/PFTerminal-Unprovisioned.entitlements
+PF_APP_ENTITLEMENTS_Automatic = Config/PFTerminal.entitlements
+PF_APP_ENTITLEMENTS = $(PF_APP_ENTITLEMENTS_$(CODE_SIGN_STYLE))
+PF_WIDGETS_ENTITLEMENTS_Manual = Config/PFWidgets-Unprovisioned.entitlements
+PF_WIDGETS_ENTITLEMENTS_Automatic = Config/PFWidgets.entitlements
+PF_WIDGETS_ENTITLEMENTS = $(PF_WIDGETS_ENTITLEMENTS_$(CODE_SIGN_STYLE))
+// iCloud sync (CloudKit, private database) is opt-in: see PF_APP_ENTITLEMENTS above.
+// Development for local builds; Production only once the schema is deployed there.
+PF_ICLOUD_ENV = Development
+
+#include? "Signing.local.xcconfig"

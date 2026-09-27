@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>$(PF_BUNDLE_ID)</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>pfterminal</string>
+			</array>
+		</dict>
+	</array>
+	<key>PFCloudContainer</key>
+	<string>$(PF_ICLOUD_CONTAINER)</string>
+	<key>PFAppGroup</key>
+	<string>$(PF_APP_GROUP_RUNTIME)</string>
+</dict>
+</plist>

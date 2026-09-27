@@ -1,0 +1,356 @@
+import CryptoKit
+import Foundation
+
+/// Whoever owns the live document (AppStore on macOS; a mock in tests; a future iOS store).
+/// Every pure step runs on the main actor between awaits and always reads the *current*
+/// document, so edits made while a network call is in flight are never lost.
+@MainActor protocol SyncHost: AnyObject {
+    var syncDocument: PortfolioDocument { get set }
+    var syncState: SyncState { get set }
+}
+
+/// Record-level sync: every portfolio, transaction and asset is its own record keyed by its
+/// stable id. Deletions are tombstones. Local edits are detected by content hash against the
+/// last synced version and queued (`pending`) until the remote store accepts them — offline
+/// edits simply stay queued in `sync-state.json`.
+///
+/// Conflicts (same record changed on two devices before either synced):
+/// - edit vs delete → the edit is kept (no data loss); the delete is kept for review.
+/// - edit vs edit   → the newer edit wins; the other version is kept for review.
+/// - assets (identity metadata) → newer wins, no review.
+enum SyncEngine {
+    // MARK: - local objects
+
+    struct LocalObject {
+        var kind: SyncKind
+        var id: String
+        var payload: Data
+        var hash: String
+        var portfolioID: String?
+    }
+
+    static let encoder: JSONEncoder = {
+        let e = JSONEncoder()
+        e.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        e.dateEncodingStrategy = .iso8601
+        return e
+    }()
+
+    static func hash(_ d: Data) -> String {
+        SHA256.hash(data: d).prefix(16).map { String(format: "%02x", $0) }.joined()
+    }
+
+    static func localObjects(_ d: PortfolioDocument) -> [String: LocalObject] {
+        var out: [String: LocalObject] = [:]
+        func add<T: Encodable>(_ kind: SyncKind, _ id: String, _ v: T, pid: String? = nil) {
+            guard let data = try? encoder.encode(v) else { return }
+            out[SyncRecord.key(kind, id)] = LocalObject(kind: kind, id: id, payload: data, hash: hash(data), portfolioID: pid)
+        }
+        for p in d.portfolios { add(.portfolio, p.id.uuidString, p) }
+        for t in d.transactions { add(.transaction, t.id.uuidString, t, pid: t.portfolioID.uuidString) }
+        for a in d.assets { add(.asset, a.id, a) }
+        return out
+    }
+
+    static func split(_ key: String) -> (SyncKind, String)? {
+        guard let dot = key.firstIndex(of: "."), let k = SyncKind(rawValue: String(key[..<dot])) else { return nil }
+        return (k, String(key[key.index(after: dot)...]))
+    }
+
+    // MARK: - pure steps
+
+    /// Compare the document with the last known state; queue what changed. Returns the count.
+    @discardableResult
+    static func detectLocalChanges(_ doc: PortfolioDocument, _ st: inout SyncState, now: Date) -> Int {
+        let local = localObjects(doc)
+        var n = 0
+        for (k, o) in local where !st.blocked.contains(k) {
+            let e = st.known[k]
+            if let e, e.deletedAt == nil, e.hash == o.hash { continue }
+            st.known[k] = .init(hash: o.hash, modifiedAt: now, deletedAt: nil, pending: true, tag: e?.tag, version: e?.version)
+            n += 1
+        }
+        // Assets are shared identities and are pruned locally when unused: never tombstoned.
+        for (k, e) in st.known where e.deletedAt == nil && local[k] == nil && !k.hasPrefix("asset.") {
+            st.known[k] = .init(hash: "", modifiedAt: now, deletedAt: now, pending: true, tag: e.tag, version: e.version)
+            n += 1
+        }
+        return n
+    }
+
+    /// The local version of a record (payload or tombstone), as it would be sent.
+    static func record(_ key: String, _ doc: PortfolioDocument, _ st: SyncState, local: [String: LocalObject]? = nil) -> SyncRecord? {
+        guard let (kind, id) = split(key), let e = st.known[key] else { return nil }
+        let o = (local ?? localObjects(doc))[key]
+        return SyncRecord(kind: kind, id: id, modifiedAt: e.modifiedAt, deletedAt: o == nil ? (e.deletedAt ?? e.modifiedAt) : nil,
+                          deviceID: st.deviceID, deviceName: st.deviceName, payload: o?.payload,
+                          portfolioID: o?.portfolioID, remoteTag: e.tag, remoteVersion: e.version)
+    }
+
+    static func pendingRecords(_ doc: PortfolioDocument, _ st: SyncState) -> [SyncRecord] {
+        let local = localObjects(doc)
+        return st.known.filter { $0.value.pending && !st.blocked.contains($0.key) }.keys.sorted()
+            .compactMap { record($0, doc, st, local: local) }
+    }
+
+    /// Apply fetched records. Local pending changes are resolved per the rules above.
+    static func applyRemote(_ records: [SyncRecord], _ doc: inout PortfolioDocument, _ st: inout SyncState, now: Date) {
+        for r in records {
+            let k = r.key
+            if r.schemaVersion > SyncRecord.currentSchema { st.blocked.insert(k); continue }
+            let rh = r.isTombstone ? "" : hash(r.payload ?? Data())
+            let e = st.known[k]
+            // Our own write echoed back, or a version we already hold.
+            if let e, let v = r.remoteVersion, v == e.version { continue }
+            let accepted = SyncState.Entry(hash: rh, modifiedAt: r.modifiedAt, deletedAt: r.deletedAt, pending: false, tag: r.remoteTag, version: r.remoteVersion)
+
+            guard let e, e.pending else {
+                if apply(r, &doc) { st.known[k] = accepted; st.blocked.remove(k) } else { st.blocked.insert(k) }
+                continue
+            }
+            if e.hash == rh { st.known[k] = accepted; continue }   // same content on both sides
+
+            // Concurrent change: decide which version stays, keep the other for review.
+            let mine = record(k, doc, st)
+            let keepMine: Bool
+            let reason: String
+            let from = r.deviceName.map { $0.isEmpty ? "another device" : $0 } ?? "another device"
+            switch (e.deletedAt != nil, r.isTombstone) {
+            case (false, true):  keepMine = true;  reason = "deleted on \(from) · edited here · kept the edit"
+            case (true, false):  keepMine = false; reason = "deleted here · edited on \(from) · kept the edit"
+            default:
+                keepMine = e.modifiedAt >= r.modifiedAt
+                reason = "edited here and on \(from) · kept the \(keepMine ? "local" : "\(from)") version"
+            }
+            if keepMine {
+                st.known[k]?.tag = r.remoteTag           // rebase: next save overwrites the server version
+                st.known[k]?.version = r.remoteVersion
+                if r.kind != .asset { addConflict(&st, key: k, kind: r.kind, reason: reason, other: r, now: now) }
+            } else {
+                guard apply(r, &doc) else { st.blocked.insert(k); continue }
+                st.known[k] = accepted
+                if r.kind != .asset, let mine { addConflict(&st, key: k, kind: r.kind, reason: reason, other: mine, now: now) }
+            }
+        }
+    }
+
+    private static func addConflict(_ st: inout SyncState, key: String, kind: SyncKind, reason: String, other: SyncRecord, now: Date) {
+        var o = other
+        o.remoteTag = nil
+        st.conflicts.removeAll { $0.key == key }
+        st.conflicts.append(SyncConflict(key: key, kind: kind, reason: reason, other: o, detectedAt: now))
+    }
+
+    /// Upsert or remove one record in the document. False if the payload can't be decoded.
+    @discardableResult
+    static func apply(_ r: SyncRecord, _ doc: inout PortfolioDocument) -> Bool {
+        let dec = PortfolioDocument.decoder
+        switch r.kind {
+        case .portfolio:
+            guard let id = UUID(uuidString: r.id) else { return false }
+            if r.isTombstone { doc.portfolios.removeAll { $0.id == id }; return true }
+            guard let p = try? dec.decode(PortfolioInfo.self, from: r.payload ?? Data()), p.id == id else { return false }
+            if let i = doc.portfolios.firstIndex(where: { $0.id == id }) { doc.portfolios[i] = p } else { doc.portfolios.append(p) }
+        case .transaction:
+            guard let id = UUID(uuidString: r.id) else { return false }
+            if r.isTombstone { doc.transactions.removeAll { $0.id == id }; return true }
+            guard let t = try? dec.decode(Transaction.self, from: r.payload ?? Data()), t.id == id else { return false }
+            if let i = doc.transactions.firstIndex(where: { $0.id == id }) { doc.transactions[i] = t } else { doc.transactions.append(t) }
+        case .asset:
+            if r.isTombstone { return true }
+            guard let a = try? dec.decode(Asset.self, from: r.payload ?? Data()), a.id == r.id else { return false }
+            if let i = doc.assets.firstIndex(where: { $0.id == a.id }) { doc.assets[i] = a } else { doc.assets.append(a) }
+        }
+        return true
+    }
+
+    /// Restore document invariants after a merge. Deterministic, so two devices normalizing
+    /// the same data produce the same records.
+    static func normalize(_ doc: inout PortfolioDocument, _ st: SyncState, now: Date) {
+        // A transaction whose portfolio was deleted elsewhere: keep it in a recovered portfolio.
+        let pids = Set(doc.portfolios.map(\.id))
+        let orphaned = Set(doc.transactions.map(\.portfolioID)).subtracting(pids)
+            .filter { st.known[SyncRecord.key(.portfolio, $0.uuidString)]?.deletedAt != nil }
+        for id in orphaned.sorted(by: { $0.uuidString < $1.uuidString }) {
+            doc.portfolios.append(PortfolioInfo(id: id, name: "RECOVERED", glyph: PortfolioGlyphs.newDefault, createdAt: PortfolioInfo.stamp(now)))
+        }
+        // Same name created on two devices: the later one gets a suffix.
+        let order = doc.portfolios.indices.sorted {
+            (doc.portfolios[$0].createdAt, doc.portfolios[$0].id.uuidString) < (doc.portfolios[$1].createdAt, doc.portfolios[$1].id.uuidString)
+        }
+        var used = Set<String>()
+        for i in order {
+            var name = doc.portfolios[i].name, n = 2
+            while used.contains(name) { name = "\(doc.portfolios[i].name) \(n)"; n += 1 }
+            doc.portfolios[i].name = name
+            used.insert(name)
+        }
+    }
+
+    static func applySaveOutcomes(sent: [SyncRecord], _ outcomes: [SyncSaveOutcome], _ doc: inout PortfolioDocument, _ st: inout SyncState, now: Date) {
+        let sentHash = Dictionary(sent.map { ($0.key, $0.isTombstone ? "" : hash($0.payload ?? Data())) }, uniquingKeysWith: { a, _ in a })
+        var conflicts: [SyncRecord] = []
+        for o in outcomes {
+            switch o {
+            case let .saved(k, tag, version):
+                guard st.known[k] != nil else { continue }
+                st.known[k]?.tag = tag
+                st.known[k]?.version = version
+                if st.known[k]?.hash == sentHash[k] { st.known[k]?.pending = false }   // unless edited again meanwhile
+            case let .conflict(_, server):
+                conflicts.append(server)
+            case .failed:
+                break   // stays queued
+            }
+        }
+        if !conflicts.isEmpty { applyRemote(conflicts, &doc, &st, now: now) }
+    }
+
+    // MARK: - cycle
+
+    /// One full sync: fetch → merge → push, retrying server conflicts. Throws on account
+    /// or network problems; local pending changes stay queued either way.
+    @MainActor
+    static func cycle(_ host: SyncHost, remote: SyncRemoteStore, now: @escaping () -> Date = Date.init) async throws {
+        try await checkAccount(host, remote)
+        let fetched = try await remote.fetchChanges(since: host.syncState.token)
+        var doc = host.syncDocument, st = host.syncState
+        detectLocalChanges(doc, &st, now: now())
+        applyRemote(fetched.records, &doc, &st, now: now())
+        normalize(&doc, st, now: now())
+        detectLocalChanges(doc, &st, now: now())
+        st.token = fetched.token
+        commit(host, doc, st)
+
+        for _ in 0..<3 {
+            let sent = pendingRecords(host.syncDocument, host.syncState)
+            if sent.isEmpty { break }
+            let outcomes = try await remote.save(sent)
+            doc = host.syncDocument; st = host.syncState
+            detectLocalChanges(doc, &st, now: now())
+            applySaveOutcomes(sent: sent, outcomes, &doc, &st, now: now())
+            normalize(&doc, st, now: now())
+            detectLocalChanges(doc, &st, now: now())
+            commit(host, doc, st)
+            if !outcomes.contains(where: { if case .conflict = $0 { true } else { false } }) { break }
+        }
+        host.syncState.lastSync = now()
+    }
+
+    @MainActor
+    private static func commit(_ host: SyncHost, _ doc: PortfolioDocument, _ st: SyncState) {
+        if doc != host.syncDocument { host.syncDocument = doc }
+        host.syncState = st
+    }
+
+    @MainActor
+    private static func checkAccount(_ host: SyncHost, _ remote: SyncRemoteStore) async throws {
+        switch await remote.accountStatus() {
+        case .available: break
+        case .notConfigured: throw SyncStoreError.notConfigured
+        case .temporarilyUnavailable: throw SyncStoreError.offline
+        default: throw SyncStoreError.notAuthenticated
+        }
+        let id = try await remote.accountID()
+        if let id, let known = host.syncState.accountID, id != known { throw SyncStoreError.accountChanged }
+        if host.syncState.accountID == nil { host.syncState.accountID = id }
+    }
+
+    // MARK: - enabling
+
+    enum Plan: Equatable, Sendable {
+        case upload        // iCloud is empty: upload this Mac's data
+        case useCloud      // this Mac is empty: download iCloud's data
+        case choose        // both have data: MERGE or USE ICLOUD (or cancel)
+        case resume        // both hold the same records already
+    }
+
+    enum Choice: Sendable { case upload, useCloud, merge }
+
+    struct Inspection: Equatable, Sendable {
+        var plan: Plan
+        var localPortfolios = 0, localTransactions = 0
+        var cloudPortfolios = 0, cloudTransactions = 0
+        var cloudDevices: [String] = []
+    }
+
+    static func isEmpty(_ d: PortfolioDocument) -> Bool {
+        d.transactions.isEmpty && d.portfolios.count <= 1
+    }
+
+    /// Read-only look at both sides before anything is uploaded or replaced.
+    @MainActor
+    static func inspect(_ host: SyncHost, remote: SyncRemoteStore) async throws -> Inspection {
+        var probe = host.syncState
+        probe.accountID = nil
+        let tmp = ProbeHost(doc: host.syncDocument, state: probe)
+        try await checkAccount(tmp, remote)
+        let all = try await remote.fetchChanges(since: nil).records.filter { !$0.isTombstone && $0.schemaVersion <= SyncRecord.currentSchema }
+        let doc = host.syncDocument
+        var i = Inspection(plan: .upload,
+                           localPortfolios: doc.portfolios.count, localTransactions: doc.transactions.count,
+                           cloudPortfolios: all.filter { $0.kind == .portfolio }.count,
+                           cloudTransactions: all.filter { $0.kind == .transaction }.count,
+                           cloudDevices: Array(Set(all.compactMap(\.deviceName).filter { !$0.isEmpty })).sorted())
+        let cloudEmpty = i.cloudPortfolios == 0 && i.cloudTransactions == 0
+        let local = localObjects(doc).filter { $0.value.kind != .asset }.mapValues(\.hash)
+        let cloud = Dictionary(all.filter { $0.kind != .asset }.map { ($0.key, hash($0.payload ?? Data())) }, uniquingKeysWith: { a, _ in a })
+        if cloudEmpty { i.plan = .upload }
+        else if local == cloud { i.plan = .resume }
+        else if isEmpty(doc) { i.plan = .useCloud }
+        else { i.plan = .choose }
+        return i
+    }
+
+    /// Turn sync on. `useCloud` replaces the local document with iCloud's (the caller backs
+    /// the local file up first); `upload` and `merge` both union by record id: local records
+    /// are queued, remote ones applied, and records with the same id resolved as conflicts.
+    @MainActor
+    static func enable(_ host: SyncHost, remote: SyncRemoteStore, choice: Choice, deviceName: String,
+                       now: @escaping () -> Date = Date.init) async throws {
+        var st = SyncState()
+        st.mode = .iCloud
+        st.deviceID = host.syncState.deviceID
+        st.deviceName = deviceName
+        if choice == .useCloud {
+            // Fetch everything first: the local document is replaced only once iCloud's data is in hand.
+            let all = try await remote.fetchChanges(since: nil)
+            var d = PortfolioDocument(portfolios: [])
+            d.settings = host.syncDocument.settings
+            applyRemote(all.records, &d, &st, now: now())
+            normalize(&d, st, now: now())
+            guard !d.portfolios.isEmpty else { throw SyncStoreError.unavailable("iCloud has no portfolios") }
+            st.token = all.token
+            host.syncState = st
+            host.syncDocument = d
+        } else {
+            host.syncState = st
+        }
+        try await cycle(host, remote: remote, now: now)
+    }
+
+    /// Turn sync off. Local data is untouched; iCloud data is left as is.
+    @MainActor
+    static func disable(_ host: SyncHost) {
+        var st = SyncState()
+        st.deviceID = host.syncState.deviceID
+        st.deviceName = host.syncState.deviceName
+        host.syncState = st
+    }
+
+    /// Apply the version kept aside in a conflict instead of the current one.
+    static func restore(_ c: SyncConflict, _ doc: inout PortfolioDocument, _ st: inout SyncState) {
+        var r = c.other
+        if r.isTombstone { r.payload = nil }
+        apply(r, &doc)
+        if r.kind == .portfolio, r.isTombstone, let id = UUID(uuidString: r.id) { doc.transactions.removeAll { $0.portfolioID == id } }
+        st.conflicts.removeAll { $0.id == c.id }
+    }
+}
+
+@MainActor
+private final class ProbeHost: SyncHost {
+    var syncDocument: PortfolioDocument
+    var syncState: SyncState
+    init(doc: PortfolioDocument, state: SyncState) { syncDocument = doc; syncState = state }
+}

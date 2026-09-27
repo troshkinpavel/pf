@@ -1,0 +1,38 @@
+# Xcode
+build/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+*.xccheckout
+*.moved-aside
+*.xcscmblueprint
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+*.xcresult
+
+# Swift Package Manager
+.swiftpm/
+.build/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+._*
+
+# Local data / secrets — never commit
+*.p12
+*.mobileprovision
+.env
+portfolio.json
+pf-*.json
+Config/Signing.local.xcconfig
+*.cer
+*.p8
+*.provisionprofile
+*.dmg
+*.xcarchive
+.env.*
