@@ -46,7 +46,7 @@ struct RootView: View {
         .ignoresSafeArea(.container, edges: .top)
         .foregroundStyle(Theme.text)
         .font(Theme.mono(12))
-        .background(WindowAccessor { w in store.mainWindow = w })
+        .background(WindowAccessor { w in store.attachMainWindow(w) })
         .preferredColorScheme(.dark)
         .alert("Replace current portfolio?", isPresented: Binding(get: { store.pendingImport != nil }, set: { if !$0 { store.pendingImport = nil } }), presenting: store.pendingImport) { d in
             Button("Replace", role: .destructive) { store.applyImport() }

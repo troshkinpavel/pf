@@ -23,6 +23,8 @@ struct AppSettings: Codable, Equatable, Sendable {
     /// "active" follows the active context, "all" pins the menu bar to ALL PORTFOLIOS.
     var menuBarContext: String = "active"
     var onboarded: Bool = false
+    /// Mac-local: keep the Dock icon while only the menu bar item is open. Never synced.
+    var keepInDock: Bool = false
 
     static let providerOptions = ["CoinGecko", "Binance"]
     static let realtimeOptions = ["Binance", "off"]
@@ -66,6 +68,7 @@ struct AppSettings: Codable, Equatable, Sendable {
         widgetPrivacy = (try? c.decode(WidgetPrivacyMode.self, forKey: .widgetPrivacy)) ?? d.widgetPrivacy
         menuBarContext = (try? c.decode(String.self, forKey: .menuBarContext)) ?? d.menuBarContext
         onboarded = (try? c.decode(Bool.self, forKey: .onboarded)) ?? d.onboarded
+        keepInDock = (try? c.decode(Bool.self, forKey: .keepInDock)) ?? d.keepInDock
     }
 }
 

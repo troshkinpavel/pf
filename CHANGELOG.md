@@ -2,6 +2,19 @@
 
 All notable changes to PF Terminal are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.4.1] - Maintenance Release
+
+A maintenance and quality-of-life release.
+
+### Changed
+- **Dock behavior.** Closing the main window keeps PF Terminal running in the menu bar and removes it from the Dock.
+- **Reopening.** Opening it again restores the Dock icon and focuses the window. This works from the menu bar, a widget, a `pfterminal://` link, a notification, or Finder and the Dock.
+
+### Added
+- **Keep in Dock when closed** (Settings → GENERAL), off by default. It keeps the Dock icon while only the menu bar item is open.
+- **Version and build** shown in Settings → GENERAL.
+- **Check for Updates…** (app menu and Settings → GENERAL). It compares your version with the latest stable GitHub release and, if a newer one exists, opens its release page. Nothing is downloaded or installed automatically, and no portfolio data is sent.
+
 ## [0.4.0] - First Public Release
 
 The first public release of PF Terminal. Versions 0.1–0.3 were internal development milestones and were never published.

@@ -35,7 +35,7 @@
 
 PF Terminal tracks crypto portfolios from a ledger of transactions. It shows positions, cost basis, realized and unrealized P&L, performance and 24h movement. The interface is a native macOS window that you can drive entirely from the keyboard. PF Terminal does not execute trades and does not hold funds.
 
-> **Status:** v0.4.0 is the first public release. PF Terminal is distributed as a `.dmg` through GitHub Releases. There is no Homebrew package.
+> **Status:** the current release is v0.4.1, a maintenance release. v0.4.0 was the first public release. PF Terminal is distributed as a `.dmg` through GitHub Releases. There is no Homebrew package.
 >
 > **New in v0.4: [iCloud sync](#icloud-sync).** Optional sync between your own devices through your private iCloud. Off by default.
 
@@ -83,7 +83,9 @@ You don't need an account, Xcode or any other dependencies. Releases are version
 shasum -a 256 -c PF-Terminal.dmg.sha256
 ```
 
-The app does not update itself. To update, download a newer release and replace the app in Applications. Your portfolio data is kept, because it lives outside the app bundle.
+The app does not update itself.
+- **Checking for updates.** **Check for Updates…** (in the app menu, or under Settings → GENERAL) compares your version with the latest GitHub release. If a newer one exists, it opens that release page.
+- **Updating.** Download the new release and replace the app in Applications. Your portfolio data is kept, because it lives outside the app bundle.
 
 
 ## First run
@@ -158,7 +160,7 @@ Shortcuts are bound to physical key positions, so they also work with non-Latin 
   <img src=".github/assets/menubar.png" width="380" alt="Menu bar item and popover with value, today, all-time P&L, positions with sparklines, best and worst">
 </p>
 
-PF Terminal stays in the menu bar when the main window is closed.
+PF Terminal stays in the menu bar when the main window is closed, and leaves the Dock until you open the window again. To keep the Dock icon, turn on Settings → GENERAL → keep in Dock when closed.
 
 - **Menu bar item.** Four display formats. It follows the active portfolio or is pinned to ALL.
 - **Popover.** Today's change, all-time P&L, the top positions with 24h sparklines, best and worst, refresh, and a button to open the app.

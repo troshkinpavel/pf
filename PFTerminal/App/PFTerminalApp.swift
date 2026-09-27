@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import UserNotifications
 
 @main
 struct PFTerminalApp: App {
@@ -58,20 +59,22 @@ private struct TrayLabel: View {
     var body: some View {
         Text(store.trayText())
             .task {
+                store.openMainWindowAction = { openWindow(id: "main") }   // used by presentMainWindow()
                 guard !Self.launched else { return }
                 Self.launched = true
                 try? await Task.sleep(nanoseconds: 300_000_000)   // let window restoration finish
-                if store.mainWindow?.isVisible != true { openWindow(id: "main") }
+                if store.mainWindow?.isVisible != true { store.presentMainWindow() }
             }
     }
 }
 
-final class AppDelegate: NSObject, NSApplicationDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate {
     @MainActor static var store: AppStore?
     private var monitor: Any?
 
     @MainActor func applicationDidFinishLaunching(_ n: Notification) {
         AppDelegate.store?.start()
+        UNUserNotificationCenter.current().delegate = self
         #if DEBUG
         if let s = AppDelegate.store { DebugSnapshots.runIfRequested(s) }
         CloudKitSelfTest.runIfRequested()
@@ -87,13 +90,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// Closing the window keeps the menu bar companion running.
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
+
+    /// Dock click / launching the app again from Finder or Spotlight while it runs.
+    @MainActor func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
+        AppDelegate.store?.presentMainWindow()
+        return false
+    }
+
+    /// Clicking a PF notification opens the main window (also from menu-bar-only state).
+    func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
+        await MainActor.run { AppDelegate.store?.presentMainWindow() }
+    }
 }
 
 struct AppCommands: Commands {
     let store: AppStore
-    @Environment(\.openWindow) private var openWindow
 
     var body: some Commands {
+        CommandGroup(after: .appInfo) {
+            Button("Check for Updates…") { show(); store.go(.settings); store.checkForUpdates() }
+        }
         CommandGroup(replacing: .appSettings) {
             Button("Settings…") { show(); store.go(.settings) }.keyboardShortcut(",")
         }
@@ -115,8 +131,5 @@ struct AppCommands: Commands {
         }
     }
 
-    private func show() {
-        openWindow(id: "main")
-        NSApp.activate(ignoringOtherApps: true)
-    }
+    private func show() { store.presentMainWindow() }
 }

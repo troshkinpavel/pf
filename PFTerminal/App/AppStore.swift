@@ -141,6 +141,12 @@ final class AppStore {
     @ObservationIgnored var syncApplying = false
     @ObservationIgnored var lastSyncAttempt: Date = .distantPast
     @ObservationIgnored var syncRemote: SyncRemoteStore?
+    // lifecycle + updates (see AppStore+Lifecycle)
+    var updateState: UpdateState = .idle
+    @ObservationIgnored var updateChecker: UpdateChecking = GitHubReleaseChecker()
+    /// SwiftUI's openWindow for the main window, captured at launch by the menu bar label.
+    @ObservationIgnored var openMainWindowAction: (() -> Void)?
+    @ObservationIgnored var windowObservers: [NSObjectProtocol] = []
 
     struct Options {
         var directory: URL? = PortfolioStore.defaultDirectory
@@ -611,7 +617,8 @@ final class AppStore {
         if old.realtimeProvider != settings.realtimeProvider { connectStream() }
         if old.alertThreshold == 0 && settings.alertThreshold > 0 { Notifier.requestAuthorization() }
         if old.numbers != settings.numbers { recompute() }
-        if old.widgetPrivacy != settings.widgetPrivacy { writeWidgetSnapshot() }   // privacy applies immediately
+        if old.widgetPrivacy != settings.widgetPrivacy { writeWidgetSnapshot() }
+        if old.keepInDock != settings.keepInDock { keepInDockChanged() }   // privacy applies immediately
     }
 
     /// Currency is the ledger's currency: switching is allowed only when every transaction matches.

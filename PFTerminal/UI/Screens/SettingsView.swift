@@ -72,7 +72,22 @@ struct SettingsView: View {
             }
         }()
         let wsColor: Color = store.streamState == .connected ? Theme.pos : (store.streamState == .off ? Theme.t2 : Theme.neg)
+        let updateColor: Color = {
+            switch store.updateState {
+            case .updateAvailable: return Theme.acc
+            case .failed: return Theme.neg
+            case .checking, .upToDate: return Theme.t2
+            case .idle: return Theme.acc
+            }
+        }()
         return [
+            Section(title: "GENERAL", rows: [
+                Row(k: "version", v: "PF Terminal " + store.installedVersion.display, c: Theme.t2),
+                Row(k: "updates", v: store.updateStatusLabel, c: updateColor, action: {
+                    if case .updateAvailable = store.updateState { store.openAvailableUpdate() } else { store.checkForUpdates() }
+                }),
+                Row(k: "keep in Dock when closed", v: s.keepInDock ? "on" : "off", action: { store.settings.keepInDock.toggle() }),
+            ]),
             Section(title: "MARKET DATA", rows: [
                 Row(k: "primary provider", v: s.primaryProvider, action: cycle(providers, s.primaryProvider) { store.settings.primaryProvider = $0 }),
                 Row(k: "realtime provider", v: s.realtimeProvider, action: cycle(AppSettings.realtimeOptions, s.realtimeProvider) { store.settings.realtimeProvider = $0 }),

@@ -3,7 +3,6 @@ import SwiftUI
 /// Menu bar companion. Works with the main window closed.
 struct MenuBarPopover: View {
     @Environment(AppStore.self) private var store
-    @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         let s = store.summary, f = Fmt.current, fr = store.freshness
@@ -93,8 +92,5 @@ struct MenuBarPopover: View {
         }
     }
 
-    private func open() {
-        openWindow(id: "main")
-        NSApp.activate(ignoringOtherApps: true)
-    }
+    private func open() { store.presentMainWindow() }
 }

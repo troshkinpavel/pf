@@ -78,6 +78,7 @@ extension AppStore {
 
     /// `pfterminal://portfolio`, `pfterminal://movers`, `pfterminal://asset/<id or symbol>`.
     func handleDeepLink(_ url: URL) {
+        presentMainWindow()   // also from menu-bar-only state (widget taps arrive here)
         guard let r = PFLink.route(url), hasPortfolio, !locked else { return }
         palette = nil; tx = nil; quickShare = false
         switch r {

@@ -99,6 +99,10 @@ scripts/make-dmg.sh                                     # → build/release/PF-T
   spctl -a -vvv -t open --context context:primary-signature PF-Terminal.dmg
   xcrun stapler validate PF-Terminal.dmg
   ```
+- **Manual smoke checks** for each release candidate, which automated tests can't cover:
+  1. Click a desktop widget while the app is menu-bar-only: the main window opens and the Dock icon returns.
+  2. Click a PF notification (turn on a 24h-move alert and wait for one): the same.
+  3. Test Touch ID app lock.
 - The filename stays `PF-Terminal.dmg` for every version, so `releases/latest/download/PF-Terminal.dmg` keeps working.
 - To publish, upload the `.dmg` and the `.sha256` to a GitHub Release.
 
@@ -150,7 +154,7 @@ xcodebuild -project PFTerminal.xcodeproj -scheme PFTerminal test
 ```
 PFTerminal/
   App/          PFTerminalApp (scenes, commands, key routing), AppStore (+Commands, +Transactions,
-                +Portfolios, +Sources, +Widgets, +Sync)
+                +Portfolios, +Sources, +Widgets, +Sync, +Lifecycle)
   MarketData/   provider protocol + router, CoinGecko, Binance (+WebSocket stream), DexScreener, Mock
   Persistence/  MarketCache (SwiftData)
   System/       Keychain, notifications, app lock, reachability, DEBUG snapshots
@@ -160,6 +164,7 @@ PFCore/         platform-neutral core, no AppKit/SwiftUI (reusable by a future i
                 ScenarioEngine, CommandParser, ShareModel, AsciiChart, WidgetSnapshotBuilder
   Persistence/  PortfolioDocument (JSON ledger/backup, schema v2), AppSettings
   Sync/         SyncModels, SyncEngine, CloudKitSyncStore
+  Updates/      SemanticVersion, UpdateState, UpdateChecking, GitHubReleaseChecker
 Shared/         compiled into app + widget: formatting, design tokens, widget snapshot model/store,
                 stepped chart, widget layouts (kept platform-neutral for a future iOS target)
 PFWidgets/      WidgetKit extension: App Intents configuration, timeline provider, previews
@@ -354,6 +359,50 @@ AppStore (+Sync) ── SyncHost ──▶ SyncEngine (PFCore/Sync, pure + async
 - **Widget side.** The widget only reads a snapshot and renders it. It makes no network calls, reads no ledger and does no portfolio maths.
 - **Privacy.** With widget privacy off, every currency amount is removed while the snapshot is built. It is not just hidden when the widget renders.
 - **Deep links.** `pfterminal://portfolio` and `pfterminal://asset/<canonical id>`.
+
+## App lifecycle
+
+| State | Behavior |
+|---|---|
+| Main window open | Regular app: Dock icon and menu bar item |
+| Main window closed | Keeps running as a menu bar item. `NSApp.setActivationPolicy(.accessory)` removes the Dock icon, unless **keep in Dock when closed** (`AppSettings.keepInDock`, Mac-local, never synced) is on. |
+| Reopened | `AppStore.presentMainWindow()` sets `.regular`, opens or focuses the single `Window("main")`, then activates the app |
+| `⌘Q` | Quits |
+
+- **Close is never quit.** `applicationShouldTerminateAfterLastWindowClosed` returns `false`, and `Info.plist` has no `LSUIElement`.
+- **Every reopen path calls `presentMainWindow()`:**
+  - the menu bar popover;
+  - the app-menu commands;
+  - a Dock or Finder reopen (`applicationShouldHandleReopen`);
+  - `pfterminal://` deep links, which include widget taps (`handleDeepLink`);
+  - notification clicks (`UNUserNotificationCenterDelegate`).
+- **Safety net.** Whenever the main window becomes key, the app is `.regular` again.
+- **Launch.** The menu bar label captures SwiftUI's `openWindow` and opens the window if window restoration left none.
+- **Tests.** `LifecycleUITests` checks the real activation policy through `NSRunningApplication`.
+
+## Updates
+
+**Today: manual checks only.**
+- **Where it runs.** **Check for Updates…**, in the app menu and under Settings → GENERAL.
+- **What it does.**
+  - Asks the GitHub Releases API of `troshkinpavel/pf` for recent releases. The request is anonymous: no account, token, cookies, identifiers or portfolio data. The `User-Agent` is just `PF-Terminal`.
+  - Compares versions semantically (`SemanticVersion`). Drafts and prereleases are ignored, as are tags that aren't plain version tags.
+  - If a newer release exists, opens its canonical page, `https://github.com/troshkinpavel/pf/releases/tag/<tag>`. That URL is built from the validated tag, never taken from response fields.
+- **What it never does.** Download, mount or install anything, or touch quarantine or Gatekeeper.
+- **Structure** (`PFCore/Updates`):
+  - `UpdateChecking` is the source protocol; `GitHubReleaseChecker` implements it.
+  - `Updates.evaluate`, a pure decision, maps the result to `UpdateState` (idle, checking, up to date, update available, failed).
+  - Settings renders only `UpdateState`, so the source can be swapped without touching the UI.
+
+**Future automatic updates with Sparkle** (assessed; not integrated):
+- **Fit.** Sparkle 2 is the standard updater for Developer ID apps outside the Mac App Store. It suits PF's DMG releases and supports sandboxed apps through its XPC installer services.
+- **Required:**
+  - Add the Sparkle package, the first third-party dependency, and include its XPC services in the sandboxed app.
+  - Generate an **EdDSA (ed25519) key pair** with `generate_keys`. The private key stays in the maintainer's Keychain and never goes into the repo. The public key goes into `Info.plist` (`SUPublicEDKey`).
+  - Sign every update archive with `sign_update`. Sparkle checks that signature and the Developer ID code signature before installing.
+  - Publish an **appcast** feed (`SUFeedURL`). It can be generated by `generate_appcast` and hosted on GitHub (Pages, or a file in the repo), with release assets as the download URLs.
+- **Signing and notarization.** Each update must still be Developer ID signed, notarized and stapled, the same pipeline as `scripts/make-dmg.sh`. Sparkle doesn't relax Gatekeeper.
+- **Preferences.** Automatic checking and installing should be opt-in, with `SUEnableAutomaticChecks` off by default and a Settings toggle. Manual **Check for Updates…** keeps working the same way. A `SparkleUpdateChecker` behind `UpdateChecking`, or Sparkle's own UI, would replace `GitHubReleaseChecker`.
 
 ## Typeface
 
