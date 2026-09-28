@@ -1,7 +1,7 @@
 import Foundation
 
 /// On-chain tokens identified by chain + contract (or a catalog fallback for listed coins).
-/// Picks the most liquid pair per token.
+/// Picks the most-traded pair per token (see `best`).
 public struct DexScreenerProvider: MarketDataProvider {
     public init() {}
     public let name = "DexScreener"
@@ -9,7 +9,7 @@ public struct DexScreenerProvider: MarketDataProvider {
 
     public func supports(_ asset: Asset) -> Bool { AssetCatalog.dexIdentity(asset) != nil }
 
-    private struct Pair: Decodable {
+    struct Pair: Decodable {
         public struct Token: Decodable { let address: String; let name: String?; let symbol: String? }
         public struct Liquidity: Decodable { let usd: Double? }
         public let chainId: String
@@ -23,27 +23,50 @@ public struct DexScreenerProvider: MarketDataProvider {
 
     public func quotes(for assets: [Asset], currency: String) async throws -> [AssetID: Quote] {
         guard currency.uppercased() == "USD" else { throw MarketError.unsupported }
-        var out: [AssetID: Quote] = [:]
-        let ids = assets.compactMap { a in AssetCatalog.dexIdentity(a).map { (a, $0.chain.lowercased(), $0.contract) } }
-        for (chain, list) in Dictionary(grouping: ids, by: \.1) {
+        let ids = assets.compactMap { a in AssetCatalog.dexIdentity(a).map { (asset: a, chains: $0.chains.map { $0.lowercased() }, contract: $0.contract) } }
+        var pairs: [AssetID: [Pair]] = [:]
+        var lastError: Error?, answered = false
+        for chain in Set(ids.flatMap(\.chains)).sorted() {
+            let list = ids.filter { $0.chains.contains(chain) }
             for chunk in stride(from: 0, to: list.count, by: 30).map({ Array(list[$0..<min($0 + 30, list.count)]) }) {
-                let addrs = chunk.map(\.2).joined(separator: ",")
-                guard let url = URL(string: "\(base)/tokens/v1/\(chain)/\(addrs)") else { continue }
-                let pairs = try await HTTP.json([Pair].self, url)
-                let ts = Date()
-                for (a, _, contract) in chunk {
-                    let best = pairs.filter { $0.baseToken.address.lowercased() == contract.lowercased() }
-                        .max { ($0.liquidity?.usd ?? 0) < ($1.liquidity?.usd ?? 0) }
-                    guard let b = best, let ps = b.priceUsd, let p = Decimal(string: ps, locale: Locale(identifier: "en_US_POSIX")), p > 0 else { continue }
-                    var ch: [ChangePeriod: Double] = [:]
-                    ch[.h1] = b.priceChange?["h1"]?.value
-                    ch[.h24] = b.priceChange?["h24"]?.value
-                    out[a.id] = Quote(price: p, change: ch, marketCap: b.marketCap.map(Decimal.of),
-                                      volume24h: b.volume?["h24"]?.value.map(Decimal.of), source: name, timestamp: ts)
-                }
+                guard let url = URL(string: "\(base)/tokens/v1/\(chain)/\(chunk.map(\.contract).joined(separator: ","))") else { continue }
+                // One chain failing doesn't lose the others.
+                do {
+                    let got = try await HTTP.json([Pair].self, url)
+                    answered = true
+                    for x in chunk { pairs[x.asset.id, default: []] += got.filter { $0.baseToken.address.lowercased() == x.contract.lowercased() } }
+                } catch { lastError = error }
             }
         }
+        if !answered, let lastError { throw lastError }
+        let ts = Date()
+        var out: [AssetID: Quote] = [:]
+        for x in ids {
+            guard let b = Self.best(pairs[x.asset.id] ?? []), let ps = b.priceUsd,
+                  let p = Decimal(string: ps, locale: Locale(identifier: "en_US_POSIX")), p > 0 else { continue }
+            var ch: [ChangePeriod: Double] = [:]
+            ch[.h1] = b.priceChange?["h1"]?.value
+            ch[.h24] = b.priceChange?["h24"]?.value
+            out[x.asset.id] = Quote(price: p, change: ch, marketCap: b.marketCap.map(Decimal.of),
+                                    volume24h: b.volume?["h24"]?.value.map(Decimal.of), source: name, timestamp: ts)
+        }
         return out
+    }
+
+    /// Pools below this USD liquidity are dust: a single tiny trade sets their price.
+    static let minLiquidity: Double = 1_000
+
+    /// The pair whose price is most current: highest 24h volume among pools with at least
+    /// `minLiquidity`, ties broken by liquidity. The deepest pool is not always the one that
+    /// trades (TEL on Ethereum: $55k liquidity, $543/day, price 20% off the market). If every
+    /// pool is dust, the most liquid one.
+    static func best(_ pairs: [Pair]) -> Pair? {
+        let liq = { (p: Pair) in p.liquidity?.usd ?? 0 }
+        let vol = { (p: Pair) in p.volume?["h24"]?.value ?? 0 }
+        let priced = pairs.filter { $0.priceUsd != nil }
+        let real = priced.filter { liq($0) >= minLiquidity }
+        if real.isEmpty { return priced.max { liq($0) < liq($1) } }
+        return real.max { (vol($0), liq($0)) < (vol($1), liq($1)) }
     }
 
     private struct SearchResult: Decodable { let pairs: [Pair]? }

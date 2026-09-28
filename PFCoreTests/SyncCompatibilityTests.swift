@@ -121,7 +121,7 @@ struct PriceFallbackTests {
         let tel = AssetCatalog.known.first { $0.symbol == "TEL" }!
         #expect(tel.id == "cg:telcoin" && tel.binanceSymbol == nil)
         #expect(DexScreenerProvider().supports(tel))
-        #expect(AssetCatalog.dexIdentity(tel)?.chain == "ethereum")
+        #expect(AssetCatalog.dexIdentity(tel)?.chains == ["ethereum", "base", "polygon"], "every chain CoinGecko lists for telcoin-2")
         #expect(AssetCatalog.dexIdentity(tel)?.contract == "0x7e13b43065380acdec1c2d138c579cbbbafa0731", "the canonical telcoin-2 contract")
         // A TEL identity synced from an older ledger (no chain/contract) is covered too.
         let synced = Asset(id: "cg:telcoin", symbol: "TEL", name: "Telcoin", coingeckoID: "telcoin-2")

@@ -41,16 +41,18 @@ public enum AssetCatalog {
     /// asset id: ledgers and synced asset records stay unchanged.
     ///
     /// TEL: CoinGecko `telcoin-2` lists one contract, 0x7e13b430…0731, on Ethereum, Base and
-    /// Polygon (checked 2026-09-28 via /coins/telcoin-2 detail_platforms). Ethereum has its most
-    /// liquid pool. The older 0xdF78… / 0x467B… tokens are the pre-migration TEL and are not used.
-    /// DEX liquidity is thin, so this price is approximate; the quote's source says DexScreener.
-    public static let dexFallback: [AssetID: (chain: String, contract: String)] = [
-        "cg:telcoin": ("ethereum", "0x7e13b43065380acdec1c2d138c579cbbbafa0731"),
+    /// Polygon (checked 2026-09-28 via /coins/telcoin-2 detail_platforms). All three are asked;
+    /// DexScreenerProvider takes the most-traded pool, because the deepest one (Ethereum) barely
+    /// trades and its price goes stale. The older 0xdF78… / 0x467B… tokens are the pre-migration
+    /// TEL and are not used. DEX pools are thin, so this price is approximate; the quote's source
+    /// says DexScreener.
+    public static let dexFallback: [AssetID: (chains: [String], contract: String)] = [
+        "cg:telcoin": (["ethereum", "base", "polygon"], "0x7e13b43065380acdec1c2d138c579cbbbafa0731"),
     ]
 
-    /// Chain + contract for DexScreener: the asset's own, else the fallback above.
-    public static func dexIdentity(_ a: Asset) -> (chain: String, contract: String)? {
-        if let c = a.chain, let x = a.contractAddress { return (c, x) }
+    /// Chains + contract for DexScreener: the asset's own (one chain), else the fallback above.
+    public static func dexIdentity(_ a: Asset) -> (chains: [String], contract: String)? {
+        if let c = a.chain, let x = a.contractAddress { return ([c], x) }
         return dexFallback[a.id]
     }
 

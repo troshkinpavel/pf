@@ -10,7 +10,8 @@ All notable changes to PF Terminal are documented here. The format follows [Keep
 - The macOS version now comes from `Config/Versions.xcconfig` (still 0.4.1, build 2).
 
 ### Added
-- TEL gets a second price source (DexScreener) when CoinGecko is rate-limited, using the canonical `telcoin-2` token (Ethereum `0x7e13…0731`, per CoinGecko). The asset id stays `cg:telcoin`.
+- TEL gets a second price source (DexScreener) when CoinGecko is rate-limited, using the canonical `telcoin-2` token (`0x7e13…0731` on Ethereum, Base and Polygon, per CoinGecko). The asset id stays `cg:telcoin`.
+- DexScreener prices come from the pool that trades most in 24h (pools under $1,000 liquidity are ignored), not the deepest one. TEL's deepest pool barely trades and was about 20% below the market.
 
 ### Fixed
 - Adding a transaction for an asset the portfolio doesn't hold now shows its current market price as the placeholder. With no market price the field stays empty and says "no market price".
