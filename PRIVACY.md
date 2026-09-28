@@ -30,9 +30,9 @@ PF Terminal does not intentionally send your portfolio balances, transaction his
 
 Third-party services may process network information such as your IP address according to their own privacy policies.
 
-## Face ID
+## Biometric authentication
 
-Face ID may be used to lock access to the app.
+Face ID or Touch ID may be used to lock access to the app, depending on the device.
 
 PF Terminal does not receive or store biometric data. Authentication is handled by the operating system.
 
