@@ -32,8 +32,9 @@ private struct MetricStrip: View {
             cell(first: true) {
                 CapsLabel(store.isAll ? "ALL PORTFOLIOS" : "NET VALUE")
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    TT(f.money(s.totalValue), 28, Theme.t1, weight: .medium, tracking: -0.28).minimumScaleFactor(0.6)
-                    if s.isPartial { TT("+\(s.unpriced.count) unpriced", 11, Theme.neg) }
+                    let total = s.totalParts(f)
+                    TT(total.value, 28, Theme.t1, weight: .medium, tracking: -0.28).minimumScaleFactor(0.6)
+                    if let note = total.note { TT("· " + note, 11, Theme.neg) }
                 }
                 HStack(spacing: 14) { TT(f.signed(s.change24h) + " today", 12, dc); TT(f.pct(s.change24hPct), 12, dc) }
             }

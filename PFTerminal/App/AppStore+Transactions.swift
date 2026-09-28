@@ -20,7 +20,7 @@ extension AppStore {
         palette = nil
         quickShare = false
         tx = d
-        if !d.asset.isEmpty, resolveAsset(d.asset) == nil { draftAssetChanged() }
+        if !d.asset.isEmpty { draftAssetChanged() }
     }
 
     func editTx(_ t: Transaction) {
@@ -39,7 +39,12 @@ extension AppStore {
         searchTask?.cancel()
         guard let d = tx else { return }
         let q = d.asset.trimmingCharacters(in: .whitespaces)
-        if q.count < 2 || resolveAsset(q) != nil { tx?.searchResults = []; tx?.searching = false; return }
+        if let a = resolveAsset(q) {
+            tx?.searchResults = []; tx?.searching = false
+            fetchDraftQuote(a)
+            return
+        }
+        if q.count < 2 { tx?.searchResults = []; tx?.searching = false; return }
         tx?.searching = true
         searchTask = Task {
             try? await Task.sleep(nanoseconds: 400_000_000)
@@ -51,6 +56,19 @@ extension AppStore {
             tx?.searching = false
             let qs = await probeSearchResults(r)
             if tx?.asset.trimmingCharacters(in: .whitespaces) == q { tx?.candidateQuotes = qs }
+        }
+    }
+
+    /// A known asset the portfolio doesn't hold isn't in the refresh set, so it has no quote yet:
+    /// fetch one for the price placeholder. No quote → the field stays empty ("no market price").
+    func fetchDraftQuote(_ a: Asset) {
+        guard quotes[a.id] == nil, tx?.candidateQuotes[a.id] == nil else { return }
+        tx?.searching = true
+        searchTask = Task {
+            let q = await router.quotes(for: [a], currency: settings.currency).quotes[a.id]
+            guard !Task.isCancelled, let d = tx, resolveAsset(d.asset)?.id == a.id else { return }
+            if let q { tx?.candidateQuotes[a.id] = q }
+            tx?.searching = false
         }
     }
 

@@ -284,3 +284,40 @@ struct WidgetContextTests {
         #expect(back?.contextID == trading.uuidString)
     }
 }
+
+/// Adding a transaction for an asset the portfolio doesn't hold: the market price is fetched for
+/// the placeholder when a provider has one; otherwise the field stays empty and says so.
+@MainActor
+struct TransactionPricePrefillTests {
+    func store() async -> AppStore {
+        let suite = "pf.test.\(UUID())"
+        var o = AppStore.Options()
+        o.directory = FileManager.default.temporaryDirectory.appendingPathComponent("pf-prefill-\(UUID())")
+        o.inMemory = true; o.defaults = UserDefaults(suiteName: suite)!; o.publishWidgets = false; o.mockMarket = true
+        let s = AppStore(o)
+        s.createEmpty()
+        await s.router.setProviders([MockMarketDataProvider()])
+        return s
+    }
+
+    @Test func untrackedAssetGetsMarketPricePlaceholder() async throws {
+        let s = await store()
+        let eth = try #require(AssetCatalog.known.first { $0.symbol == "ETH" })
+        #expect(s.quotes[eth.id] == nil && !s.doc.assets.contains(eth), "not held, not in the refresh set")
+        s.openTx(TxDraft(asset: "ETH"))
+        await s.searchTask?.value
+        #expect(s.tx?.candidateQuotes[eth.id]?.price == 3840)
+        let p = s.preview(try #require(s.tx))
+        #expect(p.pricePlaceholder.hasPrefix("market 3"))
+        #expect(s.tx?.price == "", "placeholder only; the typed field is not filled in")
+    }
+
+    @Test func noMarketPriceKeepsFieldEmptyAndSaysSo() async throws {
+        let s = await store()
+        s.openTx(TxDraft(asset: "SOL", amount: "1"))                    // the mock market has no SOL
+        await s.searchTask?.value
+        let p = s.preview(try #require(s.tx))
+        #expect(p.pricePlaceholder == "no market price · enter price")
+        #expect(!p.ok && p.tx == nil, "no price is invented")
+    }
+}

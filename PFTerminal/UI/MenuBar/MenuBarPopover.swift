@@ -28,7 +28,7 @@ struct MenuBarPopover: View {
                 TT(store.hasPortfolio ? "no positions yet" : "not set up yet", 12, Theme.t2)
             } else {
                 VStack(alignment: .leading, spacing: 4) {
-                    TT(f.money(s.totalValue), 24, Theme.t1, weight: .medium)
+                    TT(s.totalLabel(f), 24, Theme.t1, weight: .medium).minimumScaleFactor(0.5).lineLimit(1)
                     HStack {
                         HStack(spacing: 0) { TT(f.signed(s.change24h) + " ", 12, Theme.signColor(s.change24h)); TT("today", 12, Theme.t3) }
                         Spacer(); TT(f.pct(s.change24hPct), 12, Theme.signColor(s.change24h))

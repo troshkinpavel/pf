@@ -212,6 +212,17 @@ public struct PortfolioSummary: Sendable {
     public var returnPct: Double? { costBasis > 0 ? (unrealized / costBasis).double * 100 : nil }
 
     public func valuation(_ id: AssetID) -> PositionValuation? { positions.first { $0.asset.id == id } }
+
+    /// Headline total, the same on every platform: "$96,380.00" when fully priced,
+    /// "≈ $89,715.00 · 1 unpriced" when some open positions have no quote (their value is not guessed).
+    public func totalLabel(_ f: Fmt, _ dp: Int = 2) -> String {
+        let p = totalParts(f, dp); return p.note.map { "\(p.value) · \($0)" } ?? p.value
+    }
+
+    /// `totalLabel` split for headlines that set the note smaller: ("≈ $89,715.00", "1 unpriced").
+    public func totalParts(_ f: Fmt, _ dp: Int = 2) -> (value: String, note: String?) {
+        isPartial ? ("≈ " + f.money(totalValue, dp), "\(unpriced.count) unpriced") : (f.money(totalValue, dp), nil)
+    }
 }
 
 extension PortfolioEngine {

@@ -62,6 +62,7 @@ public enum TransactionPlanner {
             let isSearch = !doc.assets.contains(a) && !AssetCatalog.known.contains(a)
             p.assetHint = a.name.lowercased() + (quotes[a.id].map { " · " + f.price($0.price) } ?? "") + (isSearch ? " · " + (a.chain.map { "\($0) token" } ?? "coingecko:\(a.coingeckoID ?? "")") : "")
             if let q = quotes[a.id] ?? d.candidateQuotes[a.id] { p.pricePlaceholder = "market " + f.priceDigits(q.price.double) }
+            else { p.pricePlaceholder = d.searching ? "loading market price…" : "no market price · enter price" }
         } else if !d.asset.isEmpty {
             p.assetHint = d.searching ? "searching…" : "no match"
             p.assetHintError = !d.searching

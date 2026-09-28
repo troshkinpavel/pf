@@ -121,7 +121,8 @@ struct PriceFallbackTests {
         let tel = AssetCatalog.known.first { $0.symbol == "TEL" }!
         #expect(tel.id == "cg:telcoin" && tel.binanceSymbol == nil)
         #expect(DexScreenerProvider().supports(tel))
-        #expect(AssetCatalog.dexIdentity(tel)?.chain == "polygon")
+        #expect(AssetCatalog.dexIdentity(tel)?.chain == "ethereum")
+        #expect(AssetCatalog.dexIdentity(tel)?.contract == "0x7e13b43065380acdec1c2d138c579cbbbafa0731", "the canonical telcoin-2 contract")
         // A TEL identity synced from an older ledger (no chain/contract) is covered too.
         let synced = Asset(id: "cg:telcoin", symbol: "TEL", name: "Telcoin", coingeckoID: "telcoin-2")
         #expect(DexScreenerProvider().supports(synced))
@@ -133,5 +134,45 @@ struct PriceFallbackTests {
         let r = await ProviderRouter(providers: [Failing(), DexStub()]).quotes(for: [tel], currency: "USD")
         #expect(r.quotes[tel.id]?.source == "DexScreener")
         #expect(r.unresolved.isEmpty)
+    }
+}
+
+/// The headline total both apps show: exact when fully priced, "≈ … · N unpriced" otherwise.
+struct PartialTotalLabelTests {
+    let f = Fmt(style: .comma, currency: "USD")
+    let assets = Dictionary(uniqueKeysWithValues: ["BTC", "ETH", "TEL"].map { s in
+        let a = AssetCatalog.known.first { $0.symbol == s }!; return (a.id, a) })
+    var ids: [AssetID] { ["BTC", "ETH", "TEL"].map { s in assets.values.first { $0.symbol == s }!.id } }
+
+    func summary(priced: Set<Int>) -> PortfolioSummary {
+        let pid = UUID(), t0 = Date(timeIntervalSince1970: 1_700_000_000)
+        let txs = ids.map { Transaction(portfolioID: pid, assetID: $0, type: .buy, quantity: 1, price: 10, currency: "USD", timestamp: t0) }
+        let prices: [Decimal] = [90_000, 6_380, 0.002]
+        let quotes = Dictionary(uniqueKeysWithValues: priced.map { (ids[$0], Quote(price: prices[$0], source: "test", timestamp: t0)) })
+        return PortfolioEngine.summarize(transactions: txs, assets: assets, quotes: quotes, now: t0.addingTimeInterval(60))
+    }
+
+    @Test func fullyPriced() {
+        let s = summary(priced: [0, 1, 2])
+        #expect(!s.isPartial)
+        #expect(s.totalLabel(f) == "$96,380.00")
+    }
+
+    @Test func oneUnpriced() {
+        let s = summary(priced: [0, 1])
+        #expect(s.isPartial && s.unpriced == [ids[2]])
+        #expect(s.totalLabel(f) == "≈ $96,380.00 · 1 unpriced")
+        #expect(s.valuation(ids[2])?.value == nil, "the unpriced row stays unpriced, no guessed value")
+    }
+
+    @Test func multipleUnpriced() {
+        let s = summary(priced: [0])
+        #expect(s.totalLabel(f) == "≈ $90,000.00 · 2 unpriced")
+    }
+
+    @Test func recovery() {
+        #expect(summary(priced: [0]).isPartial)
+        let back = summary(priced: [0, 1, 2])
+        #expect(!back.isPartial && back.totalLabel(f, 0) == "$96,380")
     }
 }

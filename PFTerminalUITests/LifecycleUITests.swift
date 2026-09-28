@@ -52,7 +52,10 @@ final class LifecycleUITests: XCTestCase {
         // Deep link (the path widget taps use) while menu-bar-only
         closeMainWindow(app)
         waitForPolicy(.accessory, "closed again")
-        NSWorkspace.shared.open(URL(string: "pfterminal://portfolio")!)
+        // Send it to the app under test: other local builds and /Applications also register the scheme.
+        if let appURL = running?.bundleURL {
+            NSWorkspace.shared.open([URL(string: "pfterminal://portfolio")!], withApplicationAt: appURL, configuration: NSWorkspace.OpenConfiguration())
+        }
         XCTAssertTrue(app.staticTexts["DEMO"].waitForExistence(timeout: 10), "deep link opened the main window")
         waitForPolicy(.regular, "deep link: in Dock")
 

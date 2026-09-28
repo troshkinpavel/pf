@@ -39,8 +39,13 @@ public enum AssetCatalog {
     /// On-chain identity used as a price fallback for listed coins that no exchange provider
     /// covers (TEL is not on Binance, so CoinGecko was its only source). Keyed by the existing
     /// asset id: ledgers and synced asset records stay unchanged.
+    ///
+    /// TEL: CoinGecko `telcoin-2` lists one contract, 0x7e13b430…0731, on Ethereum, Base and
+    /// Polygon (checked 2026-09-28 via /coins/telcoin-2 detail_platforms). Ethereum has its most
+    /// liquid pool. The older 0xdF78… / 0x467B… tokens are the pre-migration TEL and are not used.
+    /// DEX liquidity is thin, so this price is approximate; the quote's source says DexScreener.
     public static let dexFallback: [AssetID: (chain: String, contract: String)] = [
-        "cg:telcoin": ("polygon", "0xdF7837DE1F2Fa4631D716CF2502f8b230F1dcc32"),   // Telcoin (PoS), most liquid EVM pool
+        "cg:telcoin": ("ethereum", "0x7e13b43065380acdec1c2d138c579cbbbafa0731"),
     ]
 
     /// Chain + contract for DexScreener: the asset's own, else the fallback above.
