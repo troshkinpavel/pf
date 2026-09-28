@@ -1,19 +1,20 @@
+import PFCore
 import Foundation
 
 // Deterministic sample snapshots for previews and the widget gallery. Never written to disk,
 // never shown when the app has published a real snapshot.
 
 extension WidgetPortfolioSnapshot {
-    static func previewPositive(now: Date) -> WidgetPortfolioSnapshot { sample(now: now) }
+    public static func previewPositive(now: Date) -> WidgetPortfolioSnapshot { sample(now: now) }
 
-    static func previewNegative(now: Date) -> WidgetPortfolioSnapshot {
+    public static func previewNegative(now: Date) -> WidgetPortfolioSnapshot {
         var s = sample(now: now, sign: -1)
         s.dailyChangeValue = -1_702.35; s.dailyChangePercent = -3.42; s.performanceChangePercent = -3.42
         s.unrealizedPnL = -4_011.48; s.unrealizedPnLPercent = -10.8
         return s
     }
 
-    static func previewPrivacy(now: Date) -> WidgetPortfolioSnapshot {
+    public static func previewPrivacy(now: Date) -> WidgetPortfolioSnapshot {
         var s = sample(now: now)
         s.privacyMode = .percentageOnly
         s.portfolioValue = nil; s.dailyChangeValue = nil; s.unrealizedPnL = nil
@@ -23,13 +24,13 @@ extension WidgetPortfolioSnapshot {
         return s
     }
 
-    static func previewStale(now: Date) -> WidgetPortfolioSnapshot {
+    public static func previewStale(now: Date) -> WidgetPortfolioSnapshot {
         var s = sample(now: now)
         s.generatedAt = now.addingTimeInterval(-3 * 3600); s.quotesAsOf = s.generatedAt
         return s
     }
 
-    static func previewEmpty(now: Date) -> WidgetPortfolioSnapshot {
+    public static func previewEmpty(now: Date) -> WidgetPortfolioSnapshot {
         var s = sample(now: now)
         s.hasPortfolio = false; s.portfolioValue = nil; s.positions = []; s.gainers = []; s.impact = []; s.performance = []
         return s

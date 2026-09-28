@@ -8,27 +8,27 @@ import Foundation
 ///
 /// Only construct this when the app is signed with the iCloud entitlement — CKContainer
 /// traps without it. The app checks that first (see AppStore+Sync).
-final class CloudKitSyncStore: SyncRemoteStore, @unchecked Sendable {
-    static let recordType = "PFRecord"
-    static let zoneName = "PFZone"
-    let zoneID: CKRecordZone.ID
+public final class CloudKitSyncStore: SyncRemoteStore, @unchecked Sendable {
+    public static let recordType = "PFRecord"
+    public static let zoneName = "PFZone"
+    public let zoneID: CKRecordZone.ID
 
     private let container: CKContainer
     private var db: CKDatabase { container.privateCloudDatabase }
 
     /// `zoneName` is overridable only for the DEBUG CloudKit self-test, which uses its own zone.
-    init(containerIdentifier: String, zoneName: String = CloudKitSyncStore.zoneName) {
+    public init(containerIdentifier: String, zoneName: String = CloudKitSyncStore.zoneName) {
         container = CKContainer(identifier: containerIdentifier)
         zoneID = CKRecordZone.ID(zoneName: zoneName, ownerName: CKCurrentUserDefaultName)
     }
 
     /// Removes this store's zone and everything in it (DEBUG self-test cleanup).
-    func deleteZone() async throws {
+    public func deleteZone() async throws {
         _ = try await db.modifyRecordZones(saving: [], deleting: [zoneID])
         zoneReady = false
     }
 
-    func accountStatus() async -> SyncAccountStatus {
+    public func accountStatus() async -> SyncAccountStatus {
         do {
             switch try await container.accountStatus() {
             case .available: return .available
@@ -43,12 +43,12 @@ final class CloudKitSyncStore: SyncRemoteStore, @unchecked Sendable {
         }
     }
 
-    func accountID() async throws -> String? {
+    public func accountID() async throws -> String? {
         do { return try await container.userRecordID().recordName }
         catch { throw Self.map(error) }
     }
 
-    func fetchChanges(since token: Data?) async throws -> SyncFetchResult {
+    public func fetchChanges(since token: Data?) async throws -> SyncFetchResult {
         var serverToken = token.flatMap { try? NSKeyedUnarchiver.unarchivedObject(ofClass: CKServerChangeToken.self, from: $0) }
         var out: [SyncRecord] = []
         while true {
@@ -76,7 +76,7 @@ final class CloudKitSyncStore: SyncRemoteStore, @unchecked Sendable {
         return SyncFetchResult(records: out, token: t)
     }
 
-    func save(_ records: [SyncRecord]) async throws -> [SyncSaveOutcome] {
+    public func save(_ records: [SyncRecord]) async throws -> [SyncSaveOutcome] {
         try await ensureZone()
         var out: [SyncSaveOutcome] = []
         for chunk in stride(from: 0, to: records.count, by: 300).map({ Array(records[$0..<min($0 + 300, records.count)]) }) {
@@ -113,7 +113,11 @@ final class CloudKitSyncStore: SyncRemoteStore, @unchecked Sendable {
 
     // MARK: mapping
 
-    func ckRecord(_ r: SyncRecord) -> CKRecord {
+    public func ckRecord(_ r: SyncRecord) -> CKRecord { Self.ckRecord(r, zoneID: zoneID) }
+
+    /// SyncRecord → CKRecord. Static (no container) so both platforms' tests can check the
+    /// exact field mapping without iCloud.
+    public static func ckRecord(_ r: SyncRecord, zoneID: CKRecordZone.ID) -> CKRecord {
         let rec: CKRecord
         if let tag = r.remoteTag, let coder = try? NSKeyedUnarchiver(forReadingFrom: tag) {
             coder.requiresSecureCoding = true
@@ -134,7 +138,7 @@ final class CloudKitSyncStore: SyncRemoteStore, @unchecked Sendable {
         return rec
     }
 
-    static func record(_ c: CKRecord) -> SyncRecord? {
+    public static func record(_ c: CKRecord) -> SyncRecord? {
         guard let k = (c["kind"] as? String).flatMap(SyncKind.init), let id = c["id"] as? String,
               let mod = c["modifiedAt"] as? Date else { return nil }
         return SyncRecord(kind: k, id: id, schemaVersion: c["schemaVersion"] as? Int ?? 1, modifiedAt: mod,
@@ -143,14 +147,14 @@ final class CloudKitSyncStore: SyncRemoteStore, @unchecked Sendable {
                           portfolioID: c["portfolioID"] as? String, remoteTag: systemFields(c), remoteVersion: c.recordChangeTag)
     }
 
-    static func systemFields(_ c: CKRecord) -> Data {
+    public static func systemFields(_ c: CKRecord) -> Data {
         let coder = NSKeyedArchiver(requiringSecureCoding: true)
         c.encodeSystemFields(with: coder)
         coder.finishEncoding()
         return coder.encodedData
     }
 
-    static func map(_ error: Error) -> SyncStoreError {
+    public static func map(_ error: Error) -> SyncStoreError {
         guard let e = error as? CKError else { return .unavailable(error.localizedDescription) }
         switch e.code {
         case .networkUnavailable, .networkFailure, .serviceUnavailable, .requestRateLimited, .zoneBusy: return .offline

@@ -3,28 +3,30 @@ import Foundation
 /// Deterministic offline market for development, previews, screenshots and tests.
 /// Never used unless explicitly selected (DEBUG setting or `--mock-market`).
 /// Values reproduce the design prototype.
-struct MockMarketDataProvider: MarketDataProvider {
-    let name = "Mock"
-    var now: @Sendable () -> Date = Date.init
+public struct MockMarketDataProvider: MarketDataProvider {
+    public init(now: @escaping @Sendable () -> Date = Date.init) { self.now = now }
+    public let name = "Mock"
+    public var now: @Sendable () -> Date = Date.init
 
-    struct Spec: Sendable {
-        let price: Double, supply: Double, ath: Double, vol: Double
-        let ch: [ChangePeriod: Double]
-        let noise: Double
+    public struct Spec: Sendable {
+        public init(price: Double, supply: Double, ath: Double, vol: Double, ch: [ChangePeriod: Double], noise: Double) { self.price = price; self.supply = supply; self.ath = ath; self.vol = vol; self.ch = ch; self.noise = noise }
+        public let price: Double, supply: Double, ath: Double, vol: Double
+        public let ch: [ChangePeriod: Double]
+        public let noise: Double
     }
 
-    static let specs: [String: Spec] = [
+    public static let specs: [String: Spec] = [
         "bitcoin": .init(price: 91420, supply: 19.93e6, ath: 126_080, vol: 38.2e9, ch: [.h1: 0.12, .h24: 2.41, .d7: -0.84, .d30: 5.62, .y1: 38.9], noise: 1),
         "telcoin-2": .init(price: 0.00431, supply: 91.4e9, ath: 0.0636, vol: 14.8e6, ch: [.h1: 0.64, .h24: 8.72, .d7: 18.21, .d30: 41.3, .y1: 62.4], noise: 1.6),
         "zcash": .init(price: 182.4, supply: 16.3e6, ath: 5941.8, vol: 612e6, ch: [.h1: -0.21, .h24: -1.32, .d7: -6.4, .d30: 12.8, .y1: 84.2], noise: 1.3),
         "ethereum": .init(price: 3840, supply: 120.7e6, ath: 4953, vol: 21.4e9, ch: [.h1: 0.08, .h24: 1.87, .d7: 3.1, .d30: -2.2, .y1: 44.1], noise: 1.1),
     ]
 
-    static let assets: [Asset] = ["bitcoin", "telcoin-2", "zcash", "ethereum"].compactMap { id in AssetCatalog.known.first { $0.coingeckoID == id } }
+    public static let assets: [Asset] = ["bitcoin", "telcoin-2", "zcash", "ethereum"].compactMap { id in AssetCatalog.known.first { $0.coingeckoID == id } }
 
-    func supports(_ asset: Asset) -> Bool { asset.coingeckoID.map { Self.specs[$0] != nil } ?? false }
+    public func supports(_ asset: Asset) -> Bool { asset.coingeckoID.map { Self.specs[$0] != nil } ?? false }
 
-    func quotes(for assets: [Asset], currency: String) async throws -> [AssetID: Quote] {
+    public func quotes(for assets: [Asset], currency: String) async throws -> [AssetID: Quote] {
         var out: [AssetID: Quote] = [:]
         for a in assets {
             guard let id = a.coingeckoID, let s = Self.specs[id] else { continue }
@@ -34,19 +36,19 @@ struct MockMarketDataProvider: MarketDataProvider {
         return out
     }
 
-    func history(for asset: Asset, range: ChartRange, currency: String) async throws -> [PricePoint] {
+    public func history(for asset: Asset, range: ChartRange, currency: String) async throws -> [PricePoint] {
         guard let id = asset.coingeckoID, let s = Self.specs[id] else { throw MarketError.unsupported }
         let end = now()
         let start = range == .all ? end.addingTimeInterval(-3 * 365 * 86400) : range.start(now: end, firstTransaction: nil)
         return PortfolioHistoryEngine.grid(start: start, end: end, count: 240).map { PricePoint(time: $0, price: Self.price(s, seed: id, at: $0, now: end)) }
     }
 
-    func search(_ query: String) async throws -> [Asset] {
+    public func search(_ query: String) async throws -> [Asset] {
         Self.assets.filter { Fuzzy.score(query, $0.symbol + " " + $0.name) > 0 }
     }
 
     /// Continuous deterministic path through the quoted period changes (knots), with seeded wiggle between knots.
-    static func price(_ s: Spec, seed: String, at t: Date, now: Date) -> Double {
+    public static func price(_ s: Spec, seed: String, at t: Date, now: Date) -> Double {
         let ago = now.timeIntervalSince(t)
         func p(_ c: ChangePeriod) -> Double { s.price / (1 + (s.ch[c] ?? 0) / 100) }
         let knots: [(TimeInterval, Double)] = [
@@ -68,9 +70,9 @@ struct MockMarketDataProvider: MarketDataProvider {
     }
 }
 
-enum DemoPortfolio {
+public enum DemoPortfolio {
     /// The prototype's ledger, clearly marked demo; removable in one action.
-    static func transactions(portfolio: UUID = Transaction.unassigned) -> [Transaction] {
+    public static func transactions(portfolio: UUID = Transaction.unassigned) -> [Transaction] {
         let rows: [(String, Double, Double, String)] = [
             ("bitcoin", 0.12, 58400, "2024-09-06"), ("ethereum", 1.2, 3020, "2025-02-01"),
             ("telcoin", 1_200_000, 0.00241, "2025-11-04"), ("zcash", 30, 128.5, "2025-12-19"),

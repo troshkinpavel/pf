@@ -1,13 +1,15 @@
+import PFCore
 import SwiftUI
 
 /// PF Terminal's stepped line (─╯ ╭─) drawn as a vector path so it renders crisply at any
 /// widget size. Values are quantised to `levels` rows, like the app's ASCII charts.
-struct StepLineShape: Shape {
-    let values: [Double]          // any scale; normalised internally
-    var levels = 7
-    var cornerRadius: CGFloat = 3
+public struct StepLineShape: Shape {
+    public init(values: [Double], levels: Int = 7, cornerRadius: CGFloat = 3) { self.values = values; self.levels = levels; self.cornerRadius = cornerRadius }
+    public let values: [Double]          // any scale; normalised internally
+    public var levels = 7
+    public var cornerRadius: CGFloat = 3
 
-    func path(in rect: CGRect) -> Path {
+    public func path(in rect: CGRect) -> Path {
         var p = Path()
         guard values.count >= 2, let mn = values.min(), let mx = values.max() else { return p }
         let rg = mx - mn == 0 ? 1 : mx - mn
@@ -32,7 +34,7 @@ struct StepLineShape: Shape {
     }
 
     /// Linear resample to `n` points (endpoints kept).
-    static func resample(_ v: [Double], to n: Int) -> [Double] {
+    public static func resample(_ v: [Double], to n: Int) -> [Double] {
         guard v.count >= 2, n >= 2 else { return v }
         return (0..<n).map { i in
             let x = Double(i) / Double(n - 1) * Double(v.count - 1)
@@ -43,14 +45,17 @@ struct StepLineShape: Shape {
 }
 
 /// Stepped performance line sized to its container: one step per ~`cell` points of width.
-struct StepLineChart: View {
-    let values: [Double]
-    let color: Color
-    var cell: CGFloat = 7
-    var levels = 7
-    var lineWidth: CGFloat = 1.2
+public struct StepLineChart: View {
+    public init(values: [Double], color: Color, cell: CGFloat = 7, levels: Int = 7, lineWidth: CGFloat = 1.2) {
+        self.values = values; self.color = color; self.cell = cell; self.levels = levels; self.lineWidth = lineWidth
+    }
+    public let values: [Double]
+    public let color: Color
+    public var cell: CGFloat = 7
+    public var levels = 7
+    public var lineWidth: CGFloat = 1.2
 
-    var body: some View {
+    public var body: some View {
         GeometryReader { geo in
             let n = max(8, Int(geo.size.width / cell))
             StepLineShape(values: StepLineShape.resample(values, to: n), levels: levels, cornerRadius: min(3, cell / 2))

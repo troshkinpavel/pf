@@ -1,3 +1,5 @@
+import PFCore
+import PFCoreTestSupport
 import Foundation
 import Testing
 @testable import PFTerminal

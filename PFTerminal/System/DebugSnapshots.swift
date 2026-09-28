@@ -1,4 +1,6 @@
 #if DEBUG
+import PFCore
+import PFCoreUI
 import AppKit
 import SwiftUI
 
@@ -57,7 +59,7 @@ enum DebugSnapshots {
                 capture(store.mainWindow, to: dir.appendingPathComponent(name + ".png"))
             }
             store.quickShare = false
-            for f in ShareFormat.allCases {
+            for f in ShareFormat.mac {
                 for t in ShareTheme.allCases {
                     var c = store.share
                     c.format = f; c.theme = t

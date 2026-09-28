@@ -4,7 +4,7 @@ import Foundation
 /// Whoever owns the live document (AppStore on macOS; a mock in tests; a future iOS store).
 /// Every pure step runs on the main actor between awaits and always reads the *current*
 /// document, so edits made while a network call is in flight are never lost.
-@MainActor protocol SyncHost: AnyObject {
+@MainActor public protocol SyncHost: AnyObject {
     var syncDocument: PortfolioDocument { get set }
     var syncState: SyncState { get set }
 }
@@ -18,29 +18,30 @@ import Foundation
 /// - edit vs delete → the edit is kept (no data loss); the delete is kept for review.
 /// - edit vs edit   → the newer edit wins; the other version is kept for review.
 /// - assets (identity metadata) → newer wins, no review.
-enum SyncEngine {
+public enum SyncEngine {
     // MARK: - local objects
 
-    struct LocalObject {
-        var kind: SyncKind
-        var id: String
-        var payload: Data
-        var hash: String
-        var portfolioID: String?
+    public struct LocalObject {
+        public init(kind: SyncKind, id: String, payload: Data, hash: String, portfolioID: String? = nil) { self.kind = kind; self.id = id; self.payload = payload; self.hash = hash; self.portfolioID = portfolioID }
+        public var kind: SyncKind
+        public var id: String
+        public var payload: Data
+        public var hash: String
+        public var portfolioID: String?
     }
 
-    static let encoder: JSONEncoder = {
+    public static let encoder: JSONEncoder = {
         let e = JSONEncoder()
         e.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
         e.dateEncodingStrategy = .iso8601
         return e
     }()
 
-    static func hash(_ d: Data) -> String {
+    public static func hash(_ d: Data) -> String {
         SHA256.hash(data: d).prefix(16).map { String(format: "%02x", $0) }.joined()
     }
 
-    static func localObjects(_ d: PortfolioDocument) -> [String: LocalObject] {
+    public static func localObjects(_ d: PortfolioDocument) -> [String: LocalObject] {
         var out: [String: LocalObject] = [:]
         func add<T: Encodable>(_ kind: SyncKind, _ id: String, _ v: T, pid: String? = nil) {
             guard let data = try? encoder.encode(v) else { return }
@@ -52,7 +53,7 @@ enum SyncEngine {
         return out
     }
 
-    static func split(_ key: String) -> (SyncKind, String)? {
+    public static func split(_ key: String) -> (SyncKind, String)? {
         guard let dot = key.firstIndex(of: "."), let k = SyncKind(rawValue: String(key[..<dot])) else { return nil }
         return (k, String(key[key.index(after: dot)...]))
     }
@@ -61,7 +62,7 @@ enum SyncEngine {
 
     /// Compare the document with the last known state; queue what changed. Returns the count.
     @discardableResult
-    static func detectLocalChanges(_ doc: PortfolioDocument, _ st: inout SyncState, now: Date) -> Int {
+    public static func detectLocalChanges(_ doc: PortfolioDocument, _ st: inout SyncState, now: Date) -> Int {
         let local = localObjects(doc)
         var n = 0
         for (k, o) in local where !st.blocked.contains(k) {
@@ -79,7 +80,7 @@ enum SyncEngine {
     }
 
     /// The local version of a record (payload or tombstone), as it would be sent.
-    static func record(_ key: String, _ doc: PortfolioDocument, _ st: SyncState, local: [String: LocalObject]? = nil) -> SyncRecord? {
+    public static func record(_ key: String, _ doc: PortfolioDocument, _ st: SyncState, local: [String: LocalObject]? = nil) -> SyncRecord? {
         guard let (kind, id) = split(key), let e = st.known[key] else { return nil }
         let o = (local ?? localObjects(doc))[key]
         return SyncRecord(kind: kind, id: id, modifiedAt: e.modifiedAt, deletedAt: o == nil ? (e.deletedAt ?? e.modifiedAt) : nil,
@@ -87,14 +88,15 @@ enum SyncEngine {
                           portfolioID: o?.portfolioID, remoteTag: e.tag, remoteVersion: e.version)
     }
 
-    static func pendingRecords(_ doc: PortfolioDocument, _ st: SyncState) -> [SyncRecord] {
+    public static func pendingRecords(_ doc: PortfolioDocument, _ st: SyncState) -> [SyncRecord] {
         let local = localObjects(doc)
         return st.known.filter { $0.value.pending && !st.blocked.contains($0.key) }.keys.sorted()
             .compactMap { record($0, doc, st, local: local) }
     }
 
     /// Apply fetched records. Local pending changes are resolved per the rules above.
-    static func applyRemote(_ records: [SyncRecord], _ doc: inout PortfolioDocument, _ st: inout SyncState, now: Date) {
+    public static func applyRemote(_ records: [SyncRecord], _ doc: inout PortfolioDocument, _ st: inout SyncState, now: Date) {
+        noteDevices(records, &st)
         for r in records {
             let k = r.key
             if r.schemaVersion > SyncRecord.currentSchema { st.blocked.insert(k); continue }
@@ -134,6 +136,17 @@ enum SyncEngine {
         }
     }
 
+    /// Remembers which other devices changed data, for "last change · MacBook Pro · 2m ago".
+    public static func noteDevices(_ records: [SyncRecord], _ st: inout SyncState) {
+        for r in records where r.deviceID != st.deviceID {
+            let name = (r.deviceName ?? "").isEmpty ? "another device" : r.deviceName!
+            var d = st.devices ?? [:]
+            if (d[name] ?? .distantPast) < r.modifiedAt { d[name] = r.modifiedAt }
+            st.devices = d
+            if (st.lastRemoteChange?.at ?? .distantPast) < r.modifiedAt { st.lastRemoteChange = SyncDeviceStamp(device: name, at: r.modifiedAt) }
+        }
+    }
+
     private static func addConflict(_ st: inout SyncState, key: String, kind: SyncKind, reason: String, other: SyncRecord, now: Date) {
         var o = other
         o.remoteTag = nil
@@ -143,7 +156,7 @@ enum SyncEngine {
 
     /// Upsert or remove one record in the document. False if the payload can't be decoded.
     @discardableResult
-    static func apply(_ r: SyncRecord, _ doc: inout PortfolioDocument) -> Bool {
+    public static func apply(_ r: SyncRecord, _ doc: inout PortfolioDocument) -> Bool {
         let dec = PortfolioDocument.decoder
         switch r.kind {
         case .portfolio:
@@ -166,7 +179,7 @@ enum SyncEngine {
 
     /// Restore document invariants after a merge. Deterministic, so two devices normalizing
     /// the same data produce the same records.
-    static func normalize(_ doc: inout PortfolioDocument, _ st: SyncState, now: Date) {
+    public static func normalize(_ doc: inout PortfolioDocument, _ st: SyncState, now: Date) {
         // A transaction whose portfolio was deleted elsewhere: keep it in a recovered portfolio.
         let pids = Set(doc.portfolios.map(\.id))
         let orphaned = Set(doc.transactions.map(\.portfolioID)).subtracting(pids)
@@ -187,7 +200,7 @@ enum SyncEngine {
         }
     }
 
-    static func applySaveOutcomes(sent: [SyncRecord], _ outcomes: [SyncSaveOutcome], _ doc: inout PortfolioDocument, _ st: inout SyncState, now: Date) {
+    public static func applySaveOutcomes(sent: [SyncRecord], _ outcomes: [SyncSaveOutcome], _ doc: inout PortfolioDocument, _ st: inout SyncState, now: Date) {
         let sentHash = Dictionary(sent.map { ($0.key, $0.isTombstone ? "" : hash($0.payload ?? Data())) }, uniquingKeysWith: { a, _ in a })
         var conflicts: [SyncRecord] = []
         for o in outcomes {
@@ -211,7 +224,7 @@ enum SyncEngine {
     /// One full sync: fetch → merge → push, retrying server conflicts. Throws on account
     /// or network problems; local pending changes stay queued either way.
     @MainActor
-    static func cycle(_ host: SyncHost, remote: SyncRemoteStore, now: @escaping () -> Date = Date.init) async throws {
+    public static func cycle(_ host: SyncHost, remote: SyncRemoteStore, now: @escaping () -> Date = Date.init) async throws {
         try await checkAccount(host, remote)
         let fetched = try await remote.fetchChanges(since: host.syncState.token)
         var doc = host.syncDocument, st = host.syncState
@@ -258,29 +271,38 @@ enum SyncEngine {
 
     // MARK: - enabling
 
-    enum Plan: Equatable, Sendable {
+    public enum Plan: Equatable, Sendable {
         case upload        // iCloud is empty: upload this Mac's data
         case useCloud      // this Mac is empty: download iCloud's data
         case choose        // both have data: MERGE or USE ICLOUD (or cancel)
         case resume        // both hold the same records already
     }
 
-    enum Choice: Sendable { case upload, useCloud, merge }
+    public enum Choice: Sendable { case upload, useCloud, merge }
 
-    struct Inspection: Equatable, Sendable {
-        var plan: Plan
-        var localPortfolios = 0, localTransactions = 0
-        var cloudPortfolios = 0, cloudTransactions = 0
-        var cloudDevices: [String] = []
+    public struct Inspection: Equatable, Sendable {
+        public init(plan: Plan, localPortfolios: Int = 0, localTransactions: Int = 0, cloudPortfolios: Int = 0, cloudTransactions: Int = 0,
+                    cloudDevices: [String] = [], cloudDocument: PortfolioDocument? = nil, lastChange: SyncDeviceStamp? = nil) {
+            self.plan = plan; self.localPortfolios = localPortfolios; self.localTransactions = localTransactions
+            self.cloudPortfolios = cloudPortfolios; self.cloudTransactions = cloudTransactions; self.cloudDevices = cloudDevices
+            self.cloudDocument = cloudDocument; self.lastChange = lastChange
+        }
+        public var plan: Plan
+        public var localPortfolios = 0, localTransactions = 0
+        public var cloudPortfolios = 0, cloudTransactions = 0
+        public var cloudDevices: [String] = []
+        /// What iCloud holds, decoded for display only (nothing is applied by `inspect`).
+        public var cloudDocument: PortfolioDocument?
+        public var lastChange: SyncDeviceStamp?
     }
 
-    static func isEmpty(_ d: PortfolioDocument) -> Bool {
+    public static func isEmpty(_ d: PortfolioDocument) -> Bool {
         d.transactions.isEmpty && d.portfolios.count <= 1
     }
 
     /// Read-only look at both sides before anything is uploaded or replaced.
     @MainActor
-    static func inspect(_ host: SyncHost, remote: SyncRemoteStore) async throws -> Inspection {
+    public static func inspect(_ host: SyncHost, remote: SyncRemoteStore) async throws -> Inspection {
         var probe = host.syncState
         probe.accountID = nil
         let tmp = ProbeHost(doc: host.syncDocument, state: probe)
@@ -295,6 +317,14 @@ enum SyncEngine {
         let cloudEmpty = i.cloudPortfolios == 0 && i.cloudTransactions == 0
         let local = localObjects(doc).filter { $0.value.kind != .asset }.mapValues(\.hash)
         let cloud = Dictionary(all.filter { $0.kind != .asset }.map { ($0.key, hash($0.payload ?? Data())) }, uniquingKeysWith: { a, _ in a })
+        var preview = PortfolioDocument(portfolios: [])
+        var scratch = SyncState()
+        scratch.deviceID = host.syncState.deviceID
+        applyRemote(all, &preview, &scratch, now: Date())
+        i.cloudDocument = preview
+        i.lastChange = all.max { $0.modifiedAt < $1.modifiedAt }.map {
+            SyncDeviceStamp(device: ($0.deviceName ?? "").isEmpty ? "another device" : $0.deviceName!, at: $0.modifiedAt)
+        }
         if cloudEmpty { i.plan = .upload }
         else if local == cloud { i.plan = .resume }
         else if isEmpty(doc) { i.plan = .useCloud }
@@ -306,7 +336,7 @@ enum SyncEngine {
     /// the local file up first); `upload` and `merge` both union by record id: local records
     /// are queued, remote ones applied, and records with the same id resolved as conflicts.
     @MainActor
-    static func enable(_ host: SyncHost, remote: SyncRemoteStore, choice: Choice, deviceName: String,
+    public static func enable(_ host: SyncHost, remote: SyncRemoteStore, choice: Choice, deviceName: String,
                        now: @escaping () -> Date = Date.init) async throws {
         var st = SyncState()
         st.mode = .iCloud
@@ -331,7 +361,7 @@ enum SyncEngine {
 
     /// Turn sync off. Local data is untouched; iCloud data is left as is.
     @MainActor
-    static func disable(_ host: SyncHost) {
+    public static func disable(_ host: SyncHost) {
         var st = SyncState()
         st.deviceID = host.syncState.deviceID
         st.deviceName = host.syncState.deviceName
@@ -339,7 +369,7 @@ enum SyncEngine {
     }
 
     /// Apply the version kept aside in a conflict instead of the current one.
-    static func restore(_ c: SyncConflict, _ doc: inout PortfolioDocument, _ st: inout SyncState) {
+    public static func restore(_ c: SyncConflict, _ doc: inout PortfolioDocument, _ st: inout SyncState) {
         var r = c.other
         if r.isTombstone { r.payload = nil }
         apply(r, &doc)
@@ -350,7 +380,7 @@ enum SyncEngine {
 
 @MainActor
 private final class ProbeHost: SyncHost {
-    var syncDocument: PortfolioDocument
-    var syncState: SyncState
-    init(doc: PortfolioDocument, state: SyncState) { syncDocument = doc; syncState = state }
+    public var syncDocument: PortfolioDocument
+    public var syncState: SyncState
+    public init(doc: PortfolioDocument, state: SyncState) { syncDocument = doc; syncState = state }
 }

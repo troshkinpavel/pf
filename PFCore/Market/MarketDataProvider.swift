@@ -1,13 +1,13 @@
 import Foundation
 
-enum MarketError: Error, Equatable, CustomStringConvertible {
+public enum MarketError: Error, Equatable, CustomStringConvertible {
     case offline
     case rateLimited(retryAfter: TimeInterval?)
     case unavailable(Int)        // HTTP status (e.g. 451 geo-block, 5xx)
     case decoding
     case unsupported
 
-    var description: String {
+    public var description: String {
         switch self {
         case .offline: "no internet connection"
         case let .rateLimited(r): "rate limited" + (r.map { " · retry in \(Int($0))s" } ?? "")
@@ -19,7 +19,7 @@ enum MarketError: Error, Equatable, CustomStringConvertible {
 }
 
 /// A source of market data. Views never see which provider answered.
-protocol MarketDataProvider: Sendable {
+public protocol MarketDataProvider: Sendable {
     var name: String { get }
     func supports(_ asset: Asset) -> Bool
     func quotes(for assets: [Asset], currency: String) async throws -> [AssetID: Quote]
@@ -28,20 +28,20 @@ protocol MarketDataProvider: Sendable {
 }
 
 extension MarketDataProvider {
-    func history(for asset: Asset, range: ChartRange, currency: String) async throws -> [PricePoint] { throw MarketError.unsupported }
-    func search(_ query: String) async throws -> [Asset] { [] }
+    public func history(for asset: Asset, range: ChartRange, currency: String) async throws -> [PricePoint] { throw MarketError.unsupported }
+    public func search(_ query: String) async throws -> [Asset] { [] }
 }
 
 /// Minimal HTTP client. Ephemeral session: no cookies, no persistent cache, no identifiers.
-enum HTTP {
-    static let session: URLSession = {
+public enum HTTP {
+    public static let session: URLSession = {
         let c = URLSessionConfiguration.ephemeral
         c.timeoutIntervalForRequest = 15
         c.httpAdditionalHeaders = ["Accept": "application/json"]
         return URLSession(configuration: c)
     }()
 
-    static func get(_ url: URL, headers: [String: String] = [:]) async throws -> Data {
+    public static func get(_ url: URL, headers: [String: String] = [:]) async throws -> Data {
         var req = URLRequest(url: url)
         headers.forEach { req.setValue($1, forHTTPHeaderField: $0) }
         let data: Data, resp: URLResponse
@@ -59,16 +59,16 @@ enum HTTP {
         }
     }
 
-    static func json<T: Decodable>(_ type: T.Type, _ url: URL, headers: [String: String] = [:]) async throws -> T {
+    public static func json<T: Decodable>(_ type: T.Type, _ url: URL, headers: [String: String] = [:]) async throws -> T {
         let d = try await get(url, headers: headers)
         do { return try JSONDecoder().decode(T.self, from: d) } catch { throw MarketError.decoding }
     }
 }
 
 /// Lenient number decoding: providers mix strings and numbers.
-struct FlexDouble: Decodable, Sendable {
-    let value: Double?
-    init(from decoder: Decoder) throws {
+public struct FlexDouble: Decodable, Sendable {
+    public let value: Double?
+    public init(from decoder: Decoder) throws {
         let c = try decoder.singleValueContainer()
         if let d = try? c.decode(Double.self) { value = d }
         else if let s = try? c.decode(String.self) { value = Double(s) }
@@ -78,14 +78,15 @@ struct FlexDouble: Decodable, Sendable {
 
 /// Queries providers in priority order, falls through per asset, backs off failing providers,
 /// and fills missing metadata (supply, ATH, multi-period change) from later providers.
-actor ProviderRouter {
-    struct Result: Sendable {
-        var quotes: [AssetID: Quote] = [:]
-        var errors: [String: MarketError] = [:]
-        var unresolved: [AssetID] = []
+public actor ProviderRouter {
+    public struct Result: Sendable {
+        public init(quotes: [AssetID: Quote] = [:], errors: [String: MarketError] = [:], unresolved: [AssetID] = []) { self.quotes = quotes; self.errors = errors; self.unresolved = unresolved }
+        public var quotes: [AssetID: Quote] = [:]
+        public var errors: [String: MarketError] = [:]
+        public var unresolved: [AssetID] = []
     }
 
-    private(set) var providers: [MarketDataProvider]
+    public private(set) var providers: [MarketDataProvider]
     private var failures: [String: Int] = [:]
     private var blockedUntil: [String: Date] = [:]
     private var metadata: [AssetID: Quote] = [:]
@@ -93,14 +94,14 @@ actor ProviderRouter {
     private let metadataTTL: TimeInterval = 15 * 60
     private let now: @Sendable () -> Date
 
-    init(providers: [MarketDataProvider], now: @escaping @Sendable () -> Date = Date.init) {
+    public init(providers: [MarketDataProvider], now: @escaping @Sendable () -> Date = Date.init) {
         self.providers = providers
         self.now = now
     }
 
-    func setProviders(_ p: [MarketDataProvider]) { providers = p; metadataAt = .distantPast }
+    public func setProviders(_ p: [MarketDataProvider]) { providers = p; metadataAt = .distantPast }
 
-    func isBlocked(_ name: String) -> Bool { (blockedUntil[name] ?? .distantPast) > now() }
+    public func isBlocked(_ name: String) -> Bool { (blockedUntil[name] ?? .distantPast) > now() }
 
     private func recordFailure(_ name: String, _ e: MarketError) {
         let n = (failures[name] ?? 0) + 1
@@ -113,7 +114,7 @@ actor ProviderRouter {
 
     private func recordSuccess(_ name: String) { failures[name] = 0; blockedUntil[name] = nil }
 
-    func quotes(for assets: [Asset], currency: String) async -> Result {
+    public func quotes(for assets: [Asset], currency: String) async -> Result {
         var r = Result()
         var remaining = assets
         var answeredBy: [AssetID: String] = [:]
@@ -166,7 +167,7 @@ actor ProviderRouter {
         return r
     }
 
-    func history(for asset: Asset, range: ChartRange, currency: String) async throws -> [PricePoint] {
+    public func history(for asset: Asset, range: ChartRange, currency: String) async throws -> [PricePoint] {
         var last: MarketError = .unsupported
         for p in providers where p.supports(asset) && !isBlocked(p.name) {
             do {
@@ -182,7 +183,7 @@ actor ProviderRouter {
     }
 
     /// Listed coins (CoinGecko) before DEX tokens; exact symbol matches first within each.
-    func search(_ query: String) async -> [Asset] {
+    public func search(_ query: String) async -> [Asset] {
         var out: [Asset] = []
         var seen = Set<AssetID>()
         for p in providers where !isBlocked(p.name) {
@@ -195,7 +196,7 @@ actor ProviderRouter {
     }
 
     /// Quote one identity from one named provider (for comparing sources). Ignores backoff.
-    func probe(_ asset: Asset, provider name: String, currency: String) async -> Quote? {
+    public func probe(_ asset: Asset, provider name: String, currency: String) async -> Quote? {
         guard let p = providers.first(where: { $0.name == name }) ?? Self.extra(name), p.supports(asset) else { return nil }
         return try? await p.quotes(for: [asset], currency: currency)[asset.id]
     }

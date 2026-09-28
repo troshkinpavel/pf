@@ -1,3 +1,5 @@
+import PFCore
+import PFCoreUI
 import SwiftUI
 
 /// Separates "moved the most in %" from "moved the portfolio the most in $".

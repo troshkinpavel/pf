@@ -1,16 +1,21 @@
-import AppKit
+import PFCore
 import SwiftUI
 
-/// Social card. Separately composed per format; renders only what `ShareCardModel` contains.
-struct ShareCardView: View {
-    let m: ShareCardModel
+// App-only shared UI (macOS + iOS apps, not the widgets): one share card design, rendered by
+// ShareRenderer (AppKit) on the Mac and ImageRenderer → share sheet on iPhone.
 
-    struct Palette { let bg, fg, dim, border, pos, neg, bar: Color }
-    struct Layout {
-        let pad, gap, chartFont, heroValue, heroPct, pctWithValue, moverFont, moverRow, label: CGFloat
+/// Social card. Separately composed per format; renders only what `ShareCardModel` contains.
+public struct ShareCardView: View {
+    public init(m: ShareCardModel) { self.m = m }
+    public let m: ShareCardModel
+
+    public struct Palette { public let bg, fg, dim, border, pos, neg, bar: Color }
+    public struct Layout {
+        public init(pad: CGFloat, gap: CGFloat, chartFont: CGFloat, heroValue: CGFloat, heroPct: CGFloat, pctWithValue: CGFloat, moverFont: CGFloat, moverRow: CGFloat, label: CGFloat) { self.pad = pad; self.gap = gap; self.chartFont = chartFont; self.heroValue = heroValue; self.heroPct = heroPct; self.pctWithValue = pctWithValue; self.moverFont = moverFont; self.moverRow = moverRow; self.label = label }
+        public let pad, gap, chartFont, heroValue, heroPct, pctWithValue, moverFont, moverRow, label: CGFloat
     }
 
-    static func palette(_ t: ShareTheme) -> Palette {
+    public static func palette(_ t: ShareTheme) -> Palette {
         switch t {
         case .terminal: .init(bg: Color(hex: 0x0e0f11), fg: Color(hex: 0xe4e5e7), dim: Color(hex: 0x7a7e85), border: Color(hex: 0x232529), pos: Theme.pos, neg: Theme.neg, bar: Color(hex: 0x8b8f96))
         case .monochrome: .init(bg: Color(hex: 0xeeeeea), fg: Color(hex: 0x141414), dim: Color(hex: 0x6b6b66), border: Color(hex: 0xcfcfc9), pos: Color(hex: 0x141414), neg: Color(hex: 0x141414), bar: Color(hex: 0x141414))
@@ -18,11 +23,12 @@ struct ShareCardView: View {
         }
     }
 
-    static func layout(_ f: ShareFormat) -> Layout {
+    public static func layout(_ f: ShareFormat) -> Layout {
         switch f {
         case .square: .init(pad: 72, gap: 44, chartFont: 22, heroValue: 96, heroPct: 150, pctWithValue: 44, moverFont: 28, moverRow: 48, label: 22)
         case .landscape: .init(pad: 56, gap: 36, chartFont: 18, heroValue: 68, heroPct: 112, pctWithValue: 34, moverFont: 22, moverRow: 36, label: 17)
         case .portrait: .init(pad: 80, gap: 56, chartFont: 22, heroValue: 104, heroPct: 168, pctWithValue: 48, moverFont: 30, moverRow: 58, label: 24)
+        case .story: .init(pad: 96, gap: 72, chartFont: 24, heroValue: 112, heroPct: 184, pctWithValue: 52, moverFont: 32, moverRow: 64, label: 26)
         }
     }
 
@@ -30,7 +36,7 @@ struct ShareCardView: View {
     private var l: Layout { Self.layout(m.format) }
     private func sc(_ s: Int) -> Color { s > 0 ? p.pos : s < 0 ? p.neg : p.dim }
 
-    var body: some View {
+    public var body: some View {
         let size = m.format.size
         VStack(alignment: .leading, spacing: l.gap) {
             HStack {
@@ -151,77 +157,4 @@ struct ShareCardView: View {
             }
         }
     }
-}
-
-/// Dedicated export pipeline: renders the card offscreen at its exact pixel size,
-/// independent of window size or display scale.
-@MainActor
-enum ShareRenderer {
-    static func image(_ m: ShareCardModel) -> NSImage? {
-        let r = ImageRenderer(content: ShareCardView(m: m))
-        r.scale = 1
-        r.isOpaque = true
-        guard let cg = r.cgImage else { return nil }
-        return NSImage(cgImage: cg, size: NSSize(width: cg.width, height: cg.height))
-    }
-
-    static func png(_ m: ShareCardModel) -> Data? {
-        let r = ImageRenderer(content: ShareCardView(m: m))
-        r.scale = 1
-        r.isOpaque = true
-        guard let cg = r.cgImage else { return nil }
-        let rep = NSBitmapImageRep(cgImage: cg)
-        rep.size = NSSize(width: cg.width, height: cg.height)
-        return rep.representation(using: .png, properties: [:])
-    }
-
-    static func copy(_ img: NSImage) {
-        let pb = NSPasteboard.general
-        pb.clearContents()
-        if let tiff = img.tiffRepresentation, let rep = NSBitmapImageRep(data: tiff), let png = rep.representation(using: .png, properties: [:]) {
-            pb.declareTypes([.png, .tiff], owner: nil)
-            pb.setData(png, forType: .png)
-            pb.setData(tiff, forType: .tiff)
-        } else {
-            pb.writeObjects([img])
-        }
-    }
-
-    static func save(_ m: ShareCardModel, suggestedName: String, done: @escaping (URL?) -> Void) {
-        guard let data = png(m) else { done(nil); return }
-        let panel = NSSavePanel()
-        panel.nameFieldStringValue = suggestedName
-        panel.allowedContentTypes = [.png]
-        panel.directoryURL = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first
-        guard panel.runModal() == .OK, let url = panel.url else { done(nil); return }
-        do { try data.write(to: url, options: .atomic); done(url) } catch { done(nil) }
-    }
-
-    private static var pickerDelegate: PickerDelegate?
-
-    static func presentPicker(_ m: ShareCardModel, from view: NSView, chosen: @escaping (String) -> Void) {
-        guard let data = png(m) else { return }
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent("pf-portfolio-card.png")
-        guard (try? data.write(to: url, options: .atomic)) != nil else { return }
-        let picker = NSSharingServicePicker(items: [url])
-        let d = PickerDelegate(chosen)
-        pickerDelegate = d
-        picker.delegate = d
-        picker.show(relativeTo: view.bounds, of: view, preferredEdge: .maxY)
-    }
-
-    final class PickerDelegate: NSObject, NSSharingServicePickerDelegate, NSSharingServiceDelegate {
-        let chosen: (String) -> Void
-        init(_ c: @escaping (String) -> Void) { chosen = c }
-        func sharingServicePicker(_ p: NSSharingServicePicker, didChoose service: NSSharingService?) {
-            if let s = service { chosen(s.title) }
-        }
-    }
-}
-
-/// Captures an NSView for anchoring the native share picker.
-struct ViewAnchor: NSViewRepresentable {
-    let set: (NSView) -> Void
-    func makeNSView(context: Context) -> NSView { let v = NSView(); DispatchQueue.main.async { set(v) }; return v }
-    func updateNSView(_ nsView: NSView, context: Context) {}
 }

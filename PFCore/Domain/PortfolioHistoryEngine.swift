@@ -1,15 +1,15 @@
 import Foundation
 
 /// Sorted price history for one asset with interpolated lookup.
-struct PriceSeries: Sendable, Hashable {
-    let points: [PricePoint]
+public struct PriceSeries: Sendable, Hashable {
+    public let points: [PricePoint]
 
-    init(_ points: [PricePoint]) { self.points = points.sorted { $0.time < $1.time } }
+    public init(_ points: [PricePoint]) { self.points = points.sorted { $0.time < $1.time } }
 
-    var first: PricePoint? { points.first }
+    public var first: PricePoint? { points.first }
 
     /// Linear interpolation; nil before the first point (no data), last price after the end.
-    func price(at t: Date, tolerance: TimeInterval = 0) -> Double? {
+    public func price(at t: Date, tolerance: TimeInterval = 0) -> Double? {
         guard let f = points.first, let l = points.last else { return nil }
         if t < f.time.addingTimeInterval(-tolerance) { return nil }
         if t <= f.time { return f.price }
@@ -26,22 +26,23 @@ struct PriceSeries: Sendable, Hashable {
     }
 }
 
-struct HistoryPoint: Hashable, Sendable {
-    let time: Date
-    let value: Double?      // nil when a held asset had no price at that time
-    let cost: Double
-    var invested: Double = 0    // cumulative external flows (buys, transfers in − sells, transfers out)
-    var deposited: Double = 0   // cumulative inflows only (buys, transfers in)
+public struct HistoryPoint: Hashable, Sendable {
+    public init(time: Date, value: Double? = nil, cost: Double, invested: Double = 0, deposited: Double = 0) { self.time = time; self.value = value; self.cost = cost; self.invested = invested; self.deposited = deposited }
+    public let time: Date
+    public let value: Double?      // nil when a held asset had no price at that time
+    public let cost: Double
+    public var invested: Double = 0    // cumulative external flows (buys, transfers in − sells, transfers out)
+    public var deposited: Double = 0   // cumulative inflows only (buys, transfers in)
 
     /// Total P&L (realized + unrealized) at this time.
-    var pnl: Double? { value.map { $0 - invested } }
+    public var pnl: Double? { value.map { $0 - invested } }
 }
 
-enum ChartRange: String, CaseIterable, Codable, Sendable {
+public enum ChartRange: String, CaseIterable, Codable, Sendable {
     case h1 = "1H", d1 = "1D", h24 = "24H", w1 = "1W", d7 = "7D", m1 = "1M", d30 = "30D", m3 = "3M", ytd = "YTD", y1 = "1Y", all = "ALL"
 
     /// Seconds covered, nil for ALL / YTD (depends on data / calendar).
-    var seconds: TimeInterval? {
+    public var seconds: TimeInterval? {
         switch self {
         case .h1: 3600
         case .d1, .h24: 86400
@@ -53,7 +54,7 @@ enum ChartRange: String, CaseIterable, Codable, Sendable {
         }
     }
 
-    func start(now: Date, firstTransaction: Date?) -> Date {
+    public func start(now: Date, firstTransaction: Date?) -> Date {
         if let s = seconds { return now.addingTimeInterval(-s) }
         if self == .ytd {
             var cal = Calendar(identifier: .gregorian); cal.timeZone = .current
@@ -62,7 +63,7 @@ enum ChartRange: String, CaseIterable, Codable, Sendable {
         return firstTransaction ?? now.addingTimeInterval(-365 * 86400)
     }
 
-    var changePeriod: ChangePeriod? {
+    public var changePeriod: ChangePeriod? {
         switch self {
         case .h1: .h1
         case .d1, .h24: .h24
@@ -74,8 +75,8 @@ enum ChartRange: String, CaseIterable, Codable, Sendable {
     }
 }
 
-enum PortfolioHistoryEngine {
-    static func grid(start: Date, end: Date, count: Int) -> [Date] {
+public enum PortfolioHistoryEngine {
+    public static func grid(start: Date, end: Date, count: Int) -> [Date] {
         guard count > 1, end > start else { return [end] }
         let step = end.timeIntervalSince(start) / Double(count - 1)
         return (0..<count).map { start.addingTimeInterval(Double($0) * step) }
@@ -84,7 +85,7 @@ enum PortfolioHistoryEngine {
     /// Reconstructs portfolio value at each grid time using the holdings *at that time*
     /// (from the ledger) times the historical price at that time. Never multiplies today's
     /// holdings by old prices.
-    static func reconstruct(transactions: [Transaction], grid: [Date], series: [AssetID: PriceSeries]) -> [HistoryPoint] {
+    public static func reconstruct(transactions: [Transaction], grid: [Date], series: [AssetID: PriceSeries]) -> [HistoryPoint] {
         let txs = PortfolioEngine.ordered(transactions)
         var positions: [AssetID: Position] = [:]
         var i = 0
@@ -118,7 +119,7 @@ enum PortfolioHistoryEngine {
     }
 
     /// Replace the final point with the live valuation so charts end at the headline number.
-    static func pinLast(_ pts: [HistoryPoint], liveValue: Double?, liveCost: Double) -> [HistoryPoint] {
+    public static func pinLast(_ pts: [HistoryPoint], liveValue: Double?, liveCost: Double) -> [HistoryPoint] {
         guard let v = liveValue, let last = pts.last else { return pts }
         var p = pts
         p[p.count - 1] = HistoryPoint(time: last.time, value: v, cost: liveCost, invested: last.invested, deposited: last.deposited)
@@ -127,7 +128,7 @@ enum PortfolioHistoryEngine {
 
     /// Money-weighted return between two points: P&L change over capital at work
     /// (start value + new deposits), the same basis as the app's 24h change.
-    static func moneyWeightedReturn(from a: HistoryPoint, to b: HistoryPoint) -> Double? {
+    public static func moneyWeightedReturn(from a: HistoryPoint, to b: HistoryPoint) -> Double? {
         guard let pa = a.pnl, let pb = b.pnl else { return nil }
         let capital = (a.value ?? 0) + (b.deposited - a.deposited)
         return capital > 0 ? (pb - pa) / capital * 100 : nil
@@ -135,7 +136,7 @@ enum PortfolioHistoryEngine {
 
     /// Time-weighted return index (starts at 1). Deposits and withdrawals between points are
     /// removed, so the index moves only with market performance — the basis for drawdown.
-    static func twrIndex(_ pts: [HistoryPoint]) -> [Double] {
+    public static func twrIndex(_ pts: [HistoryPoint]) -> [Double] {
         var idx = 1.0, out: [Double] = []
         var prev: HistoryPoint?
         for p in pts {
@@ -150,14 +151,15 @@ enum PortfolioHistoryEngine {
         return out
     }
 
-    struct Drawdown: Sendable {
-        let series: [Double]      // ≤ 0 fractions
-        let max: Double           // most negative
-        let maxIndex: Int
-        var current: Double { series.last ?? 0 }
+    public struct Drawdown: Sendable {
+        public init(series: [Double], max: Double, maxIndex: Int) { self.series = series; self.max = max; self.maxIndex = maxIndex }
+        public let series: [Double]      // ≤ 0 fractions
+        public let max: Double           // most negative
+        public let maxIndex: Int
+        public var current: Double { series.last ?? 0 }
     }
 
-    static func drawdown(_ values: [Double]) -> Drawdown {
+    public static func drawdown(_ values: [Double]) -> Drawdown {
         var peak = -Double.infinity, maxDD = 0.0, maxI = 0
         var dd: [Double] = []
         for (i, v) in values.enumerated() {
@@ -172,26 +174,28 @@ enum PortfolioHistoryEngine {
 
 // MARK: - Period performance & movers
 
-struct PeriodPerformance: Sendable {
-    let absolute: Decimal
-    let percent: Double?
+public struct PeriodPerformance: Sendable {
+    public init(absolute: Decimal, percent: Double? = nil) { self.absolute = absolute; self.percent = percent }
+    public let absolute: Decimal
+    public let percent: Double?
 }
 
-struct Mover: Identifiable, Hashable, Sendable {
-    var id: AssetID { valuation.asset.id }
-    let valuation: PositionValuation
-    let changePct: Double?      // asset price move (or return for ALL)
-    let impact: Decimal?        // $ effect on the portfolio
+public struct Mover: Identifiable, Hashable, Sendable {
+    public init(valuation: PositionValuation, changePct: Double? = nil, impact: Decimal? = nil) { self.valuation = valuation; self.changePct = changePct; self.impact = impact }
+    public var id: AssetID { valuation.asset.id }
+    public let valuation: PositionValuation
+    public let changePct: Double?      // asset price move (or return for ALL)
+    public let impact: Decimal?        // $ effect on the portfolio
 }
 
-enum MoversEngine {
+public enum MoversEngine {
     /// Start price for an asset at the beginning of `range`: quote-reported change first, history second.
-    static func startPrice(_ id: AssetID, range: ChartRange, quote: Quote?, series: PriceSeries?, start: Date) -> Decimal? {
+    public static func startPrice(_ id: AssetID, range: ChartRange, quote: Quote?, series: PriceSeries?, start: Date) -> Decimal? {
         if let p = range.changePeriod, let sp = quote?.startPrice(p) { return sp }
         return series?.price(at: start, tolerance: 86400).map(Decimal.of)
     }
 
-    static func movers(
+    public static func movers(
         summary: PortfolioSummary, transactions: [Transaction], quotes: [AssetID: Quote],
         series: [AssetID: PriceSeries], range: ChartRange, now: Date
     ) -> [Mover] {
@@ -217,7 +221,7 @@ enum MoversEngine {
 
     /// Flow-adjusted portfolio performance over a range.
     /// ALL = total P&L (realized + unrealized) over total capital invested.
-    static func performance(
+    public static func performance(
         summary: PortfolioSummary, transactions: [Transaction], quotes: [AssetID: Quote],
         series: [AssetID: PriceSeries], range: ChartRange, now: Date
     ) -> PeriodPerformance? {
@@ -236,5 +240,64 @@ enum MoversEngine {
         let sum = c.values.reduce(Decimal(0)) { $0 + $1.contribution }
         let denom = c.values.reduce(Decimal(0)) { $0 + $1.startValue + $1.inflow }
         return PeriodPerformance(absolute: sum, percent: denom > 0 ? (sum / denom).double * 100 : nil)
+    }
+}
+
+// MARK: - Portfolio chart (shared by every platform's portfolio screens, share cards and widgets)
+
+public struct PortfolioChart: Sendable {
+    public init(value: [Double] = [], pnl: [Double] = [], twr: [Double] = [], points: [HistoryPoint] = []) { self.value = value; self.pnl = pnl; self.twr = twr; self.points = points }
+    public var value: [Double] = []     // market value (steps up on deposits)
+    public var pnl: [Double] = []       // value − net invested: profit and drawdown periods
+    public var twr: [Double] = []       // time-weighted index, deposits removed
+    public var points: [HistoryPoint] = []
+    public var isEmpty: Bool { value.count < 2 }
+}
+
+extension PortfolioHistoryEngine {
+    /// Reconstructed history for a range, ending at the live valuation. Falls back to locally
+    /// recorded snapshots (cost basis stands in for net invested) when price history is thin.
+    public static func chart(transactions txs: [Transaction], summary: PortfolioSummary, range: ChartRange, points: Int,
+                      series: [AssetID: PriceSeries], now end: Date,
+                      snapshots: (Date) -> [PortfolioSnapshotValue] = { _ in [] }) -> PortfolioChart {
+        let start = range.start(now: end, firstTransaction: summary.firstDate)
+        let grid = grid(start: start, end: end, count: points)
+        var pts = reconstruct(transactions: txs, grid: grid, series: series)
+        pts = pinLast(pts, liveValue: summary.isPartial ? nil : summary.totalValue.double, liveCost: summary.costBasis.double)
+        let priced = pts.filter { $0.value != nil }
+        if priced.count >= max(2, points / 3) {
+            return PortfolioChart(value: priced.compactMap(\.value), pnl: priced.compactMap(\.pnl), twr: twrIndex(priced), points: priced)
+        }
+        let snaps = snapshots(start).map { HistoryPoint(time: $0.timestamp, value: $0.value, cost: $0.costBasis, invested: $0.costBasis, deposited: $0.costBasis) }
+        guard snaps.count >= 2 else { return PortfolioChart() }
+        return PortfolioChart(value: snaps.compactMap(\.value), pnl: snaps.compactMap(\.pnl), twr: twrIndex(snaps), points: snaps)
+    }
+}
+
+extension PortfolioEngine {
+    /// Assets held at any point during the range (at its start, traded within it, or now).
+    public static func assetsHeld(_ txs: [Transaction], during range: ChartRange, now: Date) -> [AssetID] {
+        let start = range.start(now: now, firstTransaction: txs.map(\.timestamp).min())
+        let atStart = positions(txs, until: start).filter { $0.value.quantity > 0 }.keys
+        let during = txs.filter { $0.timestamp > start }.map(\.assetID)
+        let current = positions(txs).filter { $0.value.quantity > 0 }.keys
+        return Array(Set(atStart).union(during).union(current))
+    }
+}
+
+extension ChartRange {
+    /// How long cached price history for this range stays fresh before it is fetched again.
+    public var historyTTL: TimeInterval {
+        switch self { case .h1: 120; case .d1, .h24: 600; case .w1, .d7: 1800; default: 6 * 3600 }
+    }
+}
+
+extension MoversEngine {
+    /// Price return of one asset over a range, from its quote (the benchmark rows on iOS).
+    public static func priceReturn(_ quote: Quote?, series: PriceSeries?, range: ChartRange, now: Date) -> Double? {
+        if let p = range.changePeriod, let c = quote?.change[p] { return c }
+        guard let px = quote?.price, let sp = startPrice("", range: range, quote: quote, series: series,
+                                                         start: range.start(now: now, firstTransaction: nil)), sp > 0 else { return nil }
+        return ((px - sp) / sp).double * 100
     }
 }

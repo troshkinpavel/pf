@@ -1,31 +1,32 @@
 import Foundation
 
 /// Broad coverage REST provider. Sends only CoinGecko ids — never quantities or values.
-struct CoinGeckoProvider: MarketDataProvider {
-    let name = "CoinGecko"
+public struct CoinGeckoProvider: MarketDataProvider {
+    public init(apiKey: String? = nil) { self.apiKey = apiKey }
+    public let name = "CoinGecko"
     /// Optional demo/pro key from the Keychain.
-    var apiKey: String?
+    public var apiKey: String?
 
     private var base: String { "https://api.coingecko.com/api/v3" }
     private var headers: [String: String] { apiKey.map { ["x-cg-demo-api-key": $0] } ?? [:] }
 
-    func supports(_ asset: Asset) -> Bool { asset.coingeckoID != nil }
+    public func supports(_ asset: Asset) -> Bool { asset.coingeckoID != nil }
 
     private struct Market: Decodable {
-        let id: String
-        let current_price: Double?
-        let market_cap: Double?
-        let total_volume: Double?
-        let circulating_supply: Double?
-        let ath: Double?
-        let price_change_percentage_1h_in_currency: Double?
-        let price_change_percentage_24h_in_currency: Double?
-        let price_change_percentage_7d_in_currency: Double?
-        let price_change_percentage_30d_in_currency: Double?
-        let price_change_percentage_1y_in_currency: Double?
+        public let id: String
+        public let current_price: Double?
+        public let market_cap: Double?
+        public let total_volume: Double?
+        public let circulating_supply: Double?
+        public let ath: Double?
+        public let price_change_percentage_1h_in_currency: Double?
+        public let price_change_percentage_24h_in_currency: Double?
+        public let price_change_percentage_7d_in_currency: Double?
+        public let price_change_percentage_30d_in_currency: Double?
+        public let price_change_percentage_1y_in_currency: Double?
     }
 
-    func quotes(for assets: [Asset], currency: String) async throws -> [AssetID: Quote] {
+    public func quotes(for assets: [Asset], currency: String) async throws -> [AssetID: Quote] {
         let byID = Dictionary(assets.compactMap { a in a.coingeckoID.map { ($0, a) } }, uniquingKeysWith: { a, _ in a })
         var out: [AssetID: Quote] = [:]
         let ids = Array(byID.keys).sorted()
@@ -57,7 +58,7 @@ struct CoinGeckoProvider: MarketDataProvider {
 
     private struct Chart: Decodable { let prices: [[Double]] }
 
-    func history(for asset: Asset, range: ChartRange, currency: String) async throws -> [PricePoint] {
+    public func history(for asset: Asset, range: ChartRange, currency: String) async throws -> [PricePoint] {
         guard let id = asset.coingeckoID else { throw MarketError.unsupported }
         let days: String = {
             switch range {
@@ -82,11 +83,11 @@ struct CoinGeckoProvider: MarketDataProvider {
     }
 
     private struct SearchResult: Decodable {
-        struct Coin: Decodable { let id: String; let name: String; let symbol: String }
-        let coins: [Coin]
+        public struct Coin: Decodable { let id: String; let name: String; let symbol: String }
+        public let coins: [Coin]
     }
 
-    func search(_ query: String) async throws -> [Asset] {
+    public func search(_ query: String) async throws -> [Asset] {
         var c = URLComponents(string: base + "/search")!
         c.queryItems = [.init(name: "query", value: query)]
         let r = try await HTTP.json(SearchResult.self, c.url!, headers: headers)

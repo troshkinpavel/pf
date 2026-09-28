@@ -8,6 +8,11 @@
 
 /* Begin PBXBuildFile section */
 		A10000000000000000000B11 /* PFWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = A10000000000000000000205 /* PFWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		A10000000000000000000F21 /* PFCore in Frameworks */ = {isa = PBXBuildFile; productRef = A10000000000000000000F11 /* PFCore */; };
+		A10000000000000000000F22 /* PFCoreUI in Frameworks */ = {isa = PBXBuildFile; productRef = A10000000000000000000F12 /* PFCoreUI */; };
+		A10000000000000000000F23 /* PFCoreUI in Frameworks */ = {isa = PBXBuildFile; productRef = A10000000000000000000F13 /* PFCoreUI */; };
+		A10000000000000000000F24 /* PFCoreTestSupport in Frameworks */ = {isa = PBXBuildFile; productRef = A10000000000000000000F14 /* PFCoreTestSupport */; };
+		A10000000000000000000F25 /* PFCore in Frameworks */ = {isa = PBXBuildFile; productRef = A10000000000000000000F15 /* PFCore */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -76,16 +81,6 @@
 			path = PFTerminalUITests;
 			sourceTree = "<group>";
 		};
-		A10000000000000000000405 /* Shared */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = Shared;
-			sourceTree = "<group>";
-		};
-		A10000000000000000000407 /* PFCore */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = PFCore;
-			sourceTree = "<group>";
-		};
 		A10000000000000000000406 /* PFWidgets */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = PFWidgets;
@@ -98,6 +93,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A10000000000000000000F21 /* PFCore in Frameworks */,
+				A10000000000000000000F22 /* PFCoreUI in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -105,6 +102,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A10000000000000000000F24 /* PFCoreTestSupport in Frameworks */,
+				A10000000000000000000F25 /* PFCore in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -119,6 +118,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A10000000000000000000F23 /* PFCoreUI in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -129,8 +129,6 @@
 			isa = PBXGroup;
 			children = (
 				A10000000000000000000401 /* PFTerminal */,
-				A10000000000000000000407 /* PFCore */,
-				A10000000000000000000405 /* Shared */,
 				A10000000000000000000406 /* PFWidgets */,
 				A10000000000000000000402 /* PFTerminalTests */,
 				A10000000000000000000403 /* PFTerminalUITests */,
@@ -181,8 +179,10 @@
 			);
 			fileSystemSynchronizedGroups = (
 				A10000000000000000000401 /* PFTerminal */,
-				A10000000000000000000407 /* PFCore */,
-				A10000000000000000000405 /* Shared */,
+			);
+			packageProductDependencies = (
+				A10000000000000000000F11 /* PFCore */,
+				A10000000000000000000F12 /* PFCoreUI */,
 			);
 			name = PFTerminal;
 			productName = PFTerminal;
@@ -204,6 +204,10 @@
 			);
 			fileSystemSynchronizedGroups = (
 				A10000000000000000000402 /* PFTerminalTests */,
+			);
+			packageProductDependencies = (
+				A10000000000000000000F14 /* PFCoreTestSupport */,
+				A10000000000000000000F15 /* PFCore */,
 			);
 			name = PFTerminalTests;
 			productName = PFTerminalTests;
@@ -245,7 +249,9 @@
 			);
 			fileSystemSynchronizedGroups = (
 				A10000000000000000000406 /* PFWidgets */,
-				A10000000000000000000405 /* Shared */,
+			);
+			packageProductDependencies = (
+				A10000000000000000000F13 /* PFCoreUI */,
 			);
 			name = PFWidgets;
 			productName = PFWidgets;
@@ -306,6 +312,9 @@
 			);
 			mainGroup = A10000000000000000000601;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				A10000000000000000000F01 /* XCLocalSwiftPackageReference "." */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = A10000000000000000000602 /* Products */;
 			projectDirPath = "";
@@ -399,6 +408,41 @@
 		};
 /* End PBXTargetDependency section */
 
+/* Begin XCLocalSwiftPackageReference section */
+		A10000000000000000000F01 /* XCLocalSwiftPackageReference "." */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = .;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		A10000000000000000000F11 /* PFCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A10000000000000000000F01 /* XCLocalSwiftPackageReference "." */;
+			productName = PFCore;
+		};
+		A10000000000000000000F12 /* PFCoreUI */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A10000000000000000000F01 /* XCLocalSwiftPackageReference "." */;
+			productName = PFCoreUI;
+		};
+		A10000000000000000000F13 /* PFCoreUI */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A10000000000000000000F01 /* XCLocalSwiftPackageReference "." */;
+			productName = PFCoreUI;
+		};
+		A10000000000000000000F14 /* PFCoreTestSupport */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A10000000000000000000F01 /* XCLocalSwiftPackageReference "." */;
+			productName = PFCoreTestSupport;
+		};
+		A10000000000000000000F15 /* PFCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A10000000000000000000F01 /* XCLocalSwiftPackageReference "." */;
+			productName = PFCore;
+		};
+/* End XCSwiftPackageProductDependency section */
+
 /* Begin XCBuildConfiguration section */
 		A10000000000000000000A01 /* Debug */ = {
 			isa = XCBuildConfiguration;
@@ -454,7 +498,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = "$(PF_APP_ENTITLEMENTS)";
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = "$(MACOS_BUILD_NUMBER)";
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Config/PFTerminal-Info.plist";
@@ -465,7 +509,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.4.1;
+				MARKETING_VERSION = "$(MACOS_MARKETING_VERSION)";
 				PRODUCT_BUNDLE_IDENTIFIER = "$(PF_BUNDLE_ID)";
 				PRODUCT_NAME = "PF Terminal";
 				PRODUCT_MODULE_NAME = PFTerminal;
@@ -479,7 +523,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = "$(PF_APP_ENTITLEMENTS)";
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = "$(MACOS_BUILD_NUMBER)";
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Config/PFTerminal-Info.plist";
@@ -490,7 +534,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.4.1;
+				MARKETING_VERSION = "$(MACOS_MARKETING_VERSION)";
 				PRODUCT_BUNDLE_IDENTIFIER = "$(PF_BUNDLE_ID)";
 				PRODUCT_NAME = "PF Terminal";
 				PRODUCT_MODULE_NAME = PFTerminal;
@@ -548,7 +592,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = "$(PF_WIDGETS_ENTITLEMENTS)";
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = "$(MACOS_BUILD_NUMBER)";
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Config/PFWidgets-Info.plist";
@@ -559,7 +603,7 @@
 					"@executable_path/../Frameworks",
 					"@executable_path/../../../../Frameworks",
 				);
-				MARKETING_VERSION = 0.4.1;
+				MARKETING_VERSION = "$(MACOS_MARKETING_VERSION)";
 				PRODUCT_BUNDLE_IDENTIFIER = "$(PF_WIDGETS_BUNDLE_ID)";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -571,7 +615,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = "$(PF_WIDGETS_ENTITLEMENTS)";
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = "$(MACOS_BUILD_NUMBER)";
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Config/PFWidgets-Info.plist";
@@ -582,7 +626,7 @@
 					"@executable_path/../Frameworks",
 					"@executable_path/../../../../Frameworks",
 				);
-				MARKETING_VERSION = 0.4.1;
+				MARKETING_VERSION = "$(MACOS_MARKETING_VERSION)";
 				PRODUCT_BUNDLE_IDENTIFIER = "$(PF_WIDGETS_BUNDLE_ID)";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;

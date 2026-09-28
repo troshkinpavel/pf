@@ -1,3 +1,5 @@
+import PFCore
+import PFCoreUI
 import AppKit
 import CloudKit
 import Security
@@ -65,21 +67,13 @@ extension AppStore {
 
     // MARK: state file (device-local, never synced)
 
-    private var syncStateURL: URL { files.directory.appendingPathComponent("sync-state.json") }
-
     func loadSyncState() {
-        if let d = try? Data(contentsOf: syncStateURL), let s = try? JSONDecoder().decode(SyncState.self, from: d) {
-            syncState = s
-        }
+        if let s = SyncStateFile.load(from: files.directory) { syncState = s }
         if syncState.deviceName.isEmpty { syncState.deviceName = Host.current().localizedName ?? "Mac" }
         syncStatus = syncEnabled ? .checking : .localOnly
     }
 
-    func persistSyncState() {
-        guard let d = try? JSONEncoder().encode(syncState) else { return }
-        try? FileManager.default.createDirectory(at: files.directory, withIntermediateDirectories: true)
-        try? d.write(to: syncStateURL, options: .atomic)
-    }
+    func persistSyncState() { SyncStateFile.save(syncState, to: files.directory) }
 
     // MARK: scheduling
 
@@ -130,35 +124,18 @@ extension AppStore {
     }
 
     private func syncFailed(_ error: Error) {
+        let (status, turnsOff) = SyncStatus.after(error)
+        if turnsOff { SyncEngine.disable(self) }
+        syncStatus = status
         switch error as? SyncStoreError {
-        case .offline?: syncStatus = .offline
-        case .notAuthenticated?: syncStatus = .accountUnavailable
-        case .notConfigured?: syncStatus = .iCloudUnavailable
-        case .accountChanged?:
-            SyncEngine.disable(self)
-            syncStatus = .accountUnavailable
-            message = "iCloud account changed · sync turned off · your portfolios stay on this Mac"
-        case .cloudDataDeleted?:
-            SyncEngine.disable(self)
-            syncStatus = .error("iCloud data was deleted · sync turned off")
-            message = "✗ PF data was removed from iCloud · sync turned off · your portfolios stay on this Mac"
-        case .quotaExceeded?: syncStatus = .error("iCloud storage full")
-        case let .unavailable(m)?: syncStatus = .error(String(m.prefix(60)))
-        case nil: syncStatus = .error(String(error.localizedDescription.prefix(60)))
+        case .accountChanged?: message = "iCloud account changed · sync turned off · your portfolios stay on this Mac"
+        case .cloudDataDeleted?: message = "✗ PF data was removed from iCloud · sync turned off · your portfolios stay on this Mac"
+        default: break
         }
     }
 
     static func describe(_ error: Error) -> String {
-        switch error as? SyncStoreError {
-        case .offline?: "iCloud can't be reached · check the network and try again"
-        case .notAuthenticated?: "no iCloud account · sign in via System Settings › Apple Account, then try again"
-        case .notConfigured?: "this build isn't set up for iCloud (CloudKit container not provisioned)"
-        case .quotaExceeded?: "iCloud storage is full"
-        case .accountChanged?: "the iCloud account changed"
-        case .cloudDataDeleted?: "PF data was deleted from iCloud"
-        case let .unavailable(m)?: m
-        case nil: error.localizedDescription
-        }
+        SyncStoreError.describe(error, signInHint: "System Settings › Apple Account")
     }
 
     // MARK: enable / disable (always via an explicit confirmation)

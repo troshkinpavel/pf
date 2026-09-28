@@ -2,13 +2,13 @@ import Foundation
 
 /// Bundled identities for common assets so typing "btc" resolves offline and unambiguously.
 /// Anything else is resolved through provider search (CoinGecko id or chain + contract).
-enum AssetCatalog {
+public enum AssetCatalog {
     /// `id` stays stable even if a provider renames its identifier (`idOverride`).
     private static func a(_ sym: String, _ name: String, _ cg: String, _ bn: String? = nil, id idOverride: String? = nil) -> Asset {
         Asset(id: "cg:" + (idOverride ?? cg), symbol: sym, name: name, coingeckoID: cg, binanceSymbol: bn)
     }
 
-    static let known: [Asset] = [
+    public static let known: [Asset] = [
         a("BTC", "Bitcoin", "bitcoin", "BTCUSDT"),
         a("ETH", "Ethereum", "ethereum", "ETHUSDT"),
         a("SOL", "Solana", "solana", "SOLUSDT"),
@@ -36,12 +36,25 @@ enum AssetCatalog {
         a("USDC", "USDC", "usd-coin"),
     ]
 
-    static func binanceSymbol(forCoinGecko id: String) -> String? {
+    /// On-chain identity used as a price fallback for listed coins that no exchange provider
+    /// covers (TEL is not on Binance, so CoinGecko was its only source). Keyed by the existing
+    /// asset id: ledgers and synced asset records stay unchanged.
+    public static let dexFallback: [AssetID: (chain: String, contract: String)] = [
+        "cg:telcoin": ("polygon", "0xdF7837DE1F2Fa4631D716CF2502f8b230F1dcc32"),   // Telcoin (PoS), most liquid EVM pool
+    ]
+
+    /// Chain + contract for DexScreener: the asset's own, else the fallback above.
+    public static func dexIdentity(_ a: Asset) -> (chain: String, contract: String)? {
+        if let c = a.chain, let x = a.contractAddress { return (c, x) }
+        return dexFallback[a.id]
+    }
+
+    public static func binanceSymbol(forCoinGecko id: String) -> String? {
         known.first { $0.coingeckoID == id }?.binanceSymbol
     }
 
     /// Resolve user input against a set of assets: exact symbol, then symbol/name prefix.
-    static func resolve(_ q: String, in assets: [Asset]) -> Asset? {
+    public static func resolve(_ q: String, in assets: [Asset]) -> Asset? {
         let t = q.trimmingCharacters(in: .whitespaces)
         guard !t.isEmpty else { return nil }
         let u = t.uppercased(), l = t.lowercased()

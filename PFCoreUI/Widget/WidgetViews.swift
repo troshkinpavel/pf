@@ -1,3 +1,4 @@
+import PFCore
 import SwiftUI
 import WidgetKit
 
@@ -6,38 +7,42 @@ import WidgetKit
 
 // MARK: - Configuration values (AppEnum conformance lives in the widget target)
 
-enum WidgetDisplay: String, CaseIterable, Sendable { case valueAnd24h, performanceOnly, valueOnly }
-enum WidgetValuePrivacy: String, CaseIterable, Sendable { case visible, hidden }
-enum WidgetMoversKind: String, CaseIterable, Sendable { case gainers, impact }
+// Layout options. Each widget extension declares its own App Intents enums (AppEnum must live
+// in the widget's module) and maps them here by raw value.
+public enum WidgetDisplayOption: String, CaseIterable, Sendable { case valueAnd24h, performanceOnly, valueOnly }
+public enum WidgetValueOption: String, CaseIterable, Sendable { case visible, hidden }
+public enum WidgetMoversOption: String, CaseIterable, Sendable { case gainers, impact }
 
 /// Immutable per-entry options derived from the intent.
-struct WidgetOptions: Hashable {
-    var display: WidgetDisplay = .valueAnd24h
-    var hideValue = false
-    var movers: WidgetMoversKind = .gainers
+public struct WidgetOptions: Hashable {
+    public var display: WidgetDisplayOption = .valueAnd24h
+    public var hideValue = false
+    public var movers: WidgetMoversOption = .gainers
 
-    init() {}
-    init(display: WidgetDisplay, privacy: WidgetValuePrivacy, movers: WidgetMoversKind) {
+    public init() {}
+    public init(display: WidgetDisplayOption, privacy: WidgetValueOption, movers: WidgetMoversOption) {
         self.display = display; hideValue = privacy == .hidden; self.movers = movers
     }
 }
 
 // MARK: - Timeline
 
-struct PortfolioEntry: TimelineEntry {
-    let date: Date
-    let snapshot: WidgetPortfolioSnapshot?
-    let options: WidgetOptions
+public struct PortfolioEntry: TimelineEntry {
+    public init(date: Date, snapshot: WidgetPortfolioSnapshot? = nil, options: WidgetOptions) { self.date = date; self.snapshot = snapshot; self.options = options }
+    public let date: Date
+    public let snapshot: WidgetPortfolioSnapshot?
+    public let options: WidgetOptions
 }
 
 
 /// Routes an entry to the family layout. Rendering is read → format → draw: no market data,
 /// no portfolio maths, no network here.
-struct PortfolioWidgetView: View {
-    let entry: PortfolioEntry
+public struct PortfolioWidgetView: View {
+    public init(entry: PortfolioEntry) { self.entry = entry }
+    public let entry: PortfolioEntry
     @Environment(\.widgetFamily) private var family
 
-    var body: some View {
+    public var body: some View {
         Group {
             if let s = entry.snapshot, s.hasPortfolio {
                 let m = WidgetModel(s, entry.options, now: entry.date)
@@ -52,27 +57,27 @@ struct PortfolioWidgetView: View {
         }
         .font(Theme.mono(11))
         .foregroundStyle(Theme.text)
-        .widgetURL(PFLink.portfolio)
+        .widgetURL(PFLink.portfolio(context: entry.snapshot?.contextID))
     }
 }
 
 /// Everything a layout needs, resolved once per entry. Hidden values are nil, not transparent:
 /// the view hierarchy never receives them.
-struct WidgetModel {
-    let s: WidgetPortfolioSnapshot
-    let f: Fmt
-    let freshness: WidgetFreshness
-    let value: Decimal?          // nil when hidden by app privacy, widget privacy, or display mode
-    let showValue: Bool
-    let showPerformance: Bool
-    let movers: [WidgetMover]
-    let rows: [WidgetPosition]
+public struct WidgetModel {
+    public let s: WidgetPortfolioSnapshot
+    public let f: Fmt
+    public let freshness: WidgetFreshness
+    public let value: Decimal?          // nil when hidden by app privacy, widget privacy, or display mode
+    public let showValue: Bool
+    public let showPerformance: Bool
+    public let movers: [WidgetMover]
+    public let rows: [WidgetPosition]
 
-    init(_ s: WidgetPortfolioSnapshot, _ o: WidgetOptions, now: Date) {
+    public init(_ s: WidgetPortfolioSnapshot, _ o: WidgetOptions, now: Date) {
         self.s = s
         f = s.fmt
         freshness = .evaluate(s, now: now)
-        let valueAllowed = s.privacyMode == .full && !o.hideValue
+        let valueAllowed = s.showsValuesOnHomeScreen && !o.hideValue
         showValue = valueAllowed && o.display != .performanceOnly
         // "value only" with the value hidden would leave nothing: fall back to performance.
         showPerformance = o.display != .valueOnly || !showValue
@@ -83,21 +88,33 @@ struct WidgetModel {
             ? s.positions.sorted { (order.firstIndex(of: $0.id) ?? 99) < (order.firstIndex(of: $1.id) ?? 99) }
             : s.positions.sorted { ($0.change24h ?? -.infinity) > ($1.change24h ?? -.infinity) }
         hideAmounts = !valueAllowed
+        #if os(iOS)
+        // The widget asks for its value but PF › Settings › Widgets keeps amounts out of the data.
+        valueBlockedByApp = !o.hideValue && o.display != .performanceOnly && !s.showsValuesOnHomeScreen
+        #else
+        valueBlockedByApp = false
+        #endif
     }
 
-    let hideAmounts: Bool
-    var pct: String { f.pct(s.dailyChangePercent) }
-    var pctColor: Color { Theme.signColor(s.dailyChangePercent) }
-    var arrow: String { (s.dailyChangePercent ?? 0) >= 0 ? "▲" : "▼" }
-    var chartColor: Color { Theme.signColor(s.performanceChangePercent ?? s.dailyChangePercent) }
-    var chart: [Double] { s.performance.map(\.normalizedValue) }
+    public let valueBlockedByApp: Bool
+    /// Caption under a performance-only headline: explains why no value is shown when that is
+    /// the app's privacy setting rather than the widget's.
+    public func perfCaption(_ normal: String) -> String { valueBlockedByApp ? "VALUES OFF IN PF" : normal }
+
+    public let hideAmounts: Bool
+    public var pct: String { f.pct(s.dailyChangePercent) }
+    public var pctColor: Color { Theme.signColor(s.dailyChangePercent) }
+    public var arrow: String { (s.dailyChangePercent ?? 0) >= 0 ? "▲" : "▼" }
+    public var chartColor: Color { Theme.signColor(s.performanceChangePercent ?? s.dailyChangePercent) }
+    public var chart: [Double] { s.performance.map(\.normalizedValue) }
 }
 
 // MARK: - Pieces
 
-struct PFMark: View {
-    var title: String? = nil
-    var body: some View {
+public struct PFMark: View {
+    public init(title: String? = nil) { self.title = title }
+    public var title: String? = nil
+    public var body: some View {
         HStack(spacing: 0) {
             PFGlyph(size: 10.5, color: Theme.t1)
             Text("_").font(Theme.mono(11, .semibold)).foregroundStyle(Theme.acc).offset(y: 1)
@@ -108,9 +125,10 @@ struct PFMark: View {
     }
 }
 
-struct FreshnessBadge: View {
-    let f: WidgetFreshness
-    var body: some View {
+public struct FreshnessBadge: View {
+    public init(f: WidgetFreshness) { self.f = f }
+    public let f: WidgetFreshness
+    public var body: some View {
         Group {
             switch f {
             case let .fresh(a):
@@ -128,18 +146,18 @@ struct FreshnessBadge: View {
 }
 
 private struct Caps: View {
-    let s: String
-    var c: Color = Theme.t3
-    init(_ s: String, _ c: Color = Theme.t3) { self.s = s; self.c = c }
-    var body: some View { Text(s).font(Theme.mono(9.5)).tracking(0.8).foregroundStyle(c).lineLimit(1) }
+    public let s: String
+    public var c: Color = Theme.t3
+    public init(_ s: String, _ c: Color = Theme.t3) { self.s = s; self.c = c }
+    public var body: some View { Text(s).font(Theme.mono(9.5)).tracking(0.8).foregroundStyle(c).lineLimit(1) }
 }
 
 /// Portfolio value that steps down in precision instead of truncating.
 private struct ValueText: View {
-    let v: Decimal?
-    let f: Fmt
-    let size: CGFloat
-    var body: some View {
+    public let v: Decimal?
+    public let f: Fmt
+    public let size: CGFloat
+    public var body: some View {
         ViewThatFits(in: .horizontal) {
             Text(f.money(v)).fixedSize()
             Text(f.money(v, 0)).fixedSize()
@@ -152,9 +170,9 @@ private struct ValueText: View {
 }
 
 private struct MoverChip: View {
-    let m: WidgetMover
-    let f: Fmt
-    var body: some View {
+    public let m: WidgetMover
+    public let f: Fmt
+    public var body: some View {
         Link(destination: PFLink.asset(m.id)) {
             HStack(spacing: 6) {
                 Text(m.symbol).foregroundStyle(Theme.t1).fontWeight(.medium)
@@ -168,8 +186,8 @@ private struct MoverChip: View {
 }
 
 private struct Chart: View {
-    let m: WidgetModel
-    var body: some View {
+    public let m: WidgetModel
+    public var body: some View {
         if m.chart.count >= 2 {
             StepLineChart(values: m.chart, color: m.chartColor, cell: 6, levels: 7, lineWidth: 1.25)
         } else {
@@ -180,10 +198,11 @@ private struct Chart: View {
 
 // MARK: - Small
 
-struct SmallWidget: View {
-    let m: WidgetModel
+public struct SmallWidget: View {
+    public init(m: WidgetModel) { self.m = m }
+    public let m: WidgetModel
 
-    var body: some View {
+    public var body: some View {
         if m.showValue { valueLayout } else { performanceLayout }
     }
 
@@ -218,17 +237,18 @@ struct SmallWidget: View {
             Text(m.pct).font(Theme.mono(26, .medium)).foregroundStyle(m.pctColor).lineLimit(1).minimumScaleFactor(0.6)
             Text(m.arrow).font(Theme.mono(13)).foregroundStyle(m.pctColor).padding(.top, 2)
             Spacer(minLength: 4)
-            HStack { Caps("24H"); Spacer(minLength: 4); FreshnessBadge(f: m.freshness) }
+            HStack { Caps(m.perfCaption("24H"), m.valueBlockedByApp ? Theme.acc : Theme.t3); Spacer(minLength: 4); FreshnessBadge(f: m.freshness) }
         }
     }
 }
 
 // MARK: - Medium (flagship)
 
-struct MediumWidget: View {
-    let m: WidgetModel
+public struct MediumWidget: View {
+    public init(m: WidgetModel) { self.m = m }
+    public let m: WidgetModel
 
-    var body: some View {
+    public var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack { PFMark(title: m.s.contextLabel); Spacer(minLength: 6); FreshnessBadge(f: m.freshness) }
             HeadlineRow(m: m, valueSize: 22)
@@ -246,10 +266,10 @@ struct MediumWidget: View {
 
 /// Value (or the percentage as hero, in privacy/performance mode) + 24h on the right.
 private struct HeadlineRow: View {
-    let m: WidgetModel
-    let valueSize: CGFloat
+    public let m: WidgetModel
+    public let valueSize: CGFloat
 
-    var body: some View {
+    public var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
             if m.showValue {
                 ValueText(v: m.value, f: m.f, size: valueSize)
@@ -259,7 +279,7 @@ private struct HeadlineRow: View {
             } else {
                 Text(m.arrow + " " + m.pct).font(Theme.mono(valueSize, .medium)).foregroundStyle(m.pctColor).lineLimit(1).fixedSize()
                 Spacer(minLength: 6)
-                Caps("24H PERFORMANCE")
+                Caps(m.perfCaption("24H PERFORMANCE"), m.valueBlockedByApp ? Theme.acc : Theme.t3)
             }
         }
     }
@@ -275,10 +295,11 @@ private struct HeadlineRow: View {
 
 // MARK: - Large
 
-struct LargeWidget: View {
-    let m: WidgetModel
+public struct LargeWidget: View {
+    public init(m: WidgetModel) { self.m = m }
+    public let m: WidgetModel
 
-    var body: some View {
+    public var body: some View {
         VStack(alignment: .leading, spacing: 9) {
             HStack { PFMark(title: m.s.contextLabel); Spacer(minLength: 6); FreshnessBadge(f: m.freshness) }
             HeadlineRow(m: m, valueSize: 24)
@@ -349,11 +370,12 @@ struct LargeWidget: View {
 
 // MARK: - Empty
 
-struct EmptyWidget: View {
-    let hasSnapshot: Bool
+public struct EmptyWidget: View {
+    public init(hasSnapshot: Bool) { self.hasSnapshot = hasSnapshot }
+    public let hasSnapshot: Bool
     @Environment(\.widgetFamily) private var family
 
-    var body: some View {
+    public var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             PFMark()
             Spacer(minLength: 4)

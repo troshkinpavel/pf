@@ -12,14 +12,15 @@ These are PF Terminal's long-term identity. They are defined once, in `Config/Si
 | PF Widgets (macOS) | `io.github.troskinpavel.pf.widgets` |
 | App Group | `group.io.github.troskinpavel.pf` |
 | CloudKit container | `iCloud.io.github.troskinpavel.pf` |
-| Future iOS app | `io.github.troskinpavel.pf.ios` |
-| Future iOS widgets | `io.github.troskinpavel.pf.ios.widgets` |
+| PF Terminal (iOS) | `io.github.troskinpavel.pf.ios` |
+| PF Widgets (iOS) | `io.github.troskinpavel.pf.ios.widgets` |
 | URL scheme | `pfterminal://` (public API, kept stable) |
 | Keychain service | `io.github.troskinpavel.pf` |
 | GitHub | [`troshkinpavel/pf`](https://github.com/troshkinpavel/pf) (the GitHub account is spelled with an "h"; the app identifiers above are not) |
 
 - The repository is `pf`; the product is **PF Terminal**. Xcode targets and the Swift module keep the name `PFTerminal`.
-- **Future iOS targets** use the same CloudKit container, so iPhone and Mac share one private database through `PFCore`. An App Group is a per-target entitlement: register `group.io.github.troskinpavel.pf` on the iOS App IDs too when the iOS app and its widgets need to share data. Mac and iPhone never share an App Group container; they share data only through CloudKit.
+- **iOS targets** use the same CloudKit container, so iPhone and Mac share one private database through `PFCore`. An App Group is a per-target entitlement: `group.io.github.troskinpavel.pf` must be assigned to the iOS App IDs too, so the iOS app and its widgets can share snapshots (see [iPhone › Signing](#signing)). Mac and iPhone never share an App Group container; they share data only through CloudKit.
+- Team: `2F2PZP9T66` (set in `Config/Signing.local.xcconfig`, never committed).
 - **Legacy identity.** Up to v0.3.0, PF Terminal used `io.github.pfterminal.PFTerminal`, the widgets used `….PFWidgets`, and the App Group was `<TEAM>.io.github.pfterminal`. The CloudKit container `iCloud.io.github.pfterminal` was provisional and never registered. These identifiers survive only as `LegacyIdentifiers`, for the data migration below. Don't reuse them.
 
 ### Migration from the legacy identity
@@ -36,6 +37,44 @@ A new bundle ID means a new sandbox container and a new preferences domain. With
 - **Keychain.** The optional CoinGecko key is not migrated. The old item's access list belongs to the old app, so reading it would raise a system prompt. Re-enter the key in Settings.
 - **Widgets.** Existing widgets belonged to the old extension. Remove them and add **PF Terminal** again.
 - **Notifications.** Permission is per bundle ID, so macOS asks again the first time a move alert is on.
+
+## PFCore package
+
+The platform-neutral core is a Swift package, **PFCore**, defined by `Package.swift` at the repository root. SwiftPM only resolves remote packages whose manifest is at the root, so it lives there; its targets point at folders in this repository.
+
+| Product | Folder | Contents |
+|---|---|---|
+| `PFCore` | `PFCore/` | Models, accounting, history and movers, scenarios, transaction planner, command parser, share-card privacy, market-data providers, ledger and settings persistence, SwiftData market cache, CloudKit sync, formatting, widget snapshot model. Foundation, CloudKit and SwiftData only. |
+| `PFCoreUI` | `PFCoreUI/` | Shared SwiftUI: design tokens, widget layouts, share card. |
+| `PFCoreTestSupport` | `PFCoreTestSupport/` | `MockRemote` (in-memory CloudKit private zone) and `Device` (minimal sync host) for tests. |
+| tests | `PFCoreTests/` | Wire-format tests: byte-exact sync payloads, the CloudKit record mapping, tombstones, newer-schema blocking, price fallback. |
+
+- **One copy.** The macOS project uses this package locally (a local package reference to the repository root). Other PF clients consume the same package by URL. No client keeps its own copy of models, accounting or sync code.
+- **Public API.** Everything a client needs is `public`. Adding API is normal; renaming or removing it is a breaking change for other clients.
+- **Data contract.** Record type `PFRecord`, zone `PFZone`, the container, stable ids, payload JSON, tombstones and conflict rules are defined here, once. A change here changes every client; `PFCoreTests` must keep passing.
+- **Clients pin a revision.** A client depends on `https://github.com/troshkinpavel/pf` at an **exact commit** during development, and at an explicit tag once it ships. It never follows `main`, so a PF commit can't silently break it. To move a client forward: change the pinned revision in that client, resolve packages, build and run its tests (including its sync compatibility tests).
+- **Checks:** `swift build` and `swift test` (macOS); for iOS: `swift build --triple arm64-apple-ios17.0-simulator --sdk "$(xcrun --sdk iphonesimulator --show-sdk-path)"`.
+
+## Versions
+
+The macOS version lives in **`Config/Versions.xcconfig`** and nowhere else:
+
+```
+MACOS_MARKETING_VERSION = 0.4.1     // CFBundleShortVersionString of PF Terminal.app and PFWidgets
+MACOS_BUILD_NUMBER = 2              // CFBundleVersion
+```
+
+- The app and widget targets map them to `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION`.
+- **Bump macOS:** edit `MACOS_MARKETING_VERSION` (semantic version) and increase `MACOS_BUILD_NUMBER`; then update `CHANGELOG.md`, the README platform table and the release notes.
+- **Other platforms are independent.** The iPhone app has its own version line (currently 0.1.0, in development) and is released separately. Roadmap milestones such as "v2.0 · PF Terminal for iPhone" are product milestones, not bundle versions.
+- **README platform table.** Keep it factual. Once the iPhone app ships, its row becomes:
+
+  | Platform | Version | Status |
+  |---|---:|---|
+  | macOS | x.y.z | Available · Open source |
+  | iPhone | 1.0.0 | [Available on the App Store](https://apps.apple.com/…) |
+
+  The iPhone row links to the App Store listing, not to source code. This repository stays the project's public page.
 
 ## Build
 
@@ -130,6 +169,7 @@ swift scripts/frame-screenshot.swift shots/03-overview.png .github/assets/hero.p
 
 ```bash
 xcodebuild -project PFTerminal.xcodeproj -scheme PFTerminal test
+swift test                                     # PFCore package tests
 ```
 
 - `PFTerminalTests` (Swift Testing) covers the domain logic, with no network. It includes:
@@ -148,6 +188,8 @@ xcodebuild -project PFTerminal.xcodeproj -scheme PFTerminal test
   - widget snapshot privacy and context;
   - iCloud sync against an in-memory CloudKit stand-in with two simulated devices: the enable plans; propagation of create, edit and delete; the offline queue; conflicts; merges without duplicates; import while syncing; newer-schema records; account changes; disable.
 - `PFTerminalUITests` covers onboarding, palette → preview → confirm, and quick share. Xcode needs macOS automation permission to run them.
+- `PFCoreTests` (package): byte-exact sync payloads, the CloudKit field mapping (`PFRecord` in `PFZone`, payload in `encryptedValues`), tombstones, newer-schema blocking, old `sync-state.json` files, what may sync, and the TEL price fallback.
+- `MacPhoneCompatibilityTests` drives the real Mac `AppStore` against a second client over the in-memory CloudKit stand-in: ledger out, transaction in, delete back.
 
 ## Project layout
 
@@ -155,18 +197,22 @@ xcodebuild -project PFTerminal.xcodeproj -scheme PFTerminal test
 PFTerminal/
   App/          PFTerminalApp (scenes, commands, key routing), AppStore (+Commands, +Transactions,
                 +Portfolios, +Sources, +Widgets, +Sync, +Lifecycle)
-  MarketData/   provider protocol + router, CoinGecko, Binance (+WebSocket stream), DexScreener, Mock
-  Persistence/  MarketCache (SwiftData)
-  System/       Keychain, notifications, app lock, reachability, DEBUG snapshots
+  Persistence/  LegacyMigration
+  System/       DEBUG snapshots, CloudKit self-test, sync E2E
   UI/           Components, Screens, Share, MenuBar
-PFCore/         platform-neutral core, no AppKit/SwiftUI (reusable by a future iOS target):
+Package.swift   the PFCore package (see PFCore package above)
+PFCore/         platform-neutral core, no AppKit/UIKit/SwiftUI:
   Domain/       Models, Portfolios (PortfolioContext, CRUD), PortfolioEngine, PortfolioHistoryEngine,
-                ScenarioEngine, CommandParser, ShareModel, AsciiChart, WidgetSnapshotBuilder
-  Persistence/  PortfolioDocument (JSON ledger/backup, schema v2), AppSettings
-  Sync/         SyncModels, SyncEngine, CloudKitSyncStore
+                ScenarioEngine, TransactionPlanner, CommandParser, ShareModel, AsciiChart, WidgetSnapshotBuilder, Freshness
+  Market/       provider protocol + router, CoinGecko, Binance (+WebSocket stream), DexScreener, Mock
+  Persistence/  PortfolioDocument (JSON ledger/backup, schema v2), AppSettings, MarketCache (SwiftData)
+  Platform/     Keychain, notifications, app lock (LocalAuthentication), reachability
+  Sync/         SyncModels, SyncEngine, CloudKitSyncStore, SyncHostSupport
+  Formatting/   Fmt, DateFmt, NumberInput
+  Widgets/      WidgetPortfolioSnapshot, WidgetSnapshotStore, PFLink
+PFCoreUI/       design tokens (Theme), widget layouts, step chart, share card
+PFCoreTestSupport/, PFCoreTests/
   Updates/      SemanticVersion, UpdateState, UpdateChecking, GitHubReleaseChecker
-Shared/         compiled into app + widget: formatting, design tokens, widget snapshot model/store,
-                stepped chart, widget layouts (kept platform-neutral for a future iOS target)
 PFWidgets/      WidgetKit extension: App Intents configuration, timeline provider, previews
 PFTerminalTests/, PFTerminalUITests/
 scripts/        make-icon.swift, make-sample-portfolio.py, frame-screenshot.swift
@@ -203,7 +249,7 @@ Views → AppStore → ProviderRouter (actor) → CoinGecko · Binance · DexScr
 
 ### Adding a provider
 
-1. Implement `MarketDataProvider` (`PFTerminal/MarketData/MarketDataProvider.swift`). The `history(for:range:currency:)` and `search(_:)` methods are optional.
+1. Implement `MarketDataProvider` (`PFCore/Market/MarketDataProvider.swift`). The `history(for:range:currency:)` and `search(_:)` methods are optional.
    ```swift
    struct MyProvider: MarketDataProvider {
        let name = "MyProvider"
@@ -214,7 +260,7 @@ Views → AppStore → ProviderRouter (actor) → CoinGecko · Binance · DexScr
    - Batch your requests.
    - Throw `MarketError.rateLimited`, `.offline`, `.unavailable` or `.unsupported`, so that the router can back off correctly.
    - Send only the identifiers that the request needs. Never send quantities or values.
-2. Register the provider in `AppStore.makeProviders()`. If the user should be able to select it, also add it to `AppSettings.providerOptions`.
+2. Register the provider in `AppStore.makeProviders()` (and in each other PF client that builds a provider list). If the user should be able to select it, also add it to `AppSettings.providerOptions`.
 3. Test it with a stub provider (see `RouterTests`).
 
 ## Accounting
@@ -279,7 +325,7 @@ AppStore (+Sync) ── SyncHost ──▶ SyncEngine (PFCore/Sync, pure + async
                                                                                    └ MockRemote (tests)
 ```
 
-- **Platform-neutral core.** `PFCore/Sync` uses Foundation, CryptoKit and CloudKit only, with no AppKit. A future iOS app reuses it as it is.
+- **Platform-neutral core.** `PFCore/Sync` uses Foundation, CryptoKit and CloudKit only, with no UI framework. Every PF client uses it as it is.
 - **What syncs.** Each portfolio, transaction and asset identity is one record, keyed by its stable id (UUID, or the canonical asset id). The payload is the object's backup-format JSON, stored in a CloudKit `encryptedValues` field.
 - **What never syncs.** Prices, price history, caches, widget snapshots, derived P&L, settings, UI state and Keychain secrets.
 - **Where it lives.** Only the **private** database is used, in the custom zone `PFZone`, record type `PFRecord`. Nothing is ever written to the public database.
@@ -345,10 +391,11 @@ AppStore (+Sync) ── SyncHost ──▶ SyncEngine (PFCore/Sync, pure + async
   - Do this only right before the first public build that ships iCloud sync: in the CloudKit Console, open Schema → Deploy to Production.
   - Release builds must then set `PF_ICLOUD_ENV = Production`, which `ICLOUD=1 scripts/make-dmg.sh` does.
   - `xcrun cktool export-schema` (it needs a CloudKit management token) exports the Development schema, so you can diff it against this table first.
-- **iOS.**
-  - The schema carries no platform-specific data: payloads are the `PFCore` Codable models, and all sync logic is `PFCore/Sync`.
-  - A future iOS target (`io.github.troskinpavel.pf.ios`) with the same container entitlement can use `SyncEngine` and `CloudKitSyncStore` as they are, with no schema change.
-  - Only the host side is per-platform: an `AppStore`-like `SyncHost`, entitlement checks, and background triggers such as a push subscription (`CKDatabaseSubscription`) on iOS.
+- **Other clients.**
+  - Every PF client (the iPhone app included) uses this schema unchanged: same container, private database, `PFZone`, `PFRecord`, same payloads. There is no client-specific record type or field.
+  - Payloads are the `PFCore` Codable models, and all sync logic is `PFCore/Sync`. `PFCoreTests/SyncCompatibilityTests` pins the payload bytes and CloudKit fields.
+  - Only the host side is per client (the Mac's `AppStore` is one `SyncHost`).
+  - `SyncState.devices` / `lastRemoteChange` (device names for status lines) are optional fields, so older `sync-state.json` files decode unchanged.
 
 ## Widgets
 

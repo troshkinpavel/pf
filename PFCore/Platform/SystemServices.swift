@@ -1,17 +1,16 @@
-import AppKit
 import LocalAuthentication
 import Network
 import Security
 import UserNotifications
 
 /// Secrets (optional provider API keys) live only in the Keychain.
-enum Keychain {
+public enum Keychain {
     /// The optional CoinGecko key is not migrated from `LegacyIdentifiers.keychainService`:
     /// that item's ACL belongs to the old app, so reading it would raise a system prompt.
     /// Re-entering it in Settings takes seconds.
     private static let service = "io.github.troskinpavel.pf"
 
-    static func get(_ account: String) -> String? {
+    public static func get(_ account: String) -> String? {
         let q: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service,
                                 kSecAttrAccount as String: account, kSecReturnData as String: true, kSecMatchLimit as String: kSecMatchLimitOne]
         var out: CFTypeRef?
@@ -20,7 +19,7 @@ enum Keychain {
     }
 
     @discardableResult
-    static func set(_ value: String?, for account: String) -> Bool {
+    public static func set(_ value: String?, for account: String) -> Bool {
         let base: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service, kSecAttrAccount as String: account]
         SecItemDelete(base as CFDictionary)
         guard let v = value, !v.isEmpty else { return true }
@@ -32,13 +31,13 @@ enum Keychain {
 }
 
 /// Local notifications for large portfolio moves (opt-in; off by default).
-enum Notifier {
-    static func requestAuthorization() {
+public enum Notifier {
+    public static func requestAuthorization() {
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
     }
 
     /// Content is deliberately percentage-only: notifications can appear on a locked screen.
-    static func postMove(pct: Double, fmt: Fmt) {
+    public static func postMove(pct: Double, fmt: Fmt) {
         let c = UNMutableNotificationContent()
         c.title = "pf · portfolio " + (pct >= 0 ? "▲" : "▼") + fmt.pct(abs(pct)).replacingOccurrences(of: "+", with: "")
         c.body = "24h move crossed your alert threshold."
@@ -47,8 +46,8 @@ enum Notifier {
 }
 
 /// Touch ID / password gate for the main window (opt-in).
-enum AppLock {
-    static func authenticate() async -> Bool {
+public enum AppLock {
+    public static func authenticate() async -> Bool {
         let ctx = LAContext()
         var err: NSError?
         guard ctx.canEvaluatePolicy(.deviceOwnerAuthentication, error: &err) else { return true }
@@ -58,12 +57,13 @@ enum AppLock {
 
 /// Reachability without polling.
 @MainActor
-final class NetworkMonitor {
+public final class NetworkMonitor {
+    public init() {}
     private let monitor = NWPathMonitor()
-    var onChange: ((Bool) -> Void)?
-    private(set) var isOnline = true
+    public var onChange: ((Bool) -> Void)?
+    public private(set) var isOnline = true
 
-    func start() {
+    public func start() {
         monitor.pathUpdateHandler = { [weak self] path in
             let online = path.status == .satisfied
             Task { @MainActor in

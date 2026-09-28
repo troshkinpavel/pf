@@ -1,14 +1,14 @@
 import Foundation
 
-enum SharePrivacy: String, Codable, CaseIterable, Sendable {
+public enum SharePrivacy: String, Codable, CaseIterable, Sendable {
     case `public`, value, custom
-    var label: String { self == .value ? "value visible" : rawValue }
+    public var label: String { self == .value ? "value visible" : rawValue }
 }
 
-enum ShareField: String, Codable, CaseIterable, Sendable {
+public enum ShareField: String, Codable, CaseIterable, Sendable {
     case name, value, pct, pnl, chart, movers, alloc, posv, avg
 
-    var label: String {
+    public var label: String {
         switch self {
         case .name: "portfolio name"; case .value: "portfolio value"; case .pct: "percentage change"; case .pnl: "absolute P&L"
         case .chart: "performance chart"; case .movers: "top movers"; case .alloc: "asset allocation"
@@ -16,40 +16,44 @@ enum ShareField: String, Codable, CaseIterable, Sendable {
         }
     }
     /// Reveals holdings-level data.
-    var isSensitive: Bool { [.pnl, .posv, .avg].contains(self) }
+    public var isSensitive: Bool { [.pnl, .posv, .avg].contains(self) }
     /// Reveals portfolio size or composition but not holdings.
-    var isSemiSensitive: Bool { [.value, .alloc, .name].contains(self) }
+    public var isSemiSensitive: Bool { [.value, .alloc, .name].contains(self) }
 }
 
-enum ShareFormat: String, Codable, CaseIterable, Sendable {
-    case square, landscape, portrait
-    var size: (w: Int, h: Int) {
-        switch self { case .square: (1080, 1080); case .landscape: (1200, 675); case .portrait: (1080, 1350) }
+public enum ShareFormat: String, Codable, CaseIterable, Sendable {
+    case square, landscape, portrait, story
+    /// Formats offered per platform: the Mac card editor, the iPhone share screen (1:1, 9:16).
+    public static let mac: [ShareFormat] = [.square, .landscape, .portrait]
+    public static let phone: [ShareFormat] = [.square, .story]
+    public var size: (w: Int, h: Int) {
+        switch self { case .square: (1080, 1080); case .landscape: (1200, 675); case .portrait: (1080, 1350); case .story: (1080, 1920) }
     }
-    var chartCols: Int { switch self { case .square: 64; case .landscape: 46; case .portrait: 64 } }
-    var chartRows: Int { switch self { case .square: 11; case .landscape: 16; case .portrait: 18 } }
+    public var chartCols: Int { switch self { case .square: 64; case .landscape: 46; case .portrait: 64; case .story: 64 } }
+    public var chartRows: Int { switch self { case .square: 11; case .landscape: 16; case .portrait: 18; case .story: 26 } }
 }
 
-enum ShareTheme: String, Codable, CaseIterable, Sendable { case terminal, monochrome, phosphor }
+public enum ShareTheme: String, Codable, CaseIterable, Sendable { case terminal, monochrome, phosphor }
 
-enum MoverType: String, Codable, CaseIterable, Sendable { case gainers, impact }
+public enum MoverType: String, Codable, CaseIterable, Sendable { case gainers, impact }
 
-struct ShareConfig: Codable, Equatable, Sendable {
-    static let periods: [ChartRange] = [.h24, .d7, .d30, .ytd, .all]
+public struct ShareConfig: Codable, Equatable, Sendable {
+    public init(period: ChartRange = .h24, privacy: SharePrivacy = .public, custom: Set<ShareField> = [.pct, .chart, .movers], moverCount: Int = 3, moverType: MoverType = .gainers, format: ShareFormat = .square, theme: ShareTheme = .terminal, brand: Bool = true, source: String? = nil) { self.period = period; self.privacy = privacy; self.custom = custom; self.moverCount = moverCount; self.moverType = moverType; self.format = format; self.theme = theme; self.brand = brand; self.source = source }
+    public static let periods: [ChartRange] = [.h24, .d7, .d30, .ytd, .all]
 
-    var period: ChartRange = .h24
-    var privacy: SharePrivacy = .public
-    var custom: Set<ShareField> = [.pct, .chart, .movers]
-    var moverCount: Int = 3
-    var moverType: MoverType = .gainers
-    var format: ShareFormat = .square
-    var theme: ShareTheme = .terminal
-    var brand: Bool = true
+    public var period: ChartRange = .h24
+    public var privacy: SharePrivacy = .public
+    public var custom: Set<ShareField> = [.pct, .chart, .movers]
+    public var moverCount: Int = 3
+    public var moverType: MoverType = .gainers
+    public var format: ShareFormat = .square
+    public var theme: ShareTheme = .terminal
+    public var brand: Bool = true
     /// Portfolio to render: a portfolio UUID string or "all"; nil follows the active context.
-    var source: String?
+    public var source: String?
 
     /// Fields permitted by the privacy level. Sensitive fields exist only in `custom`, opt-in.
-    var fields: Set<ShareField> {
+    public var fields: Set<ShareField> {
         switch privacy {
         case .public: [.pct, .chart, .movers]
         case .value: [.value, .pct, .chart, .movers]
@@ -57,8 +61,8 @@ struct ShareConfig: Codable, Equatable, Sendable {
         }
     }
 
-    enum Level: Sendable { case safe, semi, sensitive }
-    var level: Level {
+    public enum Level: Sendable { case safe, semi, sensitive }
+    public var level: Level {
         let f = fields
         if f.contains(where: \.isSensitive) { return .sensitive }
         if f.contains(where: \.isSemiSensitive) { return .semi }
@@ -66,47 +70,56 @@ struct ShareConfig: Codable, Equatable, Sendable {
     }
 
     /// Settings safe to remember for quick share: never persist a sensitive custom set as the default.
-    var safeForReuse: ShareConfig {
+    public var safeForReuse: ShareConfig {
         var c = self
         if c.level == .sensitive { c.privacy = .public; c.custom = [.pct, .chart, .movers] }
         return c
     }
 
-    mutating func apply(_ o: ShareOverrides) {
+    public mutating func apply(_ o: ShareOverrides) {
         if let p = o.period { period = p }
         if let p = o.privacy { privacy = p }
         if let f = o.format { format = f }
         if let t = o.theme { theme = t }
     }
 
-    var summary: String { "\(period.rawValue) · \(privacy.label) · \(format.rawValue) · \(theme.rawValue)" }
+    public var summary: String { "\(period.rawValue) · \(privacy.label) · \(format.rawValue) · \(theme.rawValue)" }
 }
 
 /// Everything the card may draw. Built by `ShareCardBuilder`, which only ever copies
 /// permitted fields in: hidden data is absent from the model, not merely not drawn.
-struct ShareCardModel: Equatable, Sendable {
-    struct MoverRow: Equatable, Sendable { let rank, symbol, bar, main, extra: String; let sign: Int }
-    struct AllocRow: Equatable, Sendable { let symbol, bar, pct: String }
+public struct ShareCardModel: Equatable, Sendable {
+    public init(format: ShareFormat, theme: ShareTheme, title: String, date: String, value: String? = nil, pct: String? = nil, pctSign: Int, pnl: String? = nil, pnlSign: Int, sub: String? = nil, chart: [String]? = nil, moversTitle: String, moversSub: String, movers: [MoverRow]? = nil, alloc: [AllocRow]? = nil, brand: Bool) { self.format = format; self.theme = theme; self.title = title; self.date = date; self.value = value; self.pct = pct; self.pctSign = pctSign; self.pnl = pnl; self.pnlSign = pnlSign; self.sub = sub; self.chart = chart; self.moversTitle = moversTitle; self.moversSub = moversSub; self.movers = movers; self.alloc = alloc; self.brand = brand }
+    public struct MoverRow: Equatable, Sendable {
+        public let rank, symbol, bar, main, extra: String; public let sign: Int
+        public init(rank: String, symbol: String, bar: String, main: String, extra: String, sign: Int) {
+            self.rank = rank; self.symbol = symbol; self.bar = bar; self.main = main; self.extra = extra; self.sign = sign
+        }
+    }
+    public struct AllocRow: Equatable, Sendable {
+        public let symbol, bar, pct: String
+        public init(symbol: String, bar: String, pct: String) { self.symbol = symbol; self.bar = bar; self.pct = pct }
+    }
 
-    let format: ShareFormat
-    let theme: ShareTheme
-    let title: String
-    let date: String
-    let value: String?
-    let pct: String?
-    let pctSign: Int
-    let pnl: String?
-    let pnlSign: Int
-    let sub: String?
-    let chart: [String]?
-    let moversTitle: String
-    let moversSub: String
-    let movers: [MoverRow]?
-    let alloc: [AllocRow]?
-    let brand: Bool
+    public let format: ShareFormat
+    public let theme: ShareTheme
+    public let title: String
+    public let date: String
+    public let value: String?
+    public let pct: String?
+    public let pctSign: Int
+    public let pnl: String?
+    public let pnlSign: Int
+    public let sub: String?
+    public let chart: [String]?
+    public let moversTitle: String
+    public let moversSub: String
+    public let movers: [MoverRow]?
+    public let alloc: [AllocRow]?
+    public let brand: Bool
 
     /// Every string that ends up in the bitmap (for privacy tests).
-    var allText: [String] {
+    public var allText: [String] {
         var t = [title, date, moversTitle, moversSub]
         t += [value, pct, pnl, sub].compactMap { $0 }
         t += chart ?? []
@@ -116,15 +129,15 @@ struct ShareCardModel: Equatable, Sendable {
     }
 }
 
-enum ShareCardBuilder {
-    static func periodLabel(_ p: ChartRange) -> String {
+public enum ShareCardBuilder {
+    public static func periodLabel(_ p: ChartRange) -> String {
         switch p {
         case .h24, .d1: "today"; case .d7, .w1: "past 7 days"; case .d30, .m1: "past 30 days"
         case .ytd: "year to date"; case .all: "all time"; default: p.rawValue.lowercased()
         }
     }
 
-    static func build(
+    public static func build(
         config: ShareConfig, summary: PortfolioSummary, performance: PeriodPerformance?,
         history: [Double], movers: [Mover], now: Date, fmt: Fmt, contextName: String = "PORTFOLIO"
     ) -> ShareCardModel {
@@ -182,7 +195,7 @@ enum ShareCardBuilder {
     }
 
     /// Privacy check lists shown next to the preview.
-    static func privacyCheck(_ c: ShareConfig) -> (visible: [String], hidden: [String]) {
+    public static func privacyCheck(_ c: ShareConfig) -> (visible: [String], hidden: [String]) {
         let f = c.fields
         let visible = ShareField.allCases.filter { f.contains($0) }.map { "✓ " + ($0 == .chart ? c.period.rawValue.lowercased() + " chart" : $0.label) }
         let hidden = [ShareField.name, .value, .pnl, .alloc, .posv, .avg].filter { !f.contains($0) }.map { "✓ " + $0.label }

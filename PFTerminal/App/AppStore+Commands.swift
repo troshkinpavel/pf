@@ -1,3 +1,5 @@
+import PFCore
+import PFCoreUI
 import AppKit
 import SwiftUI
 
@@ -287,7 +289,7 @@ extension AppStore {
             if isLeft || isRight { moversRange = Self.moverRanges.cycled(from: moversRange, by: isRight ? 1 : -1); loadMoversHistory(); return true }
         case .share:
             if isLeft || isRight { share.period = ShareConfig.periods.cycled(from: share.period, by: isRight ? 1 : -1); return true }
-            if k == "f" { share.format = ShareFormat.allCases.cycled(from: share.format); return true }
+            if k == "f" { share.format = ShareFormat.mac.cycled(from: share.format); return true }
             if k == "p" { setPrivacy(SharePrivacy.allCases.cycled(from: share.privacy)); return true }
         case .asset:
             let txs = currentAssetTransactions

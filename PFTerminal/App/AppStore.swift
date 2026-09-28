@@ -1,37 +1,13 @@
+import PFCore
+import PFCoreUI
 import AppKit
 import Observation
 import SwiftUI
 
-enum Freshness: Equatable {
-    case live, syncing, stale(TimeInterval), partial(Int), offline, noData
-
-    var label: String {
-        switch self {
-        case .live: "LIVE"; case .syncing: "SYNCING"; case let .stale(a): "STALE \(DateFmt.age(a))"
-        case let .partial(n): "PARTIAL · \(n) unpriced"
-        case .offline: "OFFLINE"; case .noData: "NO DATA"
-        }
-    }
-    var glyph: String { switch self { case .live: "●"; case .syncing: "◐"; default: "○" } }
+extension Freshness {
     var color: Color {
         switch self { case .live: Theme.pos; case .syncing, .partial: Theme.acc; case .stale: Theme.neg; default: Theme.t4 }
     }
-}
-
-struct TxDraft: Equatable {
-    var editing: UUID?
-    var portfolioID: UUID?     // destination; required before commit (ALL owns nothing)
-    var type: TransactionType = .buy
-    var asset = ""
-    var amount = ""
-    var price = ""
-    var date = DateFmt.ymd(Date())
-    var fee = ""
-    var note = ""
-    var searchResults: [Asset] = []
-    var candidateQuotes: [AssetID: Quote] = [:]
-    var pick = 0                 // chosen search result (↑↓ in the sheet)
-    var searching = false
 }
 
 struct PaletteState: Equatable {
@@ -275,17 +251,8 @@ final class AppStore {
     }
 
     var freshness: Freshness {
-        if !online { return .offline }
-        if inFlight { return .syncing }
-        let held = summary.positions.map(\.asset.id)
-        if held.isEmpty { return lastSuccess == nil ? .noData : .live }
-        let qs = held.compactMap { quotes[$0] }
-        guard let oldest = qs.map(\.timestamp).min() else { return .noData }
-        let age = now.timeIntervalSince(oldest)
-        // LIVE only when every held asset has a fresh, non-cached quote.
-        let fresh = !qs.contains { $0.source == "cache" } && age <= TimeInterval(settings.refreshSeconds) + 30
-        if !fresh { return .stale(max(age, 0)) }
-        return qs.count == held.count ? .live : .partial(held.count - qs.count)
+        Freshness.evaluate(online: online, inFlight: inFlight, held: summary.positions.map(\.asset.id), quotes: quotes,
+                           hasSucceeded: lastSuccess != nil, refreshSeconds: settings.refreshSeconds, now: now)
     }
 
     // MARK: - market data
@@ -367,10 +334,6 @@ final class AppStore {
 
     func seriesKey(_ id: AssetID, _ r: ChartRange) -> String { "\(id)|\(r.rawValue)" }
 
-    private func ttl(_ r: ChartRange) -> TimeInterval {
-        switch r { case .h1: 120; case .d1, .h24: 600; case .w1, .d7: 1800; default: 6 * 3600 }
-    }
-
     /// Ensure price history for `ids` over `range` is loaded (cache first, then providers).
     func loadHistory(_ ids: [AssetID], _ range: ChartRange) {
         let histRange: ChartRange = range == .ytd ? .y1 : range
@@ -379,7 +342,7 @@ final class AppStore {
             guard !loadingHistory.contains(key), let asset = doc.assets.first(where: { $0.id == id }) else { continue }
             if let c = cache.history(id, histRange, settings.currency) {
                 if series[key] == nil { series[key] = PriceSeries(c.points); dataVersion += 1 }
-                if Date().timeIntervalSince(c.fetchedAt) < ttl(histRange) { continue }
+                if Date().timeIntervalSince(c.fetchedAt) < histRange.historyTTL { continue }
             } else if series[key] != nil { continue }
             loadingHistory.insert(key)
             let cur = settings.currency
@@ -399,21 +362,7 @@ final class AppStore {
 
     /// Assets held at any point during the range in a context (default: the active one).
     func assetsHeld(during range: ChartRange, in c: PortfolioContext? = nil) -> [AssetID] {
-        let c = c ?? context
-        let txs = doc.transactions(c)
-        let start = range.start(now: now, firstTransaction: txs.map(\.timestamp).min())
-        let atStart = PortfolioEngine.positions(txs, until: start).filter { $0.value.quantity > 0 }.keys
-        let during = txs.filter { $0.timestamp > start }.map(\.assetID)
-        let current = PortfolioEngine.positions(txs).filter { $0.value.quantity > 0 }.keys
-        return Array(Set(atStart).union(during).union(current))
-    }
-
-    struct PortfolioChart {
-        var value: [Double] = []     // market value (steps up on deposits)
-        var pnl: [Double] = []       // value − net invested: profit and drawdown periods
-        var twr: [Double] = []       // time-weighted index, deposits removed
-        var points: [HistoryPoint] = []
-        var isEmpty: Bool { value.count < 2 }
+        PortfolioEngine.assetsHeld(doc.transactions(c ?? context), during: range, now: now)
     }
 
     /// Reconstructed history for a range and context (default: active), ending at the live valuation.
@@ -423,22 +372,11 @@ final class AppStore {
         let c = c ?? context
         let summary = c == context ? self.summary : summary(for: c)
         let txs = doc.transactions(c)
-        let end = Date()
-        let start = range.start(now: end, firstTransaction: summary.firstDate)
-        let ids = assetsHeld(during: range, in: c)
         var s: [AssetID: PriceSeries] = [:]
-        for id in ids { if let x = assetSeries(id, range) ?? assetSeries(id, .all) { s[id] = x } }
-        let grid = PortfolioHistoryEngine.grid(start: start, end: end, count: points)
-        var pts = PortfolioHistoryEngine.reconstruct(transactions: txs, grid: grid, series: s)
-        pts = PortfolioHistoryEngine.pinLast(pts, liveValue: summary.isPartial ? nil : summary.totalValue.double, liveCost: summary.costBasis.double)
-        let priced = pts.filter { $0.value != nil }
-        if priced.count >= max(2, points / 3) {
-            return PortfolioChart(value: priced.compactMap(\.value), pnl: priced.compactMap(\.pnl), twr: PortfolioHistoryEngine.twrIndex(priced), points: priced)
+        for id in assetsHeld(during: range, in: c) { if let x = assetSeries(id, range) ?? assetSeries(id, .all) { s[id] = x } }
+        return PortfolioHistoryEngine.chart(transactions: txs, summary: summary, range: range, points: points, series: s, now: Date()) {
+            self.cache.snapshots(since: $0, context: c.storageKey)
         }
-        // Fallback: locally recorded snapshots (cost basis stands in for net invested).
-        let snaps = cache.snapshots(since: start, context: c.storageKey).map { HistoryPoint(time: $0.timestamp, value: $0.value, cost: $0.costBasis, invested: $0.costBasis, deposited: $0.costBasis) }
-        guard snaps.count >= 2 else { return PortfolioChart() }
-        return PortfolioChart(value: snaps.compactMap(\.value), pnl: snaps.compactMap(\.pnl), twr: PortfolioHistoryEngine.twrIndex(snaps), points: snaps)
     }
 
     // MARK: - derived

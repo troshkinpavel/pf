@@ -2,31 +2,41 @@ import Foundation
 
 /// Turns the app's computed portfolio state into the small widget snapshot. Pure.
 /// Privacy is enforced here: in `percentageOnly` no currency amount enters the snapshot.
-enum WidgetSnapshotBuilder {
-    struct Inputs {
-        var summary: PortfolioSummary
-        var movers24h: [Mover]            // MoversEngine output for 24H (flow-adjusted impact)
-        var performance: [Double]         // time-weighted index for the chart period
-        var performanceStart: Date
-        var performanceRange: String
-        var performanceChangePercent: Double?
-        var hasPortfolio: Bool
-        var quotesAsOf: Date?
-        var refreshInterval: TimeInterval
-        var isStale: Bool
-        var privacy: WidgetPrivacyMode
-        var currency: String
-        var numberStyle: NumberStyle
-        var now: Date
-        var contextID = "all"
-        var contextName = "PORTFOLIO"
-        var contextGlyph = "Σ"
+public enum WidgetSnapshotBuilder {
+    public struct Inputs {
+        public init(summary: PortfolioSummary, movers24h: [Mover], performance: [Double], performanceStart: Date, performanceRange: String,
+                    performanceChangePercent: Double? = nil, hasPortfolio: Bool, quotesAsOf: Date? = nil, refreshInterval: TimeInterval,
+                    isStale: Bool, privacy: WidgetPrivacyMode, currency: String, numberStyle: NumberStyle, now: Date,
+                    contextID: String = "all", contextName: String = "PORTFOLIO", contextGlyph: String = "Σ") {
+            self.summary = summary; self.movers24h = movers24h; self.performance = performance; self.performanceStart = performanceStart
+            self.performanceRange = performanceRange; self.performanceChangePercent = performanceChangePercent; self.hasPortfolio = hasPortfolio
+            self.quotesAsOf = quotesAsOf; self.refreshInterval = refreshInterval; self.isStale = isStale; self.privacy = privacy
+            self.currency = currency; self.numberStyle = numberStyle; self.now = now
+            self.contextID = contextID; self.contextName = contextName; self.contextGlyph = contextGlyph
+        }
+        public var summary: PortfolioSummary
+        public var movers24h: [Mover]            // MoversEngine output for 24H (flow-adjusted impact)
+        public var performance: [Double]         // time-weighted index for the chart period
+        public var performanceStart: Date
+        public var performanceRange: String
+        public var performanceChangePercent: Double?
+        public var hasPortfolio: Bool
+        public var quotesAsOf: Date?
+        public var refreshInterval: TimeInterval
+        public var isStale: Bool
+        public var privacy: WidgetPrivacyMode
+        public var currency: String
+        public var numberStyle: NumberStyle
+        public var now: Date
+        public var contextID = "all"
+        public var contextName = "PORTFOLIO"
+        public var contextGlyph = "Σ"
     }
 
-    static let maxRows = 6
-    static let chartPoints = 48
+    public static let maxRows = 6
+    public static let chartPoints = 48
 
-    static func build(_ i: Inputs) -> WidgetPortfolioSnapshot {
+    public static func build(_ i: Inputs) -> WidgetPortfolioSnapshot {
         let full = i.privacy == .full
         let s = i.summary
 

@@ -1,4 +1,6 @@
 #if DEBUG
+import PFCore
+import PFCoreUI
 import AppKit
 import WidgetKit
 

@@ -1,3 +1,5 @@
+import PFCore
+import PFCoreUI
 import Foundation
 import WidgetKit
 
@@ -36,17 +38,9 @@ extension AppStore {
         let key = comparable.keys.sorted().map { k in "\(k)|\((try? WidgetSnapshotStore.encoder.encode(comparable[k]!)).map { $0.hashValue } ?? 0)" }.joined() + context.storageKey
         if key == lastWidgetKey, now.timeIntervalSince(lastWidgetWrite) < 5 * 60 { return }
         do {
-            try WidgetSnapshotStore.write(active, to: dir.appendingPathComponent(WidgetSnapshotStore.fileName))
-            for (k, snap) in snaps { try WidgetSnapshotStore.write(snap, to: WidgetSnapshotStore.url(for: k)!) }
             let index = doc.livePortfolios.map { WidgetPortfolioRef(id: $0.id.uuidString, name: $0.name, glyph: $0.glyph) }
                 + [WidgetPortfolioRef(id: "all", name: "ALL PORTFOLIOS", glyph: PortfolioGlyphs.aggregate)]
-            try WidgetSnapshotStore.encoder.encode(index).write(to: dir.appendingPathComponent(WidgetSnapshotStore.indexName), options: .atomic)
-            // Archived / deleted portfolios must not keep feeding widgets.
-            let keep = Set(snaps.keys.map { "widget-snapshot-\($0).json" })
-            for f in (try? FileManager.default.contentsOfDirectory(atPath: dir.path)) ?? []
-            where f.hasPrefix("widget-snapshot-") && !keep.contains(f) {
-                try? FileManager.default.removeItem(at: dir.appendingPathComponent(f))
-            }
+            try WidgetSnapshotStore.publish(active: active, contexts: snaps, index: index, to: dir)
             lastWidgetKey = key
             lastWidgetWrite = now
             widgetStatus = "updated " + DateFmt.hms(now) + " · \(snaps.count) contexts"

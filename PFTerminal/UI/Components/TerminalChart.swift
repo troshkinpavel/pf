@@ -1,3 +1,5 @@
+import PFCore
+import PFCoreUI
 import SwiftUI
 
 /// ASCII line/block chart with y-axis, time axis, hover crosshair and a readout header.

@@ -6,68 +6,70 @@ import Foundation
 // What never syncs: market prices and caches, price history, widget snapshots, derived P&L,
 // UI state, settings, Keychain secrets. Every device recomputes derived state itself.
 
-enum SyncKind: String, Codable, CaseIterable, Sendable {
+public enum SyncKind: String, Codable, CaseIterable, Sendable {
     case portfolio, transaction, asset
 }
 
 /// One synchronized domain object, as exchanged with the remote store.
 /// `payload` is the object's JSON in the same Codable form as the backup format — portable
 /// across platforms and migratable via `schemaVersion`. A tombstone has `deletedAt` and no payload.
-struct SyncRecord: Codable, Equatable, Sendable {
-    static let currentSchema = 1
+public struct SyncRecord: Codable, Equatable, Sendable {
+    public init(kind: SyncKind, id: String, schemaVersion: Int = SyncRecord.currentSchema, modifiedAt: Date, deletedAt: Date? = nil, deviceID: String, deviceName: String? = nil, payload: Data? = nil, portfolioID: String? = nil, remoteTag: Data? = nil, remoteVersion: String? = nil) { self.kind = kind; self.id = id; self.schemaVersion = schemaVersion; self.modifiedAt = modifiedAt; self.deletedAt = deletedAt; self.deviceID = deviceID; self.deviceName = deviceName; self.payload = payload; self.portfolioID = portfolioID; self.remoteTag = remoteTag; self.remoteVersion = remoteVersion }
+    public static let currentSchema = 1
 
-    var kind: SyncKind
-    var id: String                 // stable identity: portfolio/transaction UUID, asset id — never a display name
-    var schemaVersion: Int = SyncRecord.currentSchema
-    var modifiedAt: Date
-    var deletedAt: Date?
-    var deviceID: String
-    var deviceName: String?
-    var payload: Data?
-    var portfolioID: String?       // transactions only (queries, diagnostics)
+    public var kind: SyncKind
+    public var id: String                 // stable identity: portfolio/transaction UUID, asset id — never a display name
+    public var schemaVersion: Int = SyncRecord.currentSchema
+    public var modifiedAt: Date
+    public var deletedAt: Date?
+    public var deviceID: String
+    public var deviceName: String?
+    public var payload: Data?
+    public var portfolioID: String?       // transactions only (queries, diagnostics)
     /// Opaque remote metadata (CloudKit system fields) and its version (change tag).
     /// Not part of identity or content.
-    var remoteTag: Data?
-    var remoteVersion: String?
+    public var remoteTag: Data?
+    public var remoteVersion: String?
 
-    var key: String { SyncRecord.key(kind, id) }
-    var isTombstone: Bool { deletedAt != nil }
+    public var key: String { SyncRecord.key(kind, id) }
+    public var isTombstone: Bool { deletedAt != nil }
 
-    static func key(_ kind: SyncKind, _ id: String) -> String { kind.rawValue + "." + id }
+    public static func key(_ kind: SyncKind, _ id: String) -> String { kind.rawValue + "." + id }
 }
 
-enum SyncMode: String, Codable, Sendable { case localOnly, iCloud }
+public enum SyncMode: String, Codable, Sendable { case localOnly, iCloud }
 
-enum SyncAccountStatus: Equatable, Sendable {
+public enum SyncAccountStatus: Equatable, Sendable {
     case available, noAccount, restricted, temporarilyUnavailable, notConfigured, unknown
 }
 
 /// User-facing sync state. Settings translates it into short PF-style labels.
-enum SyncStatus: Equatable, Sendable {
+public enum SyncStatus: Equatable, Sendable {
     case localOnly, checking, syncing, synced, offline, iCloudUnavailable, accountUnavailable
     case conflict(Int)
     case error(String)
 }
 
-enum SyncStoreError: Error, Equatable {
+public enum SyncStoreError: Error, Equatable {
     case offline, notAuthenticated, notConfigured, quotaExceeded, cloudDataDeleted
     case accountChanged
     case unavailable(String)
 }
 
-struct SyncFetchResult: Sendable {
-    var records: [SyncRecord]
-    var token: Data?
+public struct SyncFetchResult: Sendable {
+    public init(records: [SyncRecord], token: Data? = nil) { self.records = records; self.token = token }
+    public var records: [SyncRecord]
+    public var token: Data?
 }
 
-enum SyncSaveOutcome: Sendable {
+public enum SyncSaveOutcome: Sendable {
     case saved(key: String, tag: Data?, version: String?)
     case conflict(key: String, server: SyncRecord)   // server has a newer version than our tag
     case failed(key: String)
 }
 
 /// The remote side. CloudKit in the app; a deterministic in-memory store in tests.
-protocol SyncRemoteStore: Sendable {
+public protocol SyncRemoteStore: Sendable {
     func accountStatus() async -> SyncAccountStatus
     /// Identifies the signed-in account, to detect an account switch. nil if unknown.
     func accountID() async throws -> String?
@@ -77,38 +79,55 @@ protocol SyncRemoteStore: Sendable {
 }
 
 /// Local sync bookkeeping (device-local, never synced).
-struct SyncState: Codable, Equatable, Sendable {
-    struct Entry: Codable, Equatable, Sendable {
-        var hash: String            // content fingerprint at last sync / local edit ("" for tombstones)
-        var modifiedAt: Date
-        var deletedAt: Date?
-        var pending: Bool           // local change not yet accepted by the remote store
-        var tag: Data?
-        var version: String?        // remote version this entry is based on
+public struct SyncState: Codable, Equatable, Sendable {
+    public struct Entry: Codable, Equatable, Sendable {
+        public init(hash: String, modifiedAt: Date, deletedAt: Date? = nil, pending: Bool, tag: Data? = nil, version: String? = nil) { self.hash = hash; self.modifiedAt = modifiedAt; self.deletedAt = deletedAt; self.pending = pending; self.tag = tag; self.version = version }
+        public var hash: String            // content fingerprint at last sync / local edit ("" for tombstones)
+        public var modifiedAt: Date
+        public var deletedAt: Date?
+        public var pending: Bool           // local change not yet accepted by the remote store
+        public var tag: Data?
+        public var version: String?        // remote version this entry is based on
     }
 
-    var mode: SyncMode = .localOnly
-    var deviceID: String = UUID().uuidString
-    var deviceName: String = ""
-    var accountID: String?
-    var token: Data?
-    var lastSync: Date?
-    var known: [String: Entry] = [:]
-    var conflicts: [SyncConflict] = []
+    public var mode: SyncMode = .localOnly
+    public var deviceID: String = UUID().uuidString
+    public var deviceName: String = ""
+    public var accountID: String?
+    public var token: Data?
+    public var lastSync: Date?
+    public var known: [String: Entry] = [:]
+    public var conflicts: [SyncConflict] = []
     /// Records from a newer sync schema than this build understands: never applied, never overwritten.
-    var blocked: Set<String> = []
+    public var blocked: Set<String> = []
+    /// Most recent change received from another device, and when each device last changed
+    /// something (status lines only). Optional: older state files decode without them.
+    public var lastRemoteChange: SyncDeviceStamp?
+    public var devices: [String: Date]?
 
-    var pendingCount: Int { known.values.filter(\.pending).count }
-    var hasSynced: Bool { !known.isEmpty }
+    public init() {}
+
+    public var pendingCount: Int { known.values.filter(\.pending).count }
+    public var hasSynced: Bool { !known.isEmpty }
+}
+
+/// Which device made a change, and when (by the originating device's clock).
+public struct SyncDeviceStamp: Codable, Equatable, Sendable {
+    public init(device: String, at: Date) { self.device = device; self.at = at }
+    public var device: String
+    public var at: Date
 }
 
 /// A concurrent edit that could not be merged without losing information. The kept version is
 /// applied; the other one is preserved here so the user can restore it.
-struct SyncConflict: Codable, Equatable, Identifiable, Sendable {
-    var id = UUID()
-    var key: String
-    var kind: SyncKind
-    var reason: String
-    var other: SyncRecord          // the version that was not applied
-    var detectedAt: Date
+public struct SyncConflict: Codable, Equatable, Identifiable, Sendable {
+    public init(id: UUID = UUID(), key: String, kind: SyncKind, reason: String, other: SyncRecord, detectedAt: Date) {
+        self.id = id; self.key = key; self.kind = kind; self.reason = reason; self.other = other; self.detectedAt = detectedAt
+    }
+    public var id = UUID()
+    public var key: String
+    public var kind: SyncKind
+    public var reason: String
+    public var other: SyncRecord          // the version that was not applied
+    public var detectedAt: Date
 }

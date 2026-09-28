@@ -1,55 +1,55 @@
 import Foundation
 
-enum MenuBarFormat: String, Codable, CaseIterable, Sendable {
+public enum MenuBarFormat: String, Codable, CaseIterable, Sendable {
     case valuePct = "value + 24h %", valueDelta = "Σ value  Δ today", compact = "◈ compact", hidden = "icon only"
 }
 
 /// User preferences. Persisted as JSON in UserDefaults. Never holds secrets (see Keychain).
-struct AppSettings: Codable, Equatable, Sendable {
-    var primaryProvider: String = "CoinGecko"
-    var realtimeProvider: String = "Binance"
-    var fallbackProvider: String = "DexScreener"
-    var refreshSeconds: Int = 60
-    var currency: String = "USD"
-    var density: String = "compact"
-    var chartStyle: AsciiChart.Style = .line
-    var numbers: NumberStyle = .comma
-    var menuBar: MenuBarFormat = .valuePct
-    var popoverRows: Int = 4
-    var appLock: Bool = false
-    var alertThreshold: Double = 0          // 0 = off; otherwise |24h %| that triggers a notification
-    var shareDefaultPrivacy: SharePrivacy = .public
-    var widgetPrivacy: WidgetPrivacyMode = .full
+public struct AppSettings: Codable, Equatable, Sendable {
+    public var primaryProvider: String = "CoinGecko"
+    public var realtimeProvider: String = "Binance"
+    public var fallbackProvider: String = "DexScreener"
+    public var refreshSeconds: Int = 60
+    public var currency: String = "USD"
+    public var density: String = "compact"
+    public var chartStyle: AsciiChart.Style = .line
+    public var numbers: NumberStyle = .comma
+    public var menuBar: MenuBarFormat = .valuePct
+    public var popoverRows: Int = 4
+    public var appLock: Bool = false
+    public var alertThreshold: Double = 0          // 0 = off; otherwise |24h %| that triggers a notification
+    public var shareDefaultPrivacy: SharePrivacy = .public
+    public var widgetPrivacy: WidgetPrivacyMode = .full
     /// "active" follows the active context, "all" pins the menu bar to ALL PORTFOLIOS.
-    var menuBarContext: String = "active"
-    var onboarded: Bool = false
+    public var menuBarContext: String = "active"
+    public var onboarded: Bool = false
     /// Mac-local: keep the Dock icon while only the menu bar item is open. Never synced.
-    var keepInDock: Bool = false
+    public var keepInDock: Bool = false
 
-    static let providerOptions = ["CoinGecko", "Binance"]
-    static let realtimeOptions = ["Binance", "off"]
-    static let fallbackOptions = ["DexScreener", "CoinGecko", "none"]
-    static let intervalOptions = [15, 30, 60, 300]
-    static let currencyOptions = ["USD", "EUR", "CHF"]
-    static let alertOptions: [Double] = [0, 5, 10]
+    public static let providerOptions = ["CoinGecko", "Binance"]
+    public static let realtimeOptions = ["Binance", "off"]
+    public static let fallbackOptions = ["DexScreener", "CoinGecko", "none"]
+    public static let intervalOptions = [15, 30, 60, 300]
+    public static let currencyOptions = ["USD", "EUR", "CHF"]
+    public static let alertOptions: [Double] = [0, 5, 10]
 
-    var compact: Bool { density == "compact" }
-    var rowHeight: CGFloat { compact ? 26 : 32 }
-    var intervalLabel: String { refreshSeconds >= 60 && refreshSeconds % 60 == 0 && refreshSeconds > 60 ? "\(refreshSeconds / 60) min" : "\(refreshSeconds) sec" }
+    public var compact: Bool { density == "compact" }
+    public var rowHeight: CGFloat { compact ? 26 : 32 }
+    public var intervalLabel: String { refreshSeconds >= 60 && refreshSeconds % 60 == 0 && refreshSeconds > 60 ? "\(refreshSeconds / 60) min" : "\(refreshSeconds) sec" }
 
     private static let key = "pf.settings.v1"
 
-    static func load(_ defaults: UserDefaults = .standard) -> AppSettings {
+    public static func load(_ defaults: UserDefaults = .standard) -> AppSettings {
         guard let d = defaults.data(forKey: key), let s = try? JSONDecoder().decode(AppSettings.self, from: d) else { return AppSettings() }
         return s
     }
-    func save(_ defaults: UserDefaults = .standard) {
+    public func save(_ defaults: UserDefaults = .standard) {
         if let d = try? JSONEncoder().encode(self) { defaults.set(d, forKey: Self.key) }
     }
 
     // Tolerate older/partial JSON: every field falls back to its default.
-    init() {}
-    init(from decoder: Decoder) throws {
+    public init() {}
+    public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         let d = AppSettings()
         primaryProvider = (try? c.decode(String.self, forKey: .primaryProvider)) ?? d.primaryProvider
@@ -74,7 +74,7 @@ struct AppSettings: Codable, Equatable, Sendable {
 
 extension Array where Element: Equatable {
     /// Next element after `cur`, wrapping.
-    func cycled(from cur: Element, by d: Int = 1) -> Element {
+    public func cycled(from cur: Element, by d: Int = 1) -> Element {
         guard !isEmpty else { return cur }
         let i = firstIndex(of: cur) ?? 0
         return self[((i + d) % count + count) % count]

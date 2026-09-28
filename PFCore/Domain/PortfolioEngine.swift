@@ -1,25 +1,26 @@
 import Foundation
 
 /// Holdings derived from a transaction ledger (average-cost method).
-struct Position: Hashable, Sendable {
-    let assetID: AssetID
-    var quantity: Decimal = 0
-    var costBasis: Decimal = 0
-    var realizedPnL: Decimal = 0
-    var transactions: [Transaction] = []
+public struct Position: Hashable, Sendable {
+    public init(assetID: AssetID, quantity: Decimal = 0, costBasis: Decimal = 0, realizedPnL: Decimal = 0, transactions: [Transaction] = []) { self.assetID = assetID; self.quantity = quantity; self.costBasis = costBasis; self.realizedPnL = realizedPnL; self.transactions = transactions }
+    public let assetID: AssetID
+    public var quantity: Decimal = 0
+    public var costBasis: Decimal = 0
+    public var realizedPnL: Decimal = 0
+    public var transactions: [Transaction] = []
 
-    var averageEntry: Decimal? { quantity > 0 ? costBasis / quantity : nil }
-    var isOpen: Bool { quantity > 0 }
+    public var averageEntry: Decimal? { quantity > 0 ? costBasis / quantity : nil }
+    public var isOpen: Bool { quantity > 0 }
 }
 
-enum LedgerError: Error, Equatable, CustomStringConvertible {
+public enum LedgerError: Error, Equatable, CustomStringConvertible {
     case nonPositiveQuantity(UUID)
     case negativePrice(UUID)
     case negativeFee(UUID)
     case oversold(UUID, held: Decimal, requested: Decimal)
     case unknownAsset(UUID, AssetID)
 
-    var description: String {
+    public var description: String {
         switch self {
         case .nonPositiveQuantity: "quantity must be greater than 0"
         case .negativePrice: "price cannot be negative"
@@ -30,16 +31,16 @@ enum LedgerError: Error, Equatable, CustomStringConvertible {
     }
 }
 
-enum PortfolioEngine {
+public enum PortfolioEngine {
     /// Stable chronological order: timestamp, then original ledger order.
-    static func ordered(_ txs: [Transaction]) -> [Transaction] {
+    public static func ordered(_ txs: [Transaction]) -> [Transaction] {
         txs.enumerated().sorted { a, b in
             a.element.timestamp != b.element.timestamp ? a.element.timestamp < b.element.timestamp : a.offset < b.offset
         }.map(\.element)
     }
 
     /// Apply one transaction to a position. Pure; used by every derivation below.
-    static func apply(_ t: Transaction, to p: inout Position) {
+    public static func apply(_ t: Transaction, to p: inout Position) {
         p.transactions.append(t)
         switch t.type {
         case .buy:
@@ -64,7 +65,7 @@ enum PortfolioEngine {
         }
     }
 
-    static func positions(_ txs: [Transaction], until date: Date? = nil) -> [AssetID: Position] {
+    public static func positions(_ txs: [Transaction], until date: Date? = nil) -> [AssetID: Position] {
         var out: [AssetID: Position] = [:]
         for t in ordered(txs) {
             if let d = date, t.timestamp > d { break }
@@ -78,7 +79,7 @@ enum PortfolioEngine {
     /// Aggregate of independent ledgers (the ALL context). Each portfolio is computed with its own
     /// average cost, then quantities, cost basis and realized P&L are summed — merging the raw
     /// transactions instead would re-average sells across portfolios and misstate both.
-    static func positions(ledgers: [[Transaction]], until date: Date? = nil) -> [AssetID: Position] {
+    public static func positions(ledgers: [[Transaction]], until date: Date? = nil) -> [AssetID: Position] {
         if ledgers.count == 1 { return positions(ledgers[0], until: date) }
         var out: [AssetID: Position] = [:]
         for l in ledgers {
@@ -96,7 +97,7 @@ enum PortfolioEngine {
     }
 
     /// Validates a ledger before it is committed. Sells may never exceed holdings at their date.
-    static func validate(_ txs: [Transaction], knownAssets: Set<AssetID>? = nil) -> [LedgerError] {
+    public static func validate(_ txs: [Transaction], knownAssets: Set<AssetID>? = nil) -> [LedgerError] {
         var errors: [LedgerError] = []
         var held: [AssetID: Decimal] = [:]
         for t in ordered(txs) {
@@ -118,7 +119,7 @@ enum PortfolioEngine {
     }
 
     /// Value moving into (+) or out of (−) a position through a transaction.
-    static func externalFlow(_ t: Transaction, fallbackPrice: Decimal?) -> Decimal {
+    public static func externalFlow(_ t: Transaction, fallbackPrice: Decimal?) -> Decimal {
         switch t.type {
         case .buy: return t.quantity * t.price + t.fee
         case .sell: return -(t.quantity * t.price - t.fee)
@@ -130,7 +131,7 @@ enum PortfolioEngine {
     /// Absolute value change of each asset over [start, now] net of external flows.
     /// contribution = qty_now·p_now − qty_start·p_start − Σflows(start, now]
     /// This is the asset's contribution to the portfolio's move, not its price change.
-    static func contributions(
+    public static func contributions(
         _ txs: [Transaction], quotes: [AssetID: Quote], start: Date, now: Date,
         startPrice: (AssetID) -> Decimal?
     ) -> [AssetID: (contribution: Decimal, startValue: Decimal, inflow: Decimal)] {
@@ -157,69 +158,71 @@ enum PortfolioEngine {
 
 // MARK: - Valuation
 
-struct PositionValuation: Identifiable, Hashable, Sendable {
-    var id: AssetID { asset.id }
-    let asset: Asset
-    let position: Position
-    let quote: Quote?
+public struct PositionValuation: Identifiable, Hashable, Sendable {
+    public var id: AssetID { asset.id }
+    public let asset: Asset
+    public let position: Position
+    public let quote: Quote?
 
-    var price: Decimal? { quote?.price }
-    var value: Decimal? { price.map { $0 * position.quantity } }
-    var unrealized: Decimal? { value.map { $0 - position.costBasis } }
-    var returnPct: Double? {
+    public var price: Decimal? { quote?.price }
+    public var value: Decimal? { price.map { $0 * position.quantity } }
+    public var unrealized: Decimal? { value.map { $0 - position.costBasis } }
+    public var returnPct: Double? {
         guard let u = unrealized, position.costBasis > 0 else { return nil }
         return (u / position.costBasis).double * 100
     }
-    var change24h: Double? { quote?.change24h }
+    public var change24h: Double? { quote?.change24h }
     /// 24h contribution to portfolio value (set by the summary; accounts for intraday transactions).
-    var contribution24h: Decimal?
-    var allocation: Double?
+    public var contribution24h: Decimal?
+    public var allocation: Double?
 
-    init(asset: Asset, position: Position, quote: Quote?) {
+    public init(asset: Asset, position: Position, quote: Quote?) {
         self.asset = asset; self.position = position; self.quote = quote
     }
 }
 
-struct Ranked: Hashable, Sendable {
-    let symbol: String
-    let assetID: AssetID
-    let value: Double
+public struct Ranked: Hashable, Sendable {
+    public init(symbol: String, assetID: AssetID, value: Double) { self.symbol = symbol; self.assetID = assetID; self.value = value }
+    public let symbol: String
+    public let assetID: AssetID
+    public let value: Double
 }
 
-struct PortfolioSummary: Sendable {
-    var positions: [PositionValuation]          // open positions, value desc (unpriced last)
-    var closed: [Position]                      // fully exited, realized only
-    var totalValue: Decimal                     // priced positions only
-    var unpriced: [AssetID]                     // open positions without a quote
-    var costBasis: Decimal
-    var unrealized: Decimal
-    var realized: Decimal
-    var change24h: Decimal?
-    var change24hPct: Double?
-    var driver: (valuation: PositionValuation, share: Double)?
-    var best: Ranked?, worst: Ranked?
-    var best24: Ranked?, worst24: Ranked?
-    var transactionCount: Int
-    var firstDate: Date?
+public struct PortfolioSummary: Sendable {
+    public init(positions: [PositionValuation], closed: [Position], totalValue: Decimal, unpriced: [AssetID], costBasis: Decimal, unrealized: Decimal, realized: Decimal, change24h: Decimal? = nil, change24hPct: Double? = nil, driver: (valuation: PositionValuation, share: Double)? = nil, best: Ranked? = nil, worst: Ranked? = nil, best24: Ranked? = nil, worst24: Ranked? = nil, transactionCount: Int, firstDate: Date? = nil) { self.positions = positions; self.closed = closed; self.totalValue = totalValue; self.unpriced = unpriced; self.costBasis = costBasis; self.unrealized = unrealized; self.realized = realized; self.change24h = change24h; self.change24hPct = change24hPct; self.driver = driver; self.best = best; self.worst = worst; self.best24 = best24; self.worst24 = worst24; self.transactionCount = transactionCount; self.firstDate = firstDate }
+    public var positions: [PositionValuation]          // open positions, value desc (unpriced last)
+    public var closed: [Position]                      // fully exited, realized only
+    public var totalValue: Decimal                     // priced positions only
+    public var unpriced: [AssetID]                     // open positions without a quote
+    public var costBasis: Decimal
+    public var unrealized: Decimal
+    public var realized: Decimal
+    public var change24h: Decimal?
+    public var change24hPct: Double?
+    public var driver: (valuation: PositionValuation, share: Double)?
+    public var best: Ranked?, worst: Ranked?
+    public var best24: Ranked?, worst24: Ranked?
+    public var transactionCount: Int
+    public var firstDate: Date?
 
-    var isPartial: Bool { !unpriced.isEmpty }
-    var isEmpty: Bool { positions.isEmpty }
-    var totalPnL: Decimal { unrealized + realized }
+    public var isPartial: Bool { !unpriced.isEmpty }
+    public var isEmpty: Bool { positions.isEmpty }
+    public var totalPnL: Decimal { unrealized + realized }
     /// Unrealized return on current cost basis.
-    var returnPct: Double? { costBasis > 0 ? (unrealized / costBasis).double * 100 : nil }
+    public var returnPct: Double? { costBasis > 0 ? (unrealized / costBasis).double * 100 : nil }
 
-    func valuation(_ id: AssetID) -> PositionValuation? { positions.first { $0.asset.id == id } }
+    public func valuation(_ id: AssetID) -> PositionValuation? { positions.first { $0.asset.id == id } }
 }
 
 extension PortfolioEngine {
-    static func summarize(
+    public static func summarize(
         transactions: [Transaction], assets: [AssetID: Asset], quotes: [AssetID: Quote], now: Date = Date()
     ) -> PortfolioSummary {
         summarize(ledgers: [transactions], assets: assets, quotes: quotes, now: now)
     }
 
     /// Summary for a context: one ledger per portfolio in scope.
-    static func summarize(
+    public static func summarize(
         ledgers: [[Transaction]], assets: [AssetID: Asset], quotes: [AssetID: Quote], now: Date = Date()
     ) -> PortfolioSummary {
         let transactions = ledgers.flatMap { $0 }   // quantities and flows are additive across ledgers

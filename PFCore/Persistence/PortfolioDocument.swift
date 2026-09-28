@@ -6,36 +6,37 @@ import Foundation
 ///
 /// v1: one implicit portfolio (`portfolio` meta + transactions).
 /// v2: `portfolios` list; every transaction carries `portfolioID`.
-struct PortfolioDocument: Codable, Equatable {
-    static let currentSchema = 2
+public struct PortfolioDocument: Codable, Equatable {
+    public static let currentSchema = 2
 
     /// v1 metadata, read only for migration and never written again.
-    struct Meta: Codable, Equatable {
-        var name: String = "main"
-        var isDemo: Bool = false
-        var createdAt: Date = Date()
+    public struct Meta: Codable, Equatable {
+        public init(name: String = "main", isDemo: Bool = false, createdAt: Date = Date()) { self.name = name; self.isDemo = isDemo; self.createdAt = createdAt }
+        public var name: String = "main"
+        public var isDemo: Bool = false
+        public var createdAt: Date = Date()
     }
 
-    var schemaVersion: Int = currentSchema
-    var app: String = "pf Terminal"
-    var exportedAt: Date?
-    var portfolios: [PortfolioInfo] = []
-    var assets: [Asset] = []
-    var transactions: [Transaction] = []
-    var settings: AppSettings?
-    var legacyMeta: Meta?
+    public var schemaVersion: Int = currentSchema
+    public var app: String = "pf Terminal"
+    public var exportedAt: Date?
+    public var portfolios: [PortfolioInfo] = []
+    public var assets: [Asset] = []
+    public var transactions: [Transaction] = []
+    public var settings: AppSettings?
+    public var legacyMeta: Meta?
 
-    enum CodingKeys: String, CodingKey {
+    public enum CodingKeys: String, CodingKey {
         case schemaVersion, app, exportedAt, portfolios, assets, transactions, settings
         case legacyMeta = "portfolio"
     }
 
-    init(schemaVersion: Int = currentSchema, portfolios: [PortfolioInfo] = [], assets: [Asset] = [], transactions: [Transaction] = [], settings: AppSettings? = nil) {
+    public init(schemaVersion: Int = currentSchema, portfolios: [PortfolioInfo] = [], assets: [Asset] = [], transactions: [Transaction] = [], settings: AppSettings? = nil) {
         self.schemaVersion = schemaVersion; self.portfolios = portfolios; self.assets = assets
         self.transactions = transactions; self.settings = settings
     }
 
-    init(from decoder: Decoder) throws {
+    public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         schemaVersion = try c.decodeIfPresent(Int.self, forKey: .schemaVersion) ?? 1
         app = try c.decodeIfPresent(String.self, forKey: .app) ?? "pf Terminal"
@@ -48,27 +49,27 @@ struct PortfolioDocument: Codable, Equatable {
     }
 
     /// A fresh document with one empty MAIN portfolio.
-    static func fresh(now: Date = Date()) -> PortfolioDocument {
+    public static func fresh(now: Date = Date()) -> PortfolioDocument {
         PortfolioDocument(portfolios: [PortfolioInfo(id: UUID(), name: "MAIN", glyph: PortfolioGlyphs.main, createdAt: PortfolioInfo.stamp(now))])
     }
 
-    static let encoder: JSONEncoder = {
+    public static let encoder: JSONEncoder = {
         let e = JSONEncoder()
         e.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
         e.dateEncodingStrategy = .iso8601
         return e
     }()
-    static let decoder: JSONDecoder = {
+    public static let decoder: JSONDecoder = {
         let d = JSONDecoder()
         d.dateDecodingStrategy = .iso8601
         return d
     }()
 
-    enum ImportError: Error, CustomStringConvertible {
+    public enum ImportError: Error, CustomStringConvertible {
         case unreadable(String)
         case newerSchema(Int)
         case invalid([String])
-        var description: String {
+        public var description: String {
             switch self {
             case let .unreadable(m): "not a pf backup: \(m)"
             case let .newerSchema(v): "backup schema v\(v) is newer than this app (v\(PortfolioDocument.currentSchema))"
@@ -80,7 +81,7 @@ struct PortfolioDocument: Codable, Equatable {
     /// Decode + validate. Nothing is applied by this function. `ledgerChecks: false` (the
     /// app's own file) accepts a ledger that became oversold through a synced delete —
     /// it is shown, never quarantined. Imports are always strict.
-    static func load(_ data: Data, ledgerChecks: Bool = true) throws -> PortfolioDocument {
+    public static func load(_ data: Data, ledgerChecks: Bool = true) throws -> PortfolioDocument {
         let probe: [String: Any]
         do { probe = try JSONSerialization.jsonObject(with: data) as? [String: Any] ?? [:] }
         catch { throw ImportError.unreadable("invalid JSON") }
@@ -98,7 +99,7 @@ struct PortfolioDocument: Codable, Equatable {
 
     /// v1 → v2: the single implicit portfolio becomes MAIN and owns every transaction.
     /// Idempotent: on a v2 document with valid references this changes nothing.
-    static func migrate(_ d: PortfolioDocument) -> PortfolioDocument {
+    public static func migrate(_ d: PortfolioDocument) -> PortfolioDocument {
         var d = d
         if d.portfolios.isEmpty {
             let meta = d.legacyMeta ?? Meta()
@@ -115,7 +116,7 @@ struct PortfolioDocument: Codable, Equatable {
         return d
     }
 
-    func validationErrors(ledger: Bool = true) -> [String] {
+    public func validationErrors(ledger: Bool = true) -> [String] {
         var errs: [String] = []
         let ids = Set(assets.map(\.id))
         if ids.count != assets.count { errs.append("duplicate asset ids") }
@@ -137,14 +138,14 @@ struct PortfolioDocument: Codable, Equatable {
         return errs
     }
 
-    func encoded() throws -> Data { try Self.encoder.encode(self) }
+    public func encoded() throws -> Data { try Self.encoder.encode(self) }
 }
 
 // Decimal fields as strings; accepts numbers on input for hand-written files.
 extension Transaction {
-    enum CodingKeys: String, CodingKey { case id, portfolioID, assetID, type, quantity, price, currency, timestamp, fee, note }
+    public enum CodingKeys: String, CodingKey { case id, portfolioID, assetID, type, quantity, price, currency, timestamp, fee, note }
 
-    init(from decoder: Decoder) throws {
+    public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         func dec(_ k: CodingKeys) throws -> Decimal {
             if let s = try? c.decode(String.self, forKey: k), let d = Decimal(string: s, locale: Locale(identifier: "en_US_POSIX")) { return d }
@@ -164,7 +165,7 @@ extension Transaction {
         note = try c.decodeIfPresent(String.self, forKey: .note)
     }
 
-    func encode(to encoder: Encoder) throws {
+    public func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
         try c.encode(id, forKey: .id)
         try c.encode(portfolioID, forKey: .portfolioID)
@@ -180,16 +181,17 @@ extension Transaction {
 }
 
 /// Local file storage: ~/Library/Application Support/pf/portfolio.json (inside the app sandbox container).
-struct PortfolioStore {
-    let directory: URL
+public struct PortfolioStore {
+    public init(directory: URL) { self.directory = directory }
+    public let directory: URL
 
-    static var defaultDirectory: URL {
+    public static var defaultDirectory: URL {
         FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("pf", isDirectory: true)
     }
 
-    var fileURL: URL { directory.appendingPathComponent("portfolio.json") }
+    public var fileURL: URL { directory.appendingPathComponent("portfolio.json") }
 
-    func load() throws -> PortfolioDocument? {
+    public func load() throws -> PortfolioDocument? {
         guard FileManager.default.fileExists(atPath: fileURL.path) else { return nil }
         let data = try Data(contentsOf: fileURL)
         let doc = try PortfolioDocument.load(data, ledgerChecks: false)
@@ -202,7 +204,7 @@ struct PortfolioStore {
         return doc
     }
 
-    func save(_ doc: PortfolioDocument) throws {
+    public func save(_ doc: PortfolioDocument) throws {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         var d = doc
         d.settings = nil
@@ -211,10 +213,10 @@ struct PortfolioStore {
     }
 
     /// Keep an unreadable file aside instead of overwriting the user's data.
-    func quarantine() {
+    public func quarantine() {
         let dst = directory.appendingPathComponent("portfolio.unreadable-\(Int(Date().timeIntervalSince1970)).json")
         try? FileManager.default.moveItem(at: fileURL, to: dst)
     }
 
-    var byteSize: Int { (try? FileManager.default.attributesOfItem(atPath: fileURL.path)[.size] as? Int) ?? 0 }
+    public var byteSize: Int { (try? FileManager.default.attributesOfItem(atPath: fileURL.path)[.size] as? Int) ?? 0 }
 }

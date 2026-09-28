@@ -9,18 +9,18 @@ import Foundation
 // only renders `UpdateState`.
 
 /// Semantic version (`MAJOR.MINOR.PATCH[-prerelease]`, optional leading `v`, missing parts = 0).
-struct SemanticVersion: Comparable, Hashable, CustomStringConvertible, Sendable {
-    var major: Int, minor: Int, patch: Int
-    var prerelease: [String] = []
+public struct SemanticVersion: Comparable, Hashable, CustomStringConvertible, Sendable {
+    public var major: Int, minor: Int, patch: Int
+    public var prerelease: [String] = []
 
-    var isPrerelease: Bool { !prerelease.isEmpty }
-    var description: String { "\(major).\(minor).\(patch)" + (prerelease.isEmpty ? "" : "-" + prerelease.joined(separator: ".")) }
+    public var isPrerelease: Bool { !prerelease.isEmpty }
+    public var description: String { "\(major).\(minor).\(patch)" + (prerelease.isEmpty ? "" : "-" + prerelease.joined(separator: ".")) }
 
-    init(_ major: Int, _ minor: Int, _ patch: Int, prerelease: [String] = []) {
+    public init(_ major: Int, _ minor: Int, _ patch: Int, prerelease: [String] = []) {
         self.major = major; self.minor = minor; self.patch = patch; self.prerelease = prerelease
     }
 
-    init?(_ raw: String) {
+    public init?(_ raw: String) {
         var s = raw.trimmingCharacters(in: .whitespaces)
         if s.first == "v" || s.first == "V" { s.removeFirst() }
         s = String(s.split(separator: "+", maxSplits: 1).first ?? "")          // build metadata is ignored
@@ -38,7 +38,7 @@ struct SemanticVersion: Comparable, Hashable, CustomStringConvertible, Sendable 
 
     /// SemVer precedence: numeric parts first; a prerelease sorts before its release;
     /// prerelease identifiers compare numerically when both are numbers.
-    static func < (a: Self, b: Self) -> Bool {
+    public static func < (a: Self, b: Self) -> Bool {
         if (a.major, a.minor, a.patch) != (b.major, b.minor, b.patch) { return (a.major, a.minor, a.patch) < (b.major, b.minor, b.patch) }
         if a.prerelease.isEmpty != b.prerelease.isEmpty { return !a.prerelease.isEmpty }
         for (x, y) in zip(a.prerelease, b.prerelease) where x != y {
@@ -54,40 +54,44 @@ struct SemanticVersion: Comparable, Hashable, CustomStringConvertible, Sendable 
 }
 
 /// The running app's version, from bundle metadata (never hard-coded).
-struct InstalledVersion: Equatable, Sendable {
-    var marketing: String      // CFBundleShortVersionString
-    var build: String          // CFBundleVersion
+public struct InstalledVersion: Equatable, Sendable {
+    public var marketing: String      // CFBundleShortVersionString
+    public var build: String          // CFBundleVersion
 
-    init(marketing: String, build: String) { self.marketing = marketing; self.build = build }
-    init(info: [String: Any]?) {
+    public init(marketing: String, build: String) { self.marketing = marketing; self.build = build }
+    public init(info: [String: Any]?) {
         marketing = info?["CFBundleShortVersionString"] as? String ?? "0.0.0"
         build = info?["CFBundleVersion"] as? String ?? "0"
     }
-    static var current: InstalledVersion { InstalledVersion(info: Bundle.main.infoDictionary) }
+    public static var current: InstalledVersion { InstalledVersion(info: Bundle.main.infoDictionary) }
 
-    var display: String { "\(marketing) (\(build))" }
-    var semantic: SemanticVersion? { SemanticVersion(marketing) }
+    public var display: String { "\(marketing) (\(build))" }
+    public var semantic: SemanticVersion? { SemanticVersion(marketing) }
 }
 
 /// One published release, as reported by the release source.
-struct ReleaseInfo: Equatable, Sendable {
-    var tag: String
-    var name: String?
-    var publishedAt: Date?
-    var isDraft = false
-    var isPrerelease = false
+public struct ReleaseInfo: Equatable, Sendable {
+    public init(tag: String, name: String? = nil, publishedAt: Date? = nil, isDraft: Bool = false, isPrerelease: Bool = false) {
+        self.tag = tag; self.name = name; self.publishedAt = publishedAt; self.isDraft = isDraft; self.isPrerelease = isPrerelease
+    }
+    public var tag: String
+    public var name: String?
+    public var publishedAt: Date?
+    public var isDraft = false
+    public var isPrerelease = false
 }
 
-struct AvailableUpdate: Equatable, Sendable {
-    var version: SemanticVersion
-    var tag: String
-    var name: String?
-    var publishedAt: Date?
+public struct AvailableUpdate: Equatable, Sendable {
+    public init(version: SemanticVersion, tag: String, name: String? = nil, publishedAt: Date? = nil, releaseURL: URL) { self.version = version; self.tag = tag; self.name = name; self.publishedAt = publishedAt; self.releaseURL = releaseURL }
+    public var version: SemanticVersion
+    public var tag: String
+    public var name: String?
+    public var publishedAt: Date?
     /// Always the canonical release page, built from the validated tag — never a URL from release metadata.
-    var releaseURL: URL
+    public var releaseURL: URL
 }
 
-enum UpdateState: Equatable, Sendable {
+public enum UpdateState: Equatable, Sendable {
     case idle
     case checking
     case upToDate(checkedAt: Date)
@@ -95,15 +99,15 @@ enum UpdateState: Equatable, Sendable {
     case failed(String)
 }
 
-protocol UpdateChecking: Sendable {
+public protocol UpdateChecking: Sendable {
     /// Recent releases, newest first. Throws on network/HTTP/decoding failure.
     func releases() async throws -> [ReleaseInfo]
 }
 
-enum UpdateError: Error, Equatable, CustomStringConvertible {
+public enum UpdateError: Error, Equatable, CustomStringConvertible {
     case offline, http(Int), rateLimited, malformed, unknownInstalledVersion
 
-    var description: String {
+    public var description: String {
         switch self {
         case .offline: "no connection · try again when online"
         case let .http(c): "GitHub returned HTTP \(c)"
@@ -114,20 +118,20 @@ enum UpdateError: Error, Equatable, CustomStringConvertible {
     }
 }
 
-enum Updates {
-    static let owner = "troshkinpavel"
-    static let repo = "pf"
-    static var releasesPage: URL { URL(string: "https://github.com/\(owner)/\(repo)/releases")! }
+public enum Updates {
+    public static let owner = "troshkinpavel"
+    public static let repo = "pf"
+    public static var releasesPage: URL { URL(string: "https://github.com/\(owner)/\(repo)/releases")! }
 
     /// Canonical page for a tag. Only plain version tags are accepted, so nothing from the
     /// response can steer the user to another host or path.
-    static func releaseURL(tag: String) -> URL? {
+    public static func releaseURL(tag: String) -> URL? {
         guard tag.range(of: #"^v?\d+\.\d+\.\d+(-[0-9A-Za-z.]+)?$"#, options: .regularExpression) != nil else { return nil }
         return URL(string: "https://github.com/\(owner)/\(repo)/releases/tag/\(tag)")
     }
 
     /// Pure decision: newest stable, well-formed release vs the installed version.
-    static func evaluate(installed: String, releases: [ReleaseInfo], includePrereleases: Bool = false, now: Date = Date()) -> UpdateState {
+    public static func evaluate(installed: String, releases: [ReleaseInfo], includePrereleases: Bool = false, now: Date = Date()) -> UpdateState {
         guard let mine = SemanticVersion(installed) else { return .failed(UpdateError.unknownInstalledVersion.description) }
         let candidates: [(SemanticVersion, ReleaseInfo)] = releases.compactMap { r in
             guard !r.isDraft, includePrereleases || !r.isPrerelease,
@@ -142,7 +146,7 @@ enum Updates {
     }
 
     /// One manual check. Never throws: failures become `.failed` and the app carries on.
-    static func check(installed: String, using checker: UpdateChecking, now: Date = Date()) async -> UpdateState {
+    public static func check(installed: String, using checker: UpdateChecking, now: Date = Date()) async -> UpdateState {
         do { return evaluate(installed: installed, releases: try await checker.releases(), now: now) }
         catch let e as UpdateError { return .failed(e.description) }
         catch { return .failed("could not check for updates") }
@@ -151,10 +155,11 @@ enum Updates {
 
 /// GitHub Releases of the canonical repository. Anonymous (no account, no token), ephemeral
 /// session (no cookies/cache), and the request carries nothing about the user or portfolio.
-struct GitHubReleaseChecker: UpdateChecking {
-    var session: URLSession = URLSession(configuration: .ephemeral)
+public struct GitHubReleaseChecker: UpdateChecking {
+    public init(session: URLSession = URLSession(configuration: .ephemeral)) { self.session = session }
+    public var session: URLSession = URLSession(configuration: .ephemeral)
 
-    func releases() async throws -> [ReleaseInfo] {
+    public func releases() async throws -> [ReleaseInfo] {
         var req = URLRequest(url: URL(string: "https://api.github.com/repos/\(Updates.owner)/\(Updates.repo)/releases?per_page=20")!,
                              timeoutInterval: 15)
         req.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
@@ -170,9 +175,9 @@ struct GitHubReleaseChecker: UpdateChecking {
         return try Self.parse(data)
     }
 
-    static func parse(_ data: Data) throws -> [ReleaseInfo] {
+    public static func parse(_ data: Data) throws -> [ReleaseInfo] {
         struct R: Decodable {
-            let tag_name: String; let name: String?; let draft: Bool; let prerelease: Bool; let published_at: Date?
+            public let tag_name: String; let name: String?; let draft: Bool; let prerelease: Bool; let published_at: Date?
         }
         let d = JSONDecoder()
         d.dateDecodingStrategy = .iso8601

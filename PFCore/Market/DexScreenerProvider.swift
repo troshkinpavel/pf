@@ -1,36 +1,38 @@
 import Foundation
 
-/// On-chain tokens identified by chain + contract. Picks the most liquid pair per token.
-struct DexScreenerProvider: MarketDataProvider {
-    let name = "DexScreener"
+/// On-chain tokens identified by chain + contract (or a catalog fallback for listed coins).
+/// Picks the most liquid pair per token.
+public struct DexScreenerProvider: MarketDataProvider {
+    public init() {}
+    public let name = "DexScreener"
     private let base = "https://api.dexscreener.com"
 
-    func supports(_ asset: Asset) -> Bool { asset.chain != nil && asset.contractAddress != nil }
+    public func supports(_ asset: Asset) -> Bool { AssetCatalog.dexIdentity(asset) != nil }
 
     private struct Pair: Decodable {
-        struct Token: Decodable { let address: String; let name: String?; let symbol: String? }
-        struct Liquidity: Decodable { let usd: Double? }
-        let chainId: String
-        let baseToken: Token
-        let priceUsd: String?
-        let priceChange: [String: FlexDouble]?
-        let volume: [String: FlexDouble]?
-        let liquidity: Liquidity?
-        let marketCap: Double?
+        public struct Token: Decodable { let address: String; let name: String?; let symbol: String? }
+        public struct Liquidity: Decodable { let usd: Double? }
+        public let chainId: String
+        public let baseToken: Token
+        public let priceUsd: String?
+        public let priceChange: [String: FlexDouble]?
+        public let volume: [String: FlexDouble]?
+        public let liquidity: Liquidity?
+        public let marketCap: Double?
     }
 
-    func quotes(for assets: [Asset], currency: String) async throws -> [AssetID: Quote] {
+    public func quotes(for assets: [Asset], currency: String) async throws -> [AssetID: Quote] {
         guard currency.uppercased() == "USD" else { throw MarketError.unsupported }
         var out: [AssetID: Quote] = [:]
-        let byChain = Dictionary(grouping: assets.filter(supports), by: { $0.chain!.lowercased() })
-        for (chain, list) in byChain {
+        let ids = assets.compactMap { a in AssetCatalog.dexIdentity(a).map { (a, $0.chain.lowercased(), $0.contract) } }
+        for (chain, list) in Dictionary(grouping: ids, by: \.1) {
             for chunk in stride(from: 0, to: list.count, by: 30).map({ Array(list[$0..<min($0 + 30, list.count)]) }) {
-                let addrs = chunk.map { $0.contractAddress! }.joined(separator: ",")
+                let addrs = chunk.map(\.2).joined(separator: ",")
                 guard let url = URL(string: "\(base)/tokens/v1/\(chain)/\(addrs)") else { continue }
                 let pairs = try await HTTP.json([Pair].self, url)
                 let ts = Date()
-                for a in chunk {
-                    let best = pairs.filter { $0.baseToken.address.lowercased() == a.contractAddress!.lowercased() }
+                for (a, _, contract) in chunk {
+                    let best = pairs.filter { $0.baseToken.address.lowercased() == contract.lowercased() }
                         .max { ($0.liquidity?.usd ?? 0) < ($1.liquidity?.usd ?? 0) }
                     guard let b = best, let ps = b.priceUsd, let p = Decimal(string: ps, locale: Locale(identifier: "en_US_POSIX")), p > 0 else { continue }
                     var ch: [ChangePeriod: Double] = [:]
@@ -46,7 +48,7 @@ struct DexScreenerProvider: MarketDataProvider {
 
     private struct SearchResult: Decodable { let pairs: [Pair]? }
 
-    func search(_ query: String) async throws -> [Asset] {
+    public func search(_ query: String) async throws -> [Asset] {
         var c = URLComponents(string: base + "/latest/dex/search")!
         c.queryItems = [.init(name: "q", value: query)]
         let r = try await HTTP.json(SearchResult.self, c.url!)

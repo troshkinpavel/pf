@@ -1,3 +1,5 @@
+import PFCore
+import PFCoreUI
 import AppKit
 
 // Dock / menu bar lifecycle.

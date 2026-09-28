@@ -1,3 +1,5 @@
+import PFCore
+import PFCoreUI
 import SwiftUI
 
 /// Menu bar companion. Works with the main window closed.

@@ -1,3 +1,5 @@
+#include "Versions.xcconfig"
+
 // Identity and signing. Canonical identifiers — see docs/DEVELOPMENT.md → Identifiers.
 // Defined once here; targets, entitlements and Info.plist files reference these settings.
 PF_BUNDLE_ID = io.github.troskinpavel.pf

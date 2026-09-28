@@ -2,20 +2,21 @@ import Foundation
 
 /// Public Binance spot market data for liquid USDT pairs. No credentials, read-only.
 /// USDT pairs are treated as USD; other base currencies are left to other providers.
-struct BinanceProvider: MarketDataProvider {
-    let name = "Binance"
+public struct BinanceProvider: MarketDataProvider {
+    public init() {}
+    public let name = "Binance"
     private let base = "https://api.binance.com/api/v3"
 
-    func supports(_ asset: Asset) -> Bool { asset.binanceSymbol != nil }
+    public func supports(_ asset: Asset) -> Bool { asset.binanceSymbol != nil }
 
     private struct Ticker: Decodable {
-        let symbol: String
-        let lastPrice: String
-        let priceChangePercent: String
-        let quoteVolume: String?
+        public let symbol: String
+        public let lastPrice: String
+        public let priceChangePercent: String
+        public let quoteVolume: String?
     }
 
-    func quotes(for assets: [Asset], currency: String) async throws -> [AssetID: Quote] {
+    public func quotes(for assets: [Asset], currency: String) async throws -> [AssetID: Quote] {
         guard currency.uppercased() == "USD" else { throw MarketError.unsupported }
         let bySym = Dictionary(assets.compactMap { a in a.binanceSymbol.map { ($0, a) } }, uniquingKeysWith: { a, _ in a })
         guard !bySym.isEmpty else { return [:] }
@@ -34,7 +35,7 @@ struct BinanceProvider: MarketDataProvider {
         return out
     }
 
-    func history(for asset: Asset, range: ChartRange, currency: String) async throws -> [PricePoint] {
+    public func history(for asset: Asset, range: ChartRange, currency: String) async throws -> [PricePoint] {
         guard currency.uppercased() == "USD", let s = asset.binanceSymbol else { throw MarketError.unsupported }
         let (interval, limit): (String, Int) = {
             switch range {
@@ -59,12 +60,13 @@ struct BinanceProvider: MarketDataProvider {
 
 /// Realtime price stream (miniTicker) for supported symbols. Reconnects with backoff.
 @MainActor
-final class BinanceStream {
-    enum State: Equatable { case off, connecting, connected, disconnected(String) }
+public final class BinanceStream {
+    public init() {}
+    public enum State: Equatable { case off, connecting, connected, disconnected(String) }
 
-    var onTick: ((_ symbol: String, _ price: Decimal, _ change24h: Double) -> Void)?
-    var onState: ((State) -> Void)?
-    private(set) var state: State = .off { didSet { onState?(state) } }
+    public var onTick: ((_ symbol: String, _ price: Decimal, _ change24h: Double) -> Void)?
+    public var onState: ((State) -> Void)?
+    public private(set) var state: State = .off { didSet { onState?(state) } }
 
     private var task: URLSessionWebSocketTask?
     private var symbols: [String] = []
@@ -72,7 +74,7 @@ final class BinanceStream {
     private var reconnect: Task<Void, Never>?
     private var generation = 0
 
-    func connect(symbols: [String]) {
+    public func connect(symbols: [String]) {
         let s = Array(Set(symbols)).sorted()
         if s == self.symbols, state == .connected || state == .connecting { return }
         stop()
@@ -81,7 +83,7 @@ final class BinanceStream {
         open()
     }
 
-    func stop() {
+    public func stop() {
         generation += 1
         reconnect?.cancel(); reconnect = nil
         task?.cancel(with: .goingAway, reason: nil); task = nil
@@ -99,8 +101,8 @@ final class BinanceStream {
     }
 
     private struct Envelope: Decodable {
-        struct Data: Decodable { let s: String; let c: String; let o: String }
-        let data: Data
+        public struct Data: Decodable { let s: String; let c: String; let o: String }
+        public let data: Data
     }
 
     private func receive(_ t: URLSessionWebSocketTask, gen: Int) {

@@ -1,10 +1,12 @@
+import PFCore
+import PFCoreUI
 import SwiftUI
 
 /// Portfolio performance chart. VALUE plots market value (steps up on deposits); P&L plots
 /// value − net invested, which shows profit and drawdown periods. The header delta is always
 /// flow-adjusted: P&L change and money-weighted return over the visible span.
 struct PortfolioChartView<Trailing: View>: View {
-    let chart: AppStore.PortfolioChart
+    let chart: PortfolioChart
     let mode: ChartMode
     let rows: Int
     let style: AsciiChart.Style

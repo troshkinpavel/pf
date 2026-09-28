@@ -1,3 +1,5 @@
+import PFCore
+import PFCoreUI
 import Foundation
 
 /// Identifiers PF Terminal used before the canonical `io.github.troskinpavel.pf` namespace.

@@ -1,3 +1,5 @@
+import PFCore
+import PFCoreUI
 import SwiftUI
 
 extension ShareConfig.Level {
@@ -115,7 +117,7 @@ struct ShareView: View {
                 }
                 HStack(spacing: 0) {
                     label("format")
-                    Tabs(ShareFormat.allCases.map(\.rawValue), selected: sh.format.rawValue) { store.share.format = ShareFormat(rawValue: $0)! }
+                    Tabs(ShareFormat.mac.map(\.rawValue), selected: sh.format.rawValue) { store.share.format = ShareFormat(rawValue: $0)! }
                 }
                 HStack(spacing: 0) {
                     label("theme")
@@ -166,7 +168,7 @@ struct QuickShareView: View {
 
     var body: some View {
         let sh = store.share
-        let z: CGFloat = { switch sh.format { case .square: 0.42; case .landscape: 0.5; case .portrait: 0.36 } }()
+        let z: CGFloat = { switch sh.format { case .square: 0.42; case .landscape: 0.5; case .portrait: 0.36; case .story: 0.26 } }()
         let size = sh.format.size
         VStack(spacing: 0) {
             HStack(spacing: 24) {

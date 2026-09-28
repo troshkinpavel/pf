@@ -1,38 +1,38 @@
 import Foundation
 import SwiftData
 
-@Model final class SnapshotRecord {
-    var context: String = ""       // PortfolioContext.storageKey; "" = recorded before multi-portfolio
-    var timestamp: Date
-    var value: Double
-    var costBasis: Double
-    var unrealized: Double
-    init(_ s: PortfolioSnapshotValue, context: String) { self.context = context; timestamp = s.timestamp; value = s.value; costBasis = s.costBasis; unrealized = s.unrealized }
-    var snapshot: PortfolioSnapshotValue { .init(timestamp: timestamp, value: value, costBasis: costBasis, unrealized: unrealized) }
+@Model public final class SnapshotRecord {
+    public var context: String = ""       // PortfolioContext.storageKey; "" = recorded before multi-portfolio
+    public var timestamp: Date
+    public var value: Double
+    public var costBasis: Double
+    public var unrealized: Double
+    public init(_ s: PortfolioSnapshotValue, context: String) { self.context = context; timestamp = s.timestamp; value = s.value; costBasis = s.costBasis; unrealized = s.unrealized }
+    public var snapshot: PortfolioSnapshotValue { .init(timestamp: timestamp, value: value, costBasis: costBasis, unrealized: unrealized) }
 }
 
-@Model final class CachedQuoteRecord {
-    @Attribute(.unique) var key: String          // assetID|currency
-    var payload: Data
-    var timestamp: Date
-    init(key: String, payload: Data, timestamp: Date) { self.key = key; self.payload = payload; self.timestamp = timestamp }
+@Model public final class CachedQuoteRecord {
+    @Attribute(.unique) public var key: String          // assetID|currency
+    public var payload: Data
+    public var timestamp: Date
+    public init(key: String, payload: Data, timestamp: Date) { self.key = key; self.payload = payload; self.timestamp = timestamp }
 }
 
-@Model final class CachedHistoryRecord {
-    @Attribute(.unique) var key: String          // assetID|range|currency
-    var payload: Data
-    var fetchedAt: Date
-    init(key: String, payload: Data, fetchedAt: Date) { self.key = key; self.payload = payload; self.fetchedAt = fetchedAt }
+@Model public final class CachedHistoryRecord {
+    @Attribute(.unique) public var key: String          // assetID|range|currency
+    public var payload: Data
+    public var fetchedAt: Date
+    public init(key: String, payload: Data, fetchedAt: Date) { self.key = key; self.payload = payload; self.fetchedAt = fetchedAt }
 }
 
 /// Local cache of market data (last-known quotes, price history) and portfolio snapshots.
 /// Market data here is public information; snapshots stay on this Mac.
 @MainActor
-final class MarketCache {
-    let container: ModelContainer
+public final class MarketCache {
+    public let container: ModelContainer
     private var ctx: ModelContext { container.mainContext }
 
-    init(directory: URL?, inMemory: Bool = false) {
+    public init(directory: URL?, inMemory: Bool = false) {
         let schema = Schema([SnapshotRecord.self, CachedQuoteRecord.self, CachedHistoryRecord.self])
         let config: ModelConfiguration
         if inMemory || directory == nil {
@@ -52,7 +52,7 @@ final class MarketCache {
     }
 
     // MARK: quotes
-    func saveQuotes(_ q: [AssetID: Quote], currency: String) {
+    public func saveQuotes(_ q: [AssetID: Quote], currency: String) {
         let enc = JSONEncoder()
         for (id, quote) in q {
             let key = id + "|" + currency
@@ -64,7 +64,7 @@ final class MarketCache {
         try? ctx.save()
     }
 
-    func quotes(currency: String) -> [AssetID: Quote] {
+    public func quotes(currency: String) -> [AssetID: Quote] {
         let dec = JSONDecoder()
         let suffix = "|" + currency
         let rows = (try? ctx.fetch(FetchDescriptor<CachedQuoteRecord>())) ?? []
@@ -79,14 +79,14 @@ final class MarketCache {
     }
 
     // MARK: history
-    func history(_ id: AssetID, _ range: ChartRange, _ currency: String) -> (points: [PricePoint], fetchedAt: Date)? {
+    public func history(_ id: AssetID, _ range: ChartRange, _ currency: String) -> (points: [PricePoint], fetchedAt: Date)? {
         let key = "\(id)|\(range.rawValue)|\(currency)"
         let fd = FetchDescriptor<CachedHistoryRecord>(predicate: #Predicate { $0.key == key })
         guard let r = try? ctx.fetch(fd).first, let p = try? JSONDecoder().decode([PricePoint].self, from: r.payload) else { return nil }
         return (p, r.fetchedAt)
     }
 
-    func saveHistory(_ id: AssetID, _ range: ChartRange, _ currency: String, _ points: [PricePoint]) {
+    public func saveHistory(_ id: AssetID, _ range: ChartRange, _ currency: String, _ points: [PricePoint]) {
         let key = "\(id)|\(range.rawValue)|\(currency)"
         guard let data = try? JSONEncoder().encode(points) else { return }
         let fd = FetchDescriptor<CachedHistoryRecord>(predicate: #Predicate { $0.key == key })
@@ -95,14 +95,14 @@ final class MarketCache {
         try? ctx.save()
     }
 
-    func deleteHistory(assetID: AssetID) {
+    public func deleteHistory(assetID: AssetID) {
         for r in (try? ctx.fetch(FetchDescriptor<CachedHistoryRecord>())) ?? [] where r.key.hasPrefix(assetID + "|") { ctx.delete(r) }
         try? ctx.save()
     }
 
     // MARK: snapshots
     /// Snapshots are per context: MAIN's history never shows up for TRADING.
-    func addSnapshot(_ s: PortfolioSnapshotValue, context: String, minInterval: TimeInterval = 300) {
+    public func addSnapshot(_ s: PortfolioSnapshotValue, context: String, minInterval: TimeInterval = 300) {
         var fd = FetchDescriptor<SnapshotRecord>(predicate: #Predicate { $0.context == context }, sortBy: [SortDescriptor(\.timestamp, order: .reverse)])
         fd.fetchLimit = 1
         if let last = try? ctx.fetch(fd).first, s.timestamp.timeIntervalSince(last.timestamp) < minInterval { return }
@@ -110,30 +110,30 @@ final class MarketCache {
         try? ctx.save()
     }
 
-    func snapshots(since: Date, context: String) -> [PortfolioSnapshotValue] {
+    public func snapshots(since: Date, context: String) -> [PortfolioSnapshotValue] {
         let fd = FetchDescriptor<SnapshotRecord>(predicate: #Predicate { $0.timestamp >= since && $0.context == context }, sortBy: [SortDescriptor(\.timestamp)])
         return ((try? ctx.fetch(fd)) ?? []).map(\.snapshot)
     }
 
     /// Pre-multi-portfolio snapshots belonged to the single ledger, which became MAIN.
-    func assignLegacySnapshots(to context: String) {
+    public func assignLegacySnapshots(to context: String) {
         let fd = FetchDescriptor<SnapshotRecord>(predicate: #Predicate { $0.context == "" })
         for r in (try? ctx.fetch(fd)) ?? [] { r.context = context }
         try? ctx.save()
     }
 
-    func deleteSnapshots(context: String) {
+    public func deleteSnapshots(context: String) {
         try? ctx.delete(model: SnapshotRecord.self, where: #Predicate { $0.context == context })
         try? ctx.save()
     }
 
     /// A ledger edit dated `from` makes every later snapshot wrong.
-    func invalidateSnapshots(from: Date) {
+    public func invalidateSnapshots(from: Date) {
         try? ctx.delete(model: SnapshotRecord.self, where: #Predicate { $0.timestamp >= from })
         try? ctx.save()
     }
 
-    func clearAll() {
+    public func clearAll() {
         try? ctx.delete(model: SnapshotRecord.self)
         try? ctx.delete(model: CachedHistoryRecord.self)
         try? ctx.delete(model: CachedQuoteRecord.self)

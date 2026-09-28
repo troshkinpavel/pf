@@ -39,6 +39,15 @@ PF Terminal tracks crypto portfolios from a ledger of transactions. It shows pos
 >
 > **New in v0.4: [iCloud sync](#icloud-sync).** Optional sync between your own devices through your private iCloud. Off by default.
 
+## Platforms
+
+| Platform | Version | Status |
+|---|---:|---|
+| macOS | 0.4.1 | Available · Open source |
+| iPhone | 0.1.0 | In development |
+
+The iPhone companion app is currently in development.
+
 ---
 
 ## Why PF?
@@ -215,7 +224,7 @@ iCloud sync keeps your portfolios in step across your own devices. It is **off b
 - **Offline.** Changes are saved locally first and queued. They upload when iCloud is reachable again, even after a restart.
 - **Conflicts.** Sometimes the same transaction changes on two devices before they sync. PF keeps the newer edit, and an edit always wins over a delete. The other version stays in **Settings → DATA & SYNC → conflicts**, where you can restore it.
 - **Turning it off.** Your portfolios stay on your Mac, and the iCloud copy is not deleted. If you turn sync on again later, PF compares both sides again first.
-- **Availability.** iCloud sync ships in v0.4.0 and is off by default. It needs macOS 14 or later and an Apple Account signed in to iCloud. If you build from source, sync needs a build signed with the iCloud capability (see [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md#icloud-sync-optional)). An iPhone app is on the [roadmap](#roadmap) and will use the same sync.
+- **Availability.** iCloud sync ships in v0.4.0 and is off by default. It needs macOS 14 or later and an Apple Account signed in to iCloud. If you build from source, sync needs a build signed with the iCloud capability (see [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md#icloud-sync-optional)). The iPhone companion app (in development) uses the same sync and the same private database.
 - **Validation.**
   - The sync engine has automated tests against a simulated CloudKit store.
   - The full flow was also checked between two independent PF stores, in both CloudKit's development and production environments. It covered upload and download, edits, renames, archiving, deletes, the offline queue across a restart, conflicts and restore, and turning sync off and on again.
@@ -255,20 +264,20 @@ Transactions are the source of truth. PF never stores a balance; it derives ever
 ## Architecture
 
 ```text
-PFCore/            platform-neutral core (no AppKit/SwiftUI), reusable by a future iOS app
-├── Domain/        portfolio engine, history, movers, scenarios, command parser, share privacy
-├── Persistence/   JSON ledger (schema-versioned, migrated), settings
-└── Sync/          sync engine, record model, CloudKit store (private database)
-PFTerminal/        macOS app
-├── App/           state, commands, keyboard routing, portfolio context, sync coordination
-├── MarketData/    provider router · CoinGecko · Binance (REST + WebSocket) · DexScreener · mock
-├── Persistence/   SwiftData market cache, one-time migration from the earlier app identity
-├── System/        Keychain, notifications, app lock, reachability, DEBUG diagnostics
-└── UI/            screens and terminal components
-Shared/            formatting, design tokens, widget snapshot + layouts (app and widget)
-PFWidgets/         WidgetKit extension (App Intents configuration)
-PFTerminalTests/   unit tests (Swift Testing)
-PFTerminalUITests/ UI tests (XCUITest)
+Package.swift      the PFCore Swift package (products PFCore, PFCoreUI, PFCoreTestSupport)
+PFCore/            platform-neutral core (no AppKit/UIKit/SwiftUI), shared by PF Terminal clients
+├── Domain/        portfolio engine, history, movers, scenarios, transaction planner, command parser, share privacy
+├── Market/        provider router · CoinGecko · Binance (REST + WebSocket) · DexScreener · mock
+├── Persistence/   JSON ledger (schema-versioned, migrated), settings, SwiftData market cache
+├── Platform/      Keychain, notifications, app lock (LocalAuthentication), reachability
+├── Sync/          sync engine, record model, CloudKit store (private database), host helpers
+├── Formatting/    number and date formatting
+└── Widgets/       widget snapshot model and App Group store
+PFCoreUI/          shared SwiftUI: design tokens, widget layouts, share card
+PFCoreTestSupport/ in-memory CloudKit stand-in for tests      PFCoreTests/ package tests (wire format)
+PFTerminal/        macOS app (App, Persistence, System, UI)
+PFWidgets/         macOS WidgetKit extension (App Intents configuration)
+PFTerminalTests/   unit tests (Swift Testing)                 PFTerminalUITests/ UI tests (XCUITest)
 ```
 
 The app is built with Swift, SwiftUI and AppKit. It also uses SwiftData (the market cache), WidgetKit and App Intents, and `URLSession` (REST and WebSocket). Charts are custom SwiftUI drawing; Swift Charts is not used.
@@ -280,7 +289,8 @@ The app is built with Swift, SwiftUI and AppKit. It also uses SwiftData (the mar
   - migrations, including the move from the earlier app identity;
   - backup validation, command parsing and provider fallback;
   - share-card and widget privacy;
-  - sync, against a simulated CloudKit store with two devices.
+  - sync, against a simulated CloudKit store with two devices, including a second client exchanging portfolios, transactions and deletes with the real Mac app state;
+  - the PFCore package tests pin the sync payloads and CloudKit record fields that every PF client shares.
 - UI tests cover onboarding, a palette trade with confirmation, and quick share.
 
 The build, signing, data formats and how to add a market-data provider are documented in **[docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)**.
@@ -316,6 +326,8 @@ CODE_SIGN_STYLE = Automatic
 
 > Local-first is a feature, not a temporary limitation.
 
+Roadmap milestones are product milestones, not app version numbers. The iPhone app has its own version line.
+
 | Version | Scope | Status |
 |---|---|---|
 | v0.1 · Core terminal | Overview, movers, analytics, asset detail, transactions, command palette, share cards, menu bar, settings | **done** · internal milestone |
@@ -328,8 +340,8 @@ CODE_SIGN_STYLE = Automatic
 | v0.8 · Watch-only wallets | Read-only on-chain addresses | planned |
 | v0.9 · Exchange connections | Read-only exchange APIs, CSV import | planned |
 | v1.0 · Stable PF Terminal for macOS | Stable, signed and notarized macOS release | planned |
-| v2.0 · PF Terminal for iPhone | Native iOS app sharing the portfolio and accounting core | planned |
-| v2.1 · iOS widgets | Home and lock screen widgets | planned |
+| v2.0 · PF Terminal for iPhone | Native iOS app sharing the portfolio and accounting core | **in development** |
+| v2.1 · iOS widgets | Home and lock screen widgets | **in development** |
 | v2.2 · Apple ecosystem | Deeper system integration across Apple platforms | planned |
 | v3.0 · PF Cloud | Optional hosted features | exploratory |
 
