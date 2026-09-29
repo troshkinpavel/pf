@@ -73,7 +73,7 @@ extension AppStore {
     }
 
     func preview(_ d: TxDraft) -> TxPreview {
-        TransactionPlanner.preview(d, doc: doc, quotes: quotes, currency: settings.currency,
+        TransactionPlanner.preview(d, doc: doc, quotes: valuationQuotes, currency: settings.currency,
                                    resolve: { resolveAsset($0, searchResults: $1) })
     }
 

@@ -138,6 +138,10 @@ private struct PositionsPanel: View {
                             HStack(alignment: .firstTextBaseline, spacing: 10) {
                                 TT(v.asset.symbol, 12, Theme.t1, weight: .medium)
                                 TT(v.asset.name.lowercased(), 11, Theme.t4)
+                                if v.asset.isStablecoin {
+                                    let depeg = store.pegCheck(v.asset.id)?.status == .depeg
+                                    TT(depeg ? "DEPEG" : "STABLE", 10, depeg ? Theme.neg : Theme.t3, tracking: 0.4)
+                                }
                             }.frame(maxWidth: .infinity, alignment: .leading).clipped()
                             Cell(f.price(v.price))
                             Cell(f.pct(v.change24h), Theme.signColor(v.change24h))

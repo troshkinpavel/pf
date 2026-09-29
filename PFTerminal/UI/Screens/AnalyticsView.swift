@@ -13,7 +13,8 @@ struct AnalyticsView: View {
         let spanMin = Date().timeIntervalSince(start) / 60
         let dd = PortfolioHistoryEngine.drawdown(all)
         let ddDate = all.count > 1 ? start.addingTimeInterval(Double(dd.maxIndex) / Double(all.count - 1) * spanMin * 60) : nil
-        let byRet = s.positions.filter { $0.returnPct != nil }.sorted { $0.returnPct! > $1.returnPct! }
+        // Stablecoins are cash: not ranked as best/worst.
+        let byRet = s.positions.filter { $0.returnPct != nil && !$0.asset.isStablecoin }.sorted { $0.returnPct! > $1.returnPct! }
 
         ScrollView(.vertical) {
             VStack(alignment: .leading, spacing: 18) {
@@ -47,6 +48,15 @@ struct AnalyticsView: View {
                                         TT(v.allocation.map { f.num($0, 1) + "%" } ?? "—", 12, Theme.text)
                                     }
                                 }
+                            }
+                            let stable = s.positions.filter(\.asset.isStablecoin)
+                            if !stable.isEmpty {
+                                let value = stable.compactMap(\.value).reduce(0, +), share = stable.compactMap(\.allocation).reduce(0, +)
+                                HStack {
+                                    TT("STABLECOINS", 12, Theme.t1, tracking: 0.48); Spacer()
+                                    TT(f.money(value, 0), 12, Theme.t2); TT(f.num(share, 1) + "%", 12, Theme.text).frame(width: 64, alignment: .trailing)
+                                }
+                                .padding(.top, 8).overlay(alignment: .top) { Rectangle().fill(Theme.innerBorder).frame(height: 1) }
                             }
                             let top2 = s.positions.prefix(2).compactMap(\.allocation).reduce(0, +)
                             TT("top 2 = \(f.num(top2, 1))% of portfolio · largest \(s.positions.first?.asset.symbol ?? "—") \(f.num(s.positions.first?.allocation ?? 0, 1))%", 11, Theme.t4)
@@ -114,8 +124,10 @@ struct AnalyticsView: View {
     /// Total P&L (realized + unrealized) per asset, including closed positions.
     private var contribution: some View {
         let f = Fmt.current, s = store.summary
-        var rows: [(String, Decimal)] = s.positions.map { ($0.asset.symbol, ($0.unrealized ?? 0) + $0.position.realizedPnL) }
-        rows += s.closed.map { p in (store.asset(p.assetID)?.symbol ?? "?", p.realizedPnL) }
+        // On-peg stablecoins are cash: their cents of peg noise aren't a contribution. A depeg is.
+        let cash: (AssetID) -> Bool = { id in store.asset(id)?.isStablecoin == true && store.pegCheck(id)?.status != .depeg }
+        var rows: [(String, Decimal)] = s.positions.filter { !cash($0.asset.id) }.map { ($0.asset.symbol, ($0.unrealized ?? 0) + $0.position.realizedPnL) }
+        rows += s.closed.filter { !cash($0.assetID) }.map { p in (store.asset(p.assetID)?.symbol ?? "?", p.realizedPnL) }
         rows.sort { $0.1 > $1.1 }
         let total = rows.reduce(Decimal(0)) { $0 + $1.1 }
         let mx = rows.map { abs($0.1.double) }.max() ?? 1

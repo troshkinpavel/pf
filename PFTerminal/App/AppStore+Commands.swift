@@ -21,7 +21,7 @@ extension AppStore {
         case let .trade(type, assetText, amount, price, pfText)?:
             let a = resolveAsset(assetText)
             let amt = NumberInput.parse(amount)
-            let px = NumberInput.parse(price) ?? a.flatMap { quotes[$0.id]?.price }
+            let px = NumberInput.parse(price) ?? a.flatMap { valuationQuotes[$0.id]?.price }
             // "in <portfolio>" picks the destination; otherwise the active one (ALL asks in the preview).
             let dest = pfText.flatMap { doc.resolvePortfolio($0) }
             let draft = TxDraft(portfolioID: dest?.id ?? defaultTransactionPortfolio, type: type, asset: a?.symbol ?? assetText.uppercased(), amount: amount ?? "", price: price ?? "")
@@ -325,7 +325,7 @@ extension AppStore {
 
     var movers: [Mover] {
         let s = Dictionary(summary.positions.compactMap { v in assetSeries(v.asset.id, moversRange).map { (v.asset.id, $0) } }, uniquingKeysWith: { a, _ in a })
-        var m = MoversEngine.movers(summary: summary, transactions: contextTransactions, quotes: quotes, series: s, range: moversRange, now: now)
+        var m = MoversEngine.movers(summary: summary, transactions: contextTransactions, quotes: valuationQuotes, series: s, range: moversRange, now: now)
         let key: (Mover) -> Double = moversMode == .abs ? { $0.impact?.double ?? 0 } : { $0.changePct ?? 0 }
         m.sort { moversDesc ? key($0) > key($1) : key($0) < key($1) }
         return m
@@ -380,8 +380,9 @@ extension AppStore {
         let sum = ctx == context ? summary : summary(for: ctx)
         let txs = doc.transactions(ctx)
         let s = Dictionary(sum.positions.compactMap { v in assetSeries(v.asset.id, r).map { (v.asset.id, $0) } }, uniquingKeysWith: { a, _ in a })
-        let perf = MoversEngine.performance(summary: sum, transactions: txs, quotes: quotes, series: s, range: r, now: now)
-        let mv = MoversEngine.movers(summary: sum, transactions: txs, quotes: quotes, series: s, range: r, now: now)
+        let vq = valuationQuotes
+        let perf = MoversEngine.performance(summary: sum, transactions: txs, quotes: vq, series: s, range: r, now: now)
+        let mv = MoversEngine.movers(summary: sum, transactions: txs, quotes: vq, series: s, range: r, now: now)
         return ShareCardBuilder.build(config: c, summary: sum, performance: perf, history: portfolioHistory(r, points: 121, in: ctx).twr,
                                       movers: mv, now: now, fmt: Fmt.current, contextName: doc.displayName(ctx))
     }

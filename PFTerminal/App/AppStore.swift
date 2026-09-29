@@ -251,7 +251,7 @@ final class AppStore {
     }
 
     var freshness: Freshness {
-        Freshness.evaluate(online: online, inFlight: inFlight, held: summary.positions.map(\.asset.id), quotes: quotes,
+        Freshness.evaluate(online: online, inFlight: inFlight, held: marketDrivenHeld, quotes: quotes,
                            hasSucceeded: lastSuccess != nil, refreshSeconds: settings.refreshSeconds, now: now)
     }
 
@@ -263,7 +263,9 @@ final class AppStore {
         var ids = heldAnywhere.union(summary.positions.map(\.asset.id))
         if let a = assetID { ids.insert(a) }
         if let t = targetAssetID { ids.insert(t) }
-        return doc.assets.filter { ids.contains($0.id) }
+        // On-peg stablecoins join the normal batched refresh only every Stablecoins.checkInterval.
+        let cur = settings.currency, t = Date()
+        return doc.assets.filter { ids.contains($0.id) && Stablecoins.needsMarketCheck($0.id, quote: quotes[$0.id], currency: cur, now: t) }
     }
 
     func refresh(auto: Bool) async {
@@ -358,7 +360,24 @@ final class AppStore {
         }
     }
 
-    func assetSeries(_ id: AssetID, _ range: ChartRange) -> PriceSeries? { series[seriesKey(id, range == .ytd ? .y1 : range)] }
+    /// Price history as the portfolio values it (stablecoin peg noise flattened; see Stablecoins).
+    func assetSeries(_ id: AssetID, _ range: ChartRange) -> PriceSeries? {
+        series[seriesKey(id, range == .ytd ? .y1 : range)].map { Stablecoins.valuationSeries($0, for: id, currency: settings.currency) }
+    }
+
+    /// Raw market quotes with stablecoins valued by their peg state. Everything that values the
+    /// portfolio reads this; `quotes` stays the raw market data (freshness, peg status).
+    var valuationQuotes: [AssetID: Quote] {
+        Stablecoins.valuationQuotes(quotes, assets: doc.assets.map(\.id), currency: settings.currency)
+    }
+
+    /// Held assets whose value depends on a live market price (on-peg stablecoins don't).
+    var marketDrivenHeld: [AssetID] {
+        summary.positions.map(\.asset.id).filter { !Stablecoins.isPegValued($0, quote: quotes[$0], currency: settings.currency) }
+    }
+
+    /// Peg state for the asset detail screen; nil for non-stablecoins or another ledger currency.
+    func pegCheck(_ id: AssetID) -> PegCheck? { Stablecoins.check(id, quote: quotes[id], currency: settings.currency) }
 
     /// Assets held at any point during the range in a context (default: the active one).
     func assetsHeld(during range: ChartRange, in c: PortfolioContext? = nil) -> [AssetID] {
@@ -373,7 +392,10 @@ final class AppStore {
         let summary = c == context ? self.summary : summary(for: c)
         let txs = doc.transactions(c)
         var s: [AssetID: PriceSeries] = [:]
-        for id in assetsHeld(during: range, in: c) { if let x = assetSeries(id, range) ?? assetSeries(id, .all) { s[id] = x } }
+        for id in assetsHeld(during: range, in: c) {
+            if let x = assetSeries(id, range) ?? assetSeries(id, .all) { s[id] = x }
+            else if let peg = pegCheck(id), peg.status != .depeg { s[id] = Stablecoins.flatSeries(peg.peg) }
+        }
         return PortfolioHistoryEngine.chart(transactions: txs, summary: summary, range: range, points: points, series: s, now: Date()) {
             self.cache.snapshots(since: $0, context: c.storageKey)
         }
@@ -394,7 +416,7 @@ final class AppStore {
     /// Portfolio maths for any context from shared quotes. Pure recomputation, no I/O.
     func summary(for c: PortfolioContext) -> PortfolioSummary {
         let assets = Dictionary(doc.assets.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
-        return PortfolioEngine.summarize(ledgers: doc.ledgers(c), assets: assets, quotes: quotes)
+        return PortfolioEngine.summarize(ledgers: doc.ledgers(c), assets: assets, quotes: valuationQuotes)
     }
 
     /// Transactions of the active context.

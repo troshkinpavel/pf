@@ -281,6 +281,40 @@ Views → AppStore → ProviderRouter (actor) → CoinGecko · Binance · DexScr
   - Archived portfolios are excluded from ALL.
 - **Base currency.** The base currency is the ledger currency. Mixed-currency ledgers are not converted.
 
+## Stablecoins
+
+All rules live in `PFCore/Domain/Stablecoins.swift`. The UI only renders `PegCheck`.
+
+- **Whitelist.** Assets are keyed by canonical id, never by ticker. Each is pegged to USD at 1.00: `cg:tether` (USDT), `cg:usd-coin` (USDC), `cg:dai`, `cg:usds`, `cg:first-digital-usd` (FDUSD), `cg:paypal-usd` (PYUSD). `Asset.isStablecoin`, `pegCurrency` and `targetPeg` read the list. `StablecoinPeg` has a currency and a target, so pegs in other currencies can be added later.
+- **Tolerance.** `Stablecoins.tolerance` is ±0.5% of the target, and the edge is inclusive.
+- **Valuation** (when the ledger currency is the peg currency):
+
+  | Market price | Valued at | Status |
+  |---|---|---|
+  | Within tolerance | Exactly the target, 0% change | normal |
+  | Outside tolerance | The real market price | depeg |
+  | None yet | The target | unchecked |
+
+  - **One source of valuation prices.** `valuationQuotes` produces them, and everything that values or charts the portfolio reads them: summaries, P&L, movers, the widget snapshot and the menu bar. The raw market quotes stay in `AppStore.quotes`, for freshness and the peg panel.
+  - **History.** `valuationSeries` flattens points inside the band and keeps real historical depegs. An on-peg stablecoin with no history gets `flatSeries`, so the portfolio chart doesn't disappear.
+  - **Other ledger currencies** (EUR, CHF): PF has no FX rates, so a USD stablecoin is priced like any other asset.
+- **Checks.**
+  - On-peg stablecoins join the normal batched refresh only every `Stablecoins.checkInterval` (5 min). They add no extra requests.
+  - A depeg is polled like any other asset.
+  - Requests go through `ProviderRouter` as before, with its cache, backoff and 429 handling.
+  - When providers fail, the last cached quote keeps deciding the state: a depeg stays a depeg.
+  - On-peg stablecoins don't count toward the LIVE/STALE freshness state.
+- **P&L.**
+  - Transactions and cost basis are unchanged. A USDC buy at 0.9998 keeps that cost.
+  - On peg, the value is quantity × 1.00, so unrealized P&L is only the difference against the entry price, and the 24h change is 0.
+  - In a depeg, value and P&L follow the market price.
+  - Stablecoins aren't ranked as best/worst investments. On peg they're left out of Analytics → contribution to P&L; a depegged one is listed there.
+- **UI.**
+  - Overview: a `STABLE` label, or `DEPEG` in red.
+  - Asset Detail: a **PEG STATUS** panel (market, deviation, when checked, target, valued at) replaces the price chart and the price-target panel.
+  - Analytics → allocation: a **STABLECOINS** total.
+  - Widgets stay snapshot-only.
+
 ## Storage
 
 The app is sandboxed:

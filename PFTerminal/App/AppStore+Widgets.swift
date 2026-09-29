@@ -56,7 +56,7 @@ extension AppStore {
         let sum = c == context ? summary : summary(for: c)
         loadHistory(assetsHeld(during: .d1, in: c), .d1)   // async; the chart fills in on the next write
         let hist = portfolioHistory(.d1, points: 97, in: c)
-        let movers = MoversEngine.movers(summary: sum, transactions: doc.transactions(c), quotes: quotes, series: [:], range: .h24, now: now)
+        let movers = MoversEngine.movers(summary: sum, transactions: doc.transactions(c), quotes: valuationQuotes, series: [:], range: .h24, now: now)
         let pts = hist.points
         let stale: Bool = { switch freshness { case .live, .syncing: return false; default: return true } }()
         return WidgetSnapshotBuilder.build(.init(
@@ -64,7 +64,7 @@ extension AppStore {
             performanceStart: pts.first?.time ?? now.addingTimeInterval(-86400), performanceRange: "24H",
             performanceChangePercent: pts.count > 1 ? PortfolioHistoryEngine.moneyWeightedReturn(from: pts[0], to: pts[pts.count - 1]) : nil,
             hasPortfolio: hasPortfolio,
-            quotesAsOf: sum.positions.compactMap { quotes[$0.asset.id]?.timestamp }.min(),
+            quotesAsOf: sum.positions.filter { marketDrivenHeld.contains($0.asset.id) }.compactMap { quotes[$0.asset.id]?.timestamp }.min(),
             refreshInterval: effectiveInterval, isStale: stale,
             privacy: settings.widgetPrivacy, currency: settings.currency, numberStyle: settings.numbers, now: now,
             contextID: c.storageKey, contextName: doc.displayName(c), contextGlyph: doc.glyph(c)))

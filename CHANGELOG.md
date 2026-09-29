@@ -2,6 +2,24 @@
 
 All notable changes to PF Terminal are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+- **Stablecoin support** for USDT, USDC, DAI, USDS, FDUSD and PYUSD (USD peg).
+  - **Valuation.** On peg (±0.5%), they're valued at exactly $1.00 and show no daily move. In a depeg, the real market price is used.
+  - **Asset Detail.** A PEG STATUS panel replaces the price chart. It shows the market price, deviation, when it was checked, and the target.
+  - **Overview.** A `STABLE` label, or `DEPEG` in red.
+  - **Analytics.** Allocation shows a **STABLECOINS** total.
+- DAI, USDS, FDUSD and PYUSD are in the built-in coin list.
+
+### Changed
+- Stablecoins aren't ranked as best/worst investments, and on peg they're left out of contribution to P&L.
+- Peg prices are checked every 5 minutes as part of the normal refresh, not on every refresh.
+
+### Fixed
+- The price source picker always offers a coin's original market, so a DexScreener pick can be undone.
+- Asset search asks CoinGecko even while it is backing off after rate limits, and USDT resolves to Tether.
+
 ## [0.4.2] - Maintenance Release
 
 A maintenance release: more reliable prices and a shared core for PF clients.

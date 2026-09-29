@@ -38,6 +38,23 @@ enum DebugSnapshots {
                 ("12-quick-share", { store.go(.overview); store.quickShare = true }),
             ]
             var steps = baseSteps
+            if ProcessInfo.processInfo.arguments.contains("--stablecoin-shots") {
+                // A USDC position in the throwaway demo ledger: on peg, then depegged.
+                let usdc = AssetCatalog.known.first { $0.symbol == "USDC" }!
+                @MainActor func pegQuote(_ p: String) { store.quotes[usdc.id] = Quote(price: Decimal(string: p)!, change: [.h24: -0.02], source: "CoinGecko", timestamp: Date().addingTimeInterval(-180)) }
+                steps = [
+                    ("30-stable-overview", {
+                        if let pf = store.doc.portfolios.first?.id, !store.doc.assets.contains(where: { $0.id == usdc.id }) {
+                            store.doc.assets.append(usdc)
+                            store.doc.transactions.append(Transaction(portfolioID: pf, assetID: usdc.id, type: .buy, quantity: 18450, price: 1, timestamp: Date().addingTimeInterval(-86400 * 20)))
+                        }
+                        pegQuote("0.9998"); store.recompute(); store.go(.overview)
+                    }),
+                    ("31-stable-asset", { store.openAsset(usdc.id); pegQuote("0.9998"); store.recompute() }),
+                    ("32-stable-depeg", { pegQuote("0.9712"); store.recompute(); store.openAsset(usdc.id) }),
+                    ("33-stable-analytics", { pegQuote("0.9998"); store.recompute(); store.go(.analytics) }),
+                ]
+            }
             if ProcessInfo.processInfo.arguments.contains("--ui-testing") {
                 seedDesignPortfolios(store)
                 steps += [

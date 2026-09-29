@@ -16,7 +16,7 @@ struct MoversView: View {
         let net = items.reduce(0.0) { $0 + ($1.impact?.double ?? 0) }
         let drv = items.filter { $0.impact != nil }.max { Swift.abs($0.impact!.double) < Swift.abs($1.impact!.double) }
         let netPct: Double? = r == .all ? store.summary.returnPct
-            : MoversEngine.performance(summary: store.summary, transactions: store.contextTransactions, quotes: store.quotes,
+            : MoversEngine.performance(summary: store.summary, transactions: store.contextTransactions, quotes: store.valuationQuotes,
                                        series: [:], range: r, now: store.now)?.percent
         ScrollView(.vertical) {
             VStack(alignment: .leading, spacing: 18) {

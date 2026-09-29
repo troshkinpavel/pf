@@ -34,7 +34,13 @@ public enum AssetCatalog {
         a("XMR", "Monero", "monero"),
         a("TEL", "Telcoin", "telcoin-2", id: "telcoin"),   // CoinGecko migrated telcoin → telcoin-2
         a("USDC", "USDC", "usd-coin"),
-        a("USDT", "Tether", "tether"),                      // Binance's quote currency: no USDT pair
+        // Stablecoins (see Stablecoins.whitelist). No Binance pair: Binance quotes them in USDT,
+        // not USD, which would make a peg check meaningless.
+        a("USDT", "Tether", "tether"),
+        a("DAI", "Dai", "dai"),
+        a("USDS", "USDS", "usds"),
+        a("FDUSD", "First Digital USD", "first-digital-usd"),
+        a("PYUSD", "PayPal USD", "paypal-usd"),
     ]
 
     /// On-chain identity used as a price fallback for listed coins that no exchange provider

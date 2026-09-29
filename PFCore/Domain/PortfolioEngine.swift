@@ -277,9 +277,11 @@ extension PortfolioEngine {
            let drv = vals.filter({ $0.contribution24h != nil }).max(by: { abs($0.contribution24h!.double) < abs($1.contribution24h!.double) }) {
             s.driver = (drv, (drv.contribution24h! / d).double * 100)
         }
-        let byRet = vals.compactMap { v in v.returnPct.map { Ranked(symbol: v.asset.symbol, assetID: v.asset.id, value: $0) } }.sorted { $0.value > $1.value }
+        // Stablecoins are cash-like: not ranked as best/worst investments (see Stablecoins).
+        let ranked = vals.filter { !$0.asset.isStablecoin }
+        let byRet = ranked.compactMap { v in v.returnPct.map { Ranked(symbol: v.asset.symbol, assetID: v.asset.id, value: $0) } }.sorted { $0.value > $1.value }
         s.best = byRet.first; s.worst = byRet.count > 1 ? byRet.last : nil
-        let by24 = vals.compactMap { v in v.change24h.map { Ranked(symbol: v.asset.symbol, assetID: v.asset.id, value: $0) } }.sorted { $0.value > $1.value }
+        let by24 = ranked.compactMap { v in v.change24h.map { Ranked(symbol: v.asset.symbol, assetID: v.asset.id, value: $0) } }.sorted { $0.value > $1.value }
         s.best24 = by24.first; s.worst24 = by24.count > 1 ? by24.last : nil
         return s
     }

@@ -14,13 +14,14 @@ struct AssetDetailView: View {
     }
 
     private func content(_ v: PositionValuation) -> some View {
-        let f = Fmt.current, q = v.quote
+        let f = Fmt.current, q = v.quote, peg = store.pegCheck(v.asset.id)
         return ScrollView(.vertical) {
             VStack(alignment: .leading, spacing: 18) {
                 HStack(alignment: .bottom) {
                     VStack(alignment: .leading, spacing: 6) {
                         TT(v.asset.name.uppercased() + " / " + store.settings.currency, 12, Theme.t2, tracking: 0.48)
                         TT(v.asset.symbol, 22, Theme.t1, weight: .semibold)
+                        if let peg { TT("STABLECOIN · \(peg.peg.currency) PEG", 11, Theme.t3, tracking: 0.44) }
                     }
                     Spacer()
                     HStack(spacing: 6) {
@@ -30,7 +31,8 @@ struct AssetDetailView: View {
                     Spacer()
                     VStack(alignment: .trailing, spacing: 6) {
                         TT(f.price(v.price), 24, Theme.t1, weight: .medium)
-                        HStack(spacing: 0) { TT(f.pct(v.change24h) + " ", 12, Theme.signColor(v.change24h)); TT("24h", 12, Theme.t3) }
+                        if let peg { TT(Self.pegLabel(peg.status), 12, Self.pegColor(peg.status)) }
+                        else { HStack(spacing: 0) { TT(f.pct(v.change24h) + " ", 12, Theme.signColor(v.change24h)); TT("24h", 12, Theme.t3) } }
                     }
                 }
                 .padding(.bottom, 14)
@@ -38,7 +40,7 @@ struct AssetDetailView: View {
 
                 HStack(alignment: .top, spacing: 18) {
                     VStack(spacing: 18) {
-                        chart(v)
+                        if let peg { pegStatus(peg) } else { chart(v) }   // a price chart of $1.00 says nothing
                         transactions(v)
                     }
                     .frame(maxWidth: .infinity)
@@ -76,6 +78,7 @@ struct AssetDetailView: View {
                                 .accessibilityIdentifier("price-source")
                             }
                         }
+                        if peg == nil {   // price targets are meaningless for a pegged coin
                         Panel(title: "IF \(v.asset.symbol) REACHES", padding: .init(top: 12, leading: 6, bottom: 6, trailing: 6)) {
                             VStack(spacing: 0) {
                                 if let px = v.price {
@@ -96,6 +99,7 @@ struct AssetDetailView: View {
                                 }
                             }
                         }
+                        }
                     }
                     .frame(width: 340)
                 }
@@ -110,6 +114,34 @@ struct AssetDetailView: View {
             HStack(spacing: 8) { TT(label, 12, Theme.text); TT(key, 12, Theme.t3) }
                 .padding(.horizontal, 10).padding(.vertical, 4)
                 .overlay(Rectangle().strokeBorder(Theme.kbdBorder, lineWidth: 1))
+        }
+    }
+
+    static func pegLabel(_ s: PegStatus) -> String {
+        switch s { case .normal: "PEG · NORMAL"; case .depeg: "DEPEG"; case .unchecked: "PEG · NOT CHECKED YET" }
+    }
+    static func pegColor(_ s: PegStatus) -> Color {
+        switch s { case .normal: Theme.pos; case .depeg: Theme.neg; case .unchecked: Theme.acc }
+    }
+
+    /// Stablecoins: peg health instead of a price chart. All state comes from PFCore's PegCheck.
+    private func pegStatus(_ c: PegCheck) -> some View {
+        let f = Fmt.current
+        let band = f.num((Stablecoins.tolerance * 100).double, 1)
+        return Panel(title: "PEG STATUS", padding: .init(top: 14, leading: 14, bottom: 10, trailing: 14)) {
+            VStack(spacing: 0) {
+                KV(k: "status", v: Self.pegLabel(c.status), c: Self.pegColor(c.status))
+                KV(k: "market", v: c.market.map { f.money($0, 4) } ?? "—")
+                KV(k: "deviation", v: c.deviationPercent.map { f.pct($0) } ?? "—", c: c.status == .depeg ? Theme.neg : Theme.t1)
+                KV(k: "checked", v: c.checkedAt.map { DateFmt.age(max(0, Date().timeIntervalSince($0))) + " ago" } ?? "not yet", c: Theme.t2)
+                KV(k: "target", v: f.money(c.peg.target) + " ± \(band)%", c: Theme.t2)
+                KV(k: "valued at", v: f.money(c.valuationPrice, c.status == .depeg ? 4 : 2) + (c.status == .depeg ? " · market price" : " · peg"),
+                   c: c.status == .depeg ? Theme.neg : Theme.t2)
+                if c.status == .depeg {
+                    TT("! outside ±\(band)% of \(f.money(c.peg.target)): valued at the market price until it returns to peg", 11, Theme.neg)
+                        .padding(.top, 8).frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
         }
     }
 
