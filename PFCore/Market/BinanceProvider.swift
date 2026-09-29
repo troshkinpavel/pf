@@ -7,7 +7,8 @@ public struct BinanceProvider: MarketDataProvider {
     public let name = "Binance"
     private let base = "https://api.binance.com/api/v3"
 
-    public func supports(_ asset: Asset) -> Bool { asset.binanceSymbol != nil }
+    /// Verified USD-quoted pairs only (the asset's own or the registry's; see MarketMappings).
+    public func supports(_ asset: Asset) -> Bool { MarketMappings.binanceSymbol(asset) != nil }
 
     private struct Ticker: Decodable {
         public let symbol: String
@@ -18,7 +19,7 @@ public struct BinanceProvider: MarketDataProvider {
 
     public func quotes(for assets: [Asset], currency: String) async throws -> [AssetID: Quote] {
         guard currency.uppercased() == "USD" else { throw MarketError.unsupported }
-        let bySym = Dictionary(assets.compactMap { a in a.binanceSymbol.map { ($0, a) } }, uniquingKeysWith: { a, _ in a })
+        let bySym = Dictionary(assets.compactMap { a in MarketMappings.binanceSymbol(a).map { ($0, a) } }, uniquingKeysWith: { a, _ in a })
         guard !bySym.isEmpty else { return [:] }
         var c = URLComponents(string: base + "/ticker/24hr")!
         let list = "[" + bySym.keys.sorted().map { "\"\($0)\"" }.joined(separator: ",") + "]"
@@ -36,7 +37,7 @@ public struct BinanceProvider: MarketDataProvider {
     }
 
     public func history(for asset: Asset, range: ChartRange, currency: String) async throws -> [PricePoint] {
-        guard currency.uppercased() == "USD", let s = asset.binanceSymbol else { throw MarketError.unsupported }
+        guard currency.uppercased() == "USD", let s = MarketMappings.binanceSymbol(asset) else { throw MarketError.unsupported }
         let (interval, limit): (String, Int) = {
             switch range {
             case .h1: ("1m", 60)
@@ -54,87 +55,6 @@ public struct BinanceProvider: MarketDataProvider {
         return rows.compactMap { r in
             guard r.count > 4, let t = r[0].value, let close = r[4].value else { return nil }
             return PricePoint(time: Date(timeIntervalSince1970: t / 1000), price: close)
-        }
-    }
-}
-
-/// Realtime price stream (miniTicker) for supported symbols. Reconnects with backoff.
-@MainActor
-public final class BinanceStream {
-    public init() {}
-    public enum State: Equatable { case off, connecting, connected, disconnected(String) }
-
-    public var onTick: ((_ symbol: String, _ price: Decimal, _ change24h: Double) -> Void)?
-    public var onState: ((State) -> Void)?
-    public private(set) var state: State = .off { didSet { onState?(state) } }
-
-    private var task: URLSessionWebSocketTask?
-    private var symbols: [String] = []
-    private var attempts = 0
-    private var reconnect: Task<Void, Never>?
-    private var generation = 0
-
-    public func connect(symbols: [String]) {
-        let s = Array(Set(symbols)).sorted()
-        if s == self.symbols, state == .connected || state == .connecting { return }
-        stop()
-        self.symbols = s
-        guard !s.isEmpty else { return }
-        open()
-    }
-
-    public func stop() {
-        generation += 1
-        reconnect?.cancel(); reconnect = nil
-        task?.cancel(with: .goingAway, reason: nil); task = nil
-        state = .off
-    }
-
-    private func open() {
-        let streams = symbols.map { $0.lowercased() + "@miniTicker" }.joined(separator: "/")
-        guard let url = URL(string: "wss://stream.binance.com:9443/stream?streams=" + streams) else { return }
-        state = .connecting
-        let t = HTTP.session.webSocketTask(with: url)
-        task = t
-        t.resume()
-        receive(t, gen: generation)
-    }
-
-    private struct Envelope: Decodable {
-        public struct Data: Decodable { let s: String; let c: String; let o: String }
-        public let data: Data
-    }
-
-    private func receive(_ t: URLSessionWebSocketTask, gen: Int) {
-        t.receive { [weak self] result in
-            Task { @MainActor in
-                guard let self, gen == self.generation else { return }
-                switch result {
-                case let .success(msg):
-                    if self.state != .connected { self.state = .connected; self.attempts = 0 }
-                    var data: Data?
-                    if case let .string(s) = msg { data = s.data(using: .utf8) } else if case let .data(d) = msg { data = d }
-                    if let d = data, let e = try? JSONDecoder().decode(Envelope.self, from: d),
-                       let c = Decimal(string: e.data.c, locale: Locale(identifier: "en_US_POSIX")),
-                       let o = Double(e.data.o), o > 0 {
-                        self.onTick?(e.data.s, c, (c.double / o - 1) * 100)
-                    }
-                    self.receive(t, gen: gen)
-                case let .failure(err):
-                    self.state = .disconnected((err as? URLError).map { "\($0.code.rawValue)" } ?? "closed")
-                    self.scheduleReconnect(gen: gen)
-                }
-            }
-        }
-    }
-
-    private func scheduleReconnect(gen: Int) {
-        attempts += 1
-        let delay = min(5 * pow(2, Double(attempts - 1)), 300)
-        reconnect = Task { [weak self] in
-            try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
-            guard let self, !Task.isCancelled, gen == self.generation else { return }
-            self.open()
         }
     }
 }

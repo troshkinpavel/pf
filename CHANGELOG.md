@@ -4,8 +4,16 @@ All notable changes to PF Terminal are documented here. The format follows [Keep
 
 ## [Unreleased]
 
+Work toward 0.5.0 (not released).
+
 ### Added
-- **Stablecoin support** for USDT, USDC, DAI, USDS, FDUSD and PYUSD (USD peg).
+- **Canonical Asset Registry.** A bundled top-1000 snapshot (registry version 2026-09-30) with CoinGecko ids, Binance pairs, contracts by chain and stablecoin metadata. It adds a curated, verified overlay (Bybit TELUSDT, and TEL on Base and Polygon), and a validated overlay mechanism for rare future updates (disabled in 0.5.0: no requests).
+- **Offline asset search.** Typing an asset searches the registry instantly: offline, during CoinGecko rate limits, and without `/search`. Online search is only used for tokens outside the registry. Tickers listed more than once are never auto-selected.
+- **Bybit.** Public spot market data: a live WebSocket, prices and chart history, for verified pairs only.
+- **Live feeds.** Binance and Bybit feeds with heartbeat, stale detection and reconnect with backoff. A backup exchange takes over when the first choice drops.
+- **Preferred source.** Choose Auto (the default), Binance, Bybit, CoinGecko or DexScreener, globally in Settings or per asset in Asset Detail. Only sources with a verified mapping are offered.
+- **Source status** in Asset Detail and the source picker: LIVE · BINANCE, LIVE · BYBIT, CACHED · 2m, DELAYED · 6m, FALLBACK · COINGECKO, FALLBACK · DEX, STALE · 18m, NO PRICE.
+- **Stablecoin support** (USD peg), initially for USDT, USDC, DAI, USDS, FDUSD and PYUSD; the registry extends the list.
   - **Valuation.** On peg (±0.5%), they're valued at exactly $1.00 and show no daily move. In a depeg, the real market price is used.
   - **Asset Detail.** A PEG STATUS panel replaces the price chart. It shows the market price, deviation, when it was checked, and the target.
   - **Overview.** A `STABLE` label, or `DEPEG` in red.
@@ -13,12 +21,18 @@ All notable changes to PF Terminal are documented here. The format follows [Keep
 - DAI, USDS, FDUSD and PYUSD are in the built-in coin list.
 
 ### Changed
+- **Market routing.** Each asset follows its own verified route: its preferred source, then Binance, then Bybit, then batched CoinGecko, then DexScreener by canonical contract. The old default primary provider (CoinGecko) migrates to Auto.
+- **Far fewer CoinGecko requests.** Assets priced by a live feed skip the minute-by-minute refresh, with a full pass every 15 minutes. Metadata comes from CoinGecko only, in one batched request per 15 minutes. History comes from Binance or Bybit first. Search makes no per-result price probes.
+- **Search and source probes respect provider backoff and HTTP 429** again (local search covers discovery).
+- **DexScreener** is only used for verified contracts, never ticker matches, for registry assets.
+- **Stablecoin classification** comes from the registry (39 USD stablecoins), with the curated list as a fallback.
+- **History loading** is queued (2 at a time), so changing chart range doesn't send bursts.
 - Stablecoins aren't ranked as best/worst investments, and on peg they're left out of contribution to P&L.
 - Peg prices are checked every 5 minutes as part of the normal refresh, not on every refresh.
 
 ### Fixed
 - The price source picker always offers a coin's original market, so a DexScreener pick can be undone.
-- Asset search asks CoinGecko even while it is backing off after rate limits, and USDT resolves to Tether.
+- USDT resolves to Tether when typed, and a rate-limited CoinGecko no longer leaves search with DEX pools only (the local registry answers first).
 
 ## [0.4.2] - Maintenance Release
 

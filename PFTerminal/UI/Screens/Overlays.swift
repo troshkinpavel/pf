@@ -146,15 +146,22 @@ struct TransactionSheet: View {
                 TermButton(action: { store.tx?.pick = i }) {
                     Columns([.fixed(16), .fixed(92), .fr(1), .fixed(92), .fixed(78)]) {
                         TT(i == d.pick ? "›" : "", 12, Theme.acc)
-                        TT(a.coingeckoID != nil ? "coingecko" : "dex · " + (a.chain ?? ""), 11, i == d.pick ? Theme.t1 : Theme.t3)
-                        TT(a.name.lowercased() + " · " + (a.coingeckoID ?? AppStore.short(a.contractAddress)), 11, Theme.t4)
+                        if let e = AssetRegistry.shared.entry(for: a) {
+                            // Registry asset: ticker, name, rank, verified sources.
+                            TT(e.symbol, 11, i == d.pick ? Theme.t1 : Theme.t3)
+                            TT(e.name.lowercased() + (e.marketCapRank.map { " · #\($0)" } ?? "") + " · "
+                               + MarketMappings.availableSources(a).map(\.label).joined(separator: " "), 11, Theme.t4)
+                        } else {
+                            TT(a.coingeckoID != nil ? "coingecko" : "dex · " + (a.chain ?? ""), 11, i == d.pick ? Theme.t1 : Theme.t3)
+                            TT(a.name.lowercased() + " · " + (a.coingeckoID ?? AppStore.short(a.contractAddress)), 11, Theme.t4)
+                        }
                         Cell(q.map { f.price($0.price) } ?? "…", Theme.text, size: 11)
                         Cell(q.map { "vol " + f.compact($0.volume24h) } ?? "", thin ? Theme.neg : Theme.t4, size: 11)
                     }
                     .frame(height: 20)
                 }
             }
-            TT("↑↓ choose the market · red = thin liquidity", 10.5, Theme.t4).padding(.top, 2)
+            TT("↑↓ choose · registry matches are instant and offline · red = thin liquidity", 10.5, Theme.t4).padding(.top, 2)
         }
         .padding(.leading, 90)
     }

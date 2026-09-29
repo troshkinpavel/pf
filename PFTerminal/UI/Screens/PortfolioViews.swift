@@ -369,7 +369,8 @@ struct SourcePickerView: View {
             HStack {
                 TT("PRICE SOURCE · \(a?.symbol ?? "")", 12, Theme.t1, tracking: 0.72)
                 Spacer()
-                TT("same ticker, different markets · pick the one you trade", 11, Theme.t4)
+                TT(a.flatMap { AssetRegistry.shared.entry(for: $0) } != nil ? "verified markets only · auto = live feeds first"
+                   : "same ticker, different markets · pick the one you trade", 11, Theme.t4)
             }
             .padding(.horizontal, 16).frame(height: 34)
             .overlay(alignment: .bottom) { Hairline() }
@@ -383,7 +384,7 @@ struct SourcePickerView: View {
 
             VStack(spacing: 0) {
                 if sp.loading {
-                    TT("querying coingecko · binance · dexscreener…", 11, Theme.t4).padding(14)
+                    TT("checking sources…", 11, Theme.t4).padding(14)
                 } else if sp.candidates.isEmpty {
                     TT("no markets found for \(a?.symbol ?? "")", 11, Theme.t4).padding(14)
                 }
@@ -397,7 +398,7 @@ struct SourcePickerView: View {
                             Cell(c.quote.map { f.price($0.price) } ?? "no quote", c.quote == nil ? Theme.t4 : Theme.t1)
                             Cell(f.pct(c.quote?.change24h), Theme.signColor(c.quote?.change24h))
                             Cell(f.compact(c.quote?.volume24h), thin && c.quote != nil ? Theme.neg : Theme.t2)
-                            Cell(c.isCurrent ? "● used" : "", Theme.acc, size: 11)
+                            Cell(c.isCurrent ? "● set" : "", Theme.acc, size: 11)
                         }
                         .padding(.leading, 6).padding(.trailing, 16).frame(height: 28)
                         .background(i == sp.sel ? Theme.paletteSel : .clear)

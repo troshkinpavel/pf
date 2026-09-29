@@ -18,7 +18,7 @@ let package = Package(
         .library(name: "PFCoreTestSupport", targets: ["PFCoreTestSupport"]),
     ],
     targets: [
-        .target(name: "PFCore", path: "PFCore"),
+        .target(name: "PFCore", path: "PFCore", resources: [.copy("Resources/CanonicalAssetRegistry.json")]),
         .target(name: "PFCoreUI", dependencies: ["PFCore"], path: "PFCoreUI"),
         .target(name: "PFCoreTestSupport", dependencies: ["PFCore"], path: "PFCoreTestSupport"),
         .testTarget(name: "PFCoreTests", dependencies: ["PFCore", "PFCoreTestSupport"], path: "PFCoreTests"),

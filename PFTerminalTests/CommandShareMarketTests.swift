@@ -146,11 +146,12 @@ struct RouterTests {
         }
     }
 
-    @Test func searchStillAsksAProviderThatIsBackingOff() async {
+    @Test func searchRespectsBackoffWhileLocalRegistrySearchStillWorks() async {
         let r = ProviderRouter(providers: [SearchStub()])
         _ = await r.quotes(for: [btc], currency: "USD")
         #expect(await r.isBlocked("CoinGecko"), "quotes put it in backoff")
-        #expect(await r.search("usdt").map(\.id) == ["cg:tether"], "the user's search still reaches it")
+        #expect(await r.search("usdt").isEmpty, "online search doesn't bypass a 429 backoff")
+        #expect(AssetRegistry.shared.search("usdt").first?.coingeckoId == "tether", "discovery still works locally")
     }
 
     @Test func usdtResolvesOfflineToTether() {
@@ -168,7 +169,8 @@ struct RouterTests {
     }
 
     @Test func primaryWinsAndMetadataIsEnriched() async {
-        let r = ProviderRouter(providers: [Stub(name: "A", result: .success(1)), Stub(name: "B", result: .success(2), withSupply: true)])
+        // Price from the routed exchange; supply etc. from CoinGecko (the only metadata source).
+        let r = ProviderRouter(providers: [Stub(name: "Binance", result: .success(1)), Stub(name: "CoinGecko", result: .success(2), withSupply: true)])
         let out = await r.quotes(for: [btc], currency: "USD")
         #expect(out.quotes[btc.id]?.price == 1)
         #expect(out.quotes[btc.id]?.circulatingSupply == 1000)

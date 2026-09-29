@@ -334,11 +334,11 @@ Roadmap milestones are product milestones, not app version numbers. The iPhone a
 | v0.2 · Multiple portfolios | Independent portfolios, ALL aggregate, switcher, management, v1 → v2 migration | **done** · internal milestone |
 | v0.3 · Widgets & alerts | Desktop widgets, portfolio 24h-move notification | **done** · internal milestone |
 | v0.4 · iCloud sync | Optional sync between your own devices through your private iCloud (CloudKit) database, off by default | **done** · current |
-| v0.5 · Advanced analytics | Benchmarks (vs BTC / ETH), period return tables, realized P&L reports | planned |
-| v0.6 · Scenario lab | Multi-asset and portfolio-wide scenarios (today: single-asset target simulator) | planned |
-| v0.7 · Automation & alerts | Per-asset price alerts, Shortcuts / App Intents actions, scheduled exports and share cards | planned |
-| v0.8 · Watch-only wallets | Read-only on-chain addresses | planned |
-| v0.9 · Exchange connections | Read-only exchange APIs, CSV import | planned |
+| v0.5 · Market data | Canonical Asset Registry (bundled top-1000) · offline local asset search · Binance + Bybit live pricing · selectable preferred source · LIVE / CACHED / FALLBACK source status · far fewer CoinGecko requests · canonical-contract DexScreener fallback · stablecoin / cash-like support with peg monitoring · stale-while-revalidate caching | in development · not released |
+| v0.6 · Advanced analytics | Benchmarks (vs BTC / ETH), period return tables, realized P&L reports | planned |
+| v0.7 · Scenario lab | Multi-asset and portfolio-wide scenarios (today: single-asset target simulator) | planned |
+| v0.8 · Automation & alerts | Per-asset price alerts, Shortcuts / App Intents actions, scheduled exports and share cards | planned |
+| v0.9 · Wallets & exchanges | Read-only on-chain addresses (watch-only wallets), read-only exchange APIs, CSV import | planned |
 | v1.0 · Stable PF Terminal for macOS | Stable, signed and notarized macOS release | planned |
 | v2.0 · PF Terminal for iPhone | Native iOS app sharing the portfolio and accounting core | **in development** |
 | v2.1 · iOS widgets | Home and lock screen widgets | **in development** |

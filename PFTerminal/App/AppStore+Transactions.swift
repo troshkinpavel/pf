@@ -29,10 +29,25 @@ extension AppStore {
                      date: DateFmt.ymd(t.timestamp), fee: t.fee > 0 ? "\(t.fee)" : "", note: t.note ?? "")
     }
 
-    /// Ledger assets first (the user's own identities), then the bundled catalog, then search hits.
+    /// Ledger assets first (the user's own identities), then the bundled catalog, then an
+    /// unambiguous registry symbol, then the picked search hit. A ticker the registry lists more
+    /// than once is never auto-selected.
     func resolveAsset(_ text: String, searchResults: [Asset] = []) -> Asset? {
         AssetCatalog.resolve(text, in: doc.assets) ?? AssetCatalog.resolve(text, in: AssetCatalog.known)
-            ?? searchResults[safe: tx?.pick ?? 0] ?? searchResults.first
+            ?? registryUnique(text) ?? searchResults[safe: tx?.pick ?? 0] ?? searchResults.first
+    }
+
+    /// The registry asset for an exact ticker, only when exactly one record has it.
+    func registryUnique(_ text: String) -> Asset? {
+        let t = text.trimmingCharacters(in: .whitespaces)
+        guard t.count >= 2 else { return nil }
+        let hits = AssetRegistry.shared.entries(symbol: t)
+        return hits.count == 1 ? AssetRegistry.shared.asset(for: hits[0]) : nil
+    }
+
+    /// Local registry search (instant, offline), as ledger assets.
+    func registrySearch(_ q: String) -> [Asset] {
+        AssetRegistry.shared.search(q, limit: 8).map { AssetRegistry.shared.asset(for: $0) }
     }
 
     func draftAssetChanged() {
@@ -45,17 +60,27 @@ extension AppStore {
             return
         }
         if q.count < 2 { tx?.searchResults = []; tx?.searching = false; return }
-        tx?.searching = true
+        // 1. Registry results immediately (offline, no request).
+        let local = registrySearch(q)
+        tx?.searchResults = local
+        tx?.pick = 0
+        tx?.candidateQuotes = knownQuotes(local)
+        tx?.searching = local.isEmpty
         searchTask = Task {
             try? await Task.sleep(nanoseconds: 400_000_000)
             guard !Task.isCancelled else { return }
-            let r = await router.search(q)
-            guard !Task.isCancelled, tx?.asset.trimmingCharacters(in: .whitespaces) == q else { return }
-            tx?.searchResults = r
-            tx?.pick = 0
+            // 2. Long tail only: online discovery when the registry knows nothing (respects backoff).
+            var results = local
+            if local.isEmpty {
+                results = await router.search(q)
+                guard !Task.isCancelled, tx?.asset.trimmingCharacters(in: .whitespaces) == q else { return }
+                tx?.searchResults = results
+                tx?.pick = 0
+            }
             tx?.searching = false
-            let qs = await probeSearchResults(r)
-            if tx?.asset.trimmingCharacters(in: .whitespaces) == q { tx?.candidateQuotes = qs }
+            // 3. One batched price request for results with no known price (exchanges first).
+            let qs = await priceSearchResults(results)
+            if tx?.asset.trimmingCharacters(in: .whitespaces) == q { tx?.candidateQuotes.merge(qs) { _, b in b } }
         }
     }
 

@@ -6,7 +6,9 @@ public enum MenuBarFormat: String, Codable, CaseIterable, Sendable {
 
 /// User preferences. Persisted as JSON in UserDefaults. Never holds secrets (see Keychain).
 public struct AppSettings: Codable, Equatable, Sendable {
-    public var primaryProvider: String = "CoinGecko"
+    /// Preferred market-data source for all assets: "Auto" (route per asset: live exchange feeds,
+    /// then CoinGecko, then canonical DEX) or a named source. A per-asset choice overrides it.
+    public var primaryProvider: String = "Auto"
     public var realtimeProvider: String = "Binance"
     public var fallbackProvider: String = "DexScreener"
     public var refreshSeconds: Int = 60
@@ -26,7 +28,9 @@ public struct AppSettings: Codable, Equatable, Sendable {
     /// Mac-local: keep the Dock icon while only the menu bar item is open. Never synced.
     public var keepInDock: Bool = false
 
-    public static let providerOptions = ["CoinGecko", "Binance"]
+    public static let providerOptions = ["Auto", "Binance", "Bybit", "CoinGecko"]
+    /// Settings format of market routing. 0 = before 0.5 (CoinGecko was the default primary).
+    public var routingVersion: Int = 1
     public static let realtimeOptions = ["Binance", "off"]
     public static let fallbackOptions = ["DexScreener", "CoinGecko", "none"]
     public static let intervalOptions = [15, 30, 60, 300]
@@ -53,6 +57,9 @@ public struct AppSettings: Codable, Equatable, Sendable {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         let d = AppSettings()
         primaryProvider = (try? c.decode(String.self, forKey: .primaryProvider)) ?? d.primaryProvider
+        routingVersion = (try? c.decode(Int.self, forKey: .routingVersion)) ?? 0
+        // 0.5 migration: CoinGecko was the old default, so it becomes Auto (exchange feeds first).
+        if routingVersion < 1 { if primaryProvider == "CoinGecko" { primaryProvider = "Auto" }; routingVersion = 1 }
         realtimeProvider = (try? c.decode(String.self, forKey: .realtimeProvider)) ?? d.realtimeProvider
         fallbackProvider = (try? c.decode(String.self, forKey: .fallbackProvider)) ?? d.fallbackProvider
         refreshSeconds = (try? c.decode(Int.self, forKey: .refreshSeconds)) ?? d.refreshSeconds

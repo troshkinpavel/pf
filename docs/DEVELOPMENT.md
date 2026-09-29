@@ -221,30 +221,97 @@ scripts/        make-icon.swift, make-sample-portfolio.py, frame-screenshot.swif
 ## Market data
 
 ```
-Views → AppStore → ProviderRouter (actor) → CoinGecko · Binance · DexScreener
-                 ├→ BinanceStream (WebSocket miniTicker, USD pairs)
-                 └→ MarketCache (SwiftData: last-known quotes, price history, snapshots)
+Views → AppStore ──→ ProviderRouter (actor) → Binance · Bybit · CoinGecko · DexScreener (REST)
+          ├──────→ LiveFeed ×2 (WebSocket: Binance miniTicker, Bybit v5 spot tickers)
+          ├──────→ AssetRegistry (bundled canonical registry + overlays, local search)
+          └──────→ MarketCache (SwiftData: last-known quotes, price history, snapshots)
 ```
 
-- **Views never know which provider answered.**
-- **Routing.**
-  - Each asset goes to the first provider that supports it and returns a quote.
-  - An asset whose source the user has pinned asks that provider first.
-  - When a provider fails, its assets fall through to the next one.
-  - Missing metadata (supply, ATH, 7d/30d change) is filled from another provider, at most every 15 minutes.
-- **Backoff.** A failing provider is blocked for 15 s, 30 s, 60 s and so on, up to 15 minutes. `Retry-After` on HTTP 429/418 is honoured.
+Views never decide routing or status. They render `SourceState` from PFCore (`PFCore/Market/MarketSources.swift`).
+
+### Canonical Asset Registry
+
+- **Snapshot.**
+  - The file is `PFCore/Resources/CanonicalAssetRegistry.json`, bundled with PFCore.
+  - It is the 2026-09-30 top-1000 list, supplied as-is: registry version `2026-09-30`, source CoinMarketCap, ranked by market cap.
+  - Records have ids like `cmc-1`, and fields for symbol, name, CoinGecko id, market-cap rank, Binance symbol, contracts by chain and stablecoin info.
+  - The app never regenerates it. Every field except id, symbol and name is optional. `bybitSymbol` and `exchangeSymbols` (Gate.io, KuCoin, …) are there for later enrichment.
+- **Ledger ids are unchanged.**
+  - Assets keep `cg:<coingecko id>`. Catalog overrides still apply: TEL stays `cg:telcoin` while the registry maps it to `telcoin-2`.
+  - Registry-only assets without a CoinGecko id get `cmc:<n>`.
+  - `AssetRegistry.entry(for:)` finds a record by CoinGecko id or registry id, never by ticker.
+- **Overlays.** Overlays patch the snapshot; they never replace it. An overlay that fails validation (wrong base version, unknown ids, bad JSON, over 2 MB) is ignored.
+  - **Curated overlay** (`RegistryOverlay.curated`, shipped in code, verified by hand): Bybit `TELUSDT`, and TEL's Base and Polygon contracts.
+  - **Remote overlay** (`RegistryOverlayStore`, for later): at most one check every 5 days, never at startup, cached in `Application Support/pf/registry/`, and applied on the next launch. **0.5.0 has no `remoteURL`, so no overlay request is ever made.**
+- **Versioning.**
+  - `registryVersion` names the snapshot.
+  - An overlay lists the snapshot versions it applies to (`baseRegistryVersions`).
+  - A new snapshot ships with an app update.
+- **Local search** (`AssetRegistry.search`):
+  - Order: exact ticker or name, then ticker prefix, then name prefix, then CoinGecko or registry id, then substring. Market-cap rank breaks ties.
+  - It works offline and during CoinGecko 429s.
+  - A ticker the registry lists more than once (10 in this snapshot, for example `GUSD`) is never auto-selected.
+  - Online search (CoinGecko or DexScreener `/search`) runs only when the registry has no match. It respects backoff.
+- **Known snapshot gaps, handled.**
+  - USDT's Binance symbol is `USDTTRY`, a lira pair. Only pairs quoted in USDT, USDC or FDUSD are accepted, so it's rejected.
+  - 44 assets have no CoinGecko id.
+  - USDS isn't in the snapshot; the curated stablecoin list covers it.
+  - Contract chains use CoinGecko platform ids. They map to DexScreener chain ids (`MarketMappings.dexChains`), and chains without a certain id are skipped: robinhood, hyperevm, cardano, klay, xdc, manta, internet-computer.
+
+### Sources and routing
+
+- **Mappings.**
+  - `MarketMappings` gives each asset its verified identity per source: the asset's own identifiers, the registry, or the curated overlay. Nothing is inferred from a ticker.
+  - The available sources, in automatic order, are: Binance → Bybit → CoinGecko → DexScreener (canonical contracts only).
+- **Route.** `MarketMappings.route` lists the available sources in that order, with the preferred one first.
+  - The preferred source comes from the asset (the picker in Asset Detail) or from Settings → preferred source. **Auto** is the default.
+  - Unavailable sources are never offered.
+- **Router rounds.** Each remaining asset goes to its next untried source that isn't backing off. Each round sends one batched request per provider. Failures fall through to the next source.
+- **Live feeds** (`LiveFeed`, public WebSocket, no key):
+  - An asset subscribes to the streaming sources in its route that come before the first non-streaming one. A preferred REST source means no stream, and so do on-peg stablecoins.
+  - Heartbeat: a ping every 20 s (Bybit, `{"op":"ping"}`) or 30 s (Binance, protocol ping).
+  - A feed silent for `streamSilence` (90 s) is dropped and reopened with exponential backoff (5 s … 5 min).
+  - Feeds stop during sleep and reconnect on wake.
+  - A backup feed's tick is used only while the first-choice feed isn't live for that asset. The price then shows as FALLBACK.
+- **Status** (`SourceState.evaluate`, thresholds in `MarketStatusPolicy`):
+
+  | Label | Meaning |
+  |---|---|
+  | `LIVE · BINANCE` / `LIVE · BYBIT` | Streamed within 120 s from the first-choice feed |
+  | `CACHED · 2m` | From the first-choice source or disk cache, not streaming, ≤ 5 min old |
+  | `DELAYED · 6m` | 5–15 min old |
+  | `FALLBACK · COINGECKO` / `· DEX` | A lower source answered because the first choice failed |
+  | `STALE · 18m` | Over 15 min old: the last-known value |
+  | `NO PRICE` | Nothing yet |
+
+- **CoinGecko reduction.**
+  - Coins that are live on a feed skip the REST refresh.
+  - A full pass every 15 min (`AppStore.fullRefreshInterval`) keeps metadata current.
+  - Metadata (supply, market cap, ATH, 7d/30d/1y change) comes from CoinGecko only: one batched `/coins/markets` call per 15 min.
+  - History prefers Binance or Bybit klines. It falls back to CoinGecko `market_chart` only without an exchange mapping.
+  - Search uses no `/search` for registry assets, and makes no per-result price probes: known or cached prices first, then at most one batched request.
+- **DexScreener safety.** DexScreener is only queried by verified chain + contract: registry contracts, the curated TEL chains, or a token the user picked by contract. The existing best-pool rule still applies (≥ $1,000 liquidity, most 24h volume), and a failing chain never loses the others.
+- **Backoff.** A failing provider is blocked for 15 s, 30 s, 60 s and so on, up to 15 min. `Retry-After` on 429/418 is honored. Search and source probes respect it too.
+
+### Caching (stale-while-revalidate)
+
+The UI shows what it has immediately, and refreshes in the background.
+
+| Data | Freshness |
+|---|---|
+| Live price | ≤ 120 s since the last tick; feed considered down after 90 s of silence |
+| Current price | Refresh at the configured interval (default 60 s; ×5 in the background). Persisted in `MarketCache` and shown at launch. CACHED ≤ 5 min, STALE after 15 min |
+| Stablecoin peg | Re-checked every 5 min while on peg, as part of the normal batch; a depeg is polled normally |
+| Metadata | 15 min (CoinGecko, batched) |
+| History | 1H: 2 min · 24H: 10 min · 7D: 30 min · longer: 6 h. Cached on disk. At most 2 requests in flight, queued, so changing chart range never bursts |
+| Registry overlay | ≥ 5 days between checks; disabled in 0.5.0 |
+
 - **Scheduling.**
-  - While the window is active, the app refreshes at the configured interval (15 s to 5 min, default 60 s).
-  - In the background the interval is ×5, with a minimum of 5 minutes.
+  - While the window is active, the app refreshes at the configured interval (15 s to 5 min).
+  - In the background, it refreshes at ×5 the interval, at least every 5 min.
   - Opening the popover refreshes immediately.
-  - Nothing polls while the Mac sleeps, and the app refreshes on wake.
-- **Freshness.**
-  - `LIVE`: every held asset has a non-cached quote that is younger than the interval + 30 s.
-  - `SYNCING`: a request is in flight.
-  - `PARTIAL`: the data is fresh, but some assets have no quote.
-  - `STALE <age>`: the quotes are cached or old.
-  - `OFFLINE`: there is no network; the app shows the last-known values.
-- **Identity.** Assets are never keyed by ticker alone. The internal id (`cg:<id>`, `dex:<chain>:<contract>`) stays stable. The provider mapping for an asset can change through **price source** in Asset Detail.
+  - Nothing polls while the Mac sleeps.
+- **Portfolio freshness** (status bar): `LIVE` / `SYNCING` / `PARTIAL` / `STALE <age>` / `OFFLINE`. It counts market-driven assets only; on-peg stablecoins don't count.
 - **Credentials.** No credentials are needed for prices. An optional CoinGecko demo key is stored in the Keychain and sent only to `api.coingecko.com`.
 
 ### Adding a provider
@@ -260,7 +327,7 @@ Views → AppStore → ProviderRouter (actor) → CoinGecko · Binance · DexScr
    - Batch your requests.
    - Throw `MarketError.rateLimited`, `.offline`, `.unavailable` or `.unsupported`, so that the router can back off correctly.
    - Send only the identifiers that the request needs. Never send quantities or values.
-2. Register the provider in `AppStore.makeProviders()` (and in each other PF client that builds a provider list). If the user should be able to select it, also add it to `AppSettings.providerOptions`.
+2. Give it a `MarketSource` (for example `MarketSource("Gate.io")`), a verified mapping in `MarketMappings` (for example from `RegistryAsset.exchangeSymbols["gateio"]`) and a place in `MarketSource.autoOrder`. Register it in `AppStore.makeProviders()` (and in each other PF client). If it has a public live feed, add a `LiveFeed.Venue`. If users should be able to select it globally, add it to `AppSettings.providerOptions`.
 3. Test it with a stub provider (see `RouterTests`).
 
 ## Accounting
@@ -285,7 +352,11 @@ Views → AppStore → ProviderRouter (actor) → CoinGecko · Binance · DexScr
 
 All rules live in `PFCore/Domain/Stablecoins.swift`. The UI only renders `PegCheck`.
 
-- **Whitelist.** Assets are keyed by canonical id, never by ticker. Each is pegged to USD at 1.00: `cg:tether` (USDT), `cg:usd-coin` (USDC), `cg:dai`, `cg:usds`, `cg:first-digital-usd` (FDUSD), `cg:paypal-usd` (PYUSD). `Asset.isStablecoin`, `pegCurrency` and `targetPeg` read the list. `StablecoinPeg` has a currency and a target, so pegs in other currencies can be added later.
+- **Classification.**
+  - Stablecoins come from the registry's `stablecoin` metadata (`pegCurrency`, `targetPeg`): 39 USD stablecoins in the 2026-09-30 snapshot.
+  - `Stablecoins.whitelist` is the curated fallback: USDT, USDC, DAI, USDS, FDUSD and PYUSD. It keeps USDS, which isn't in the snapshot.
+  - `Asset.isStablecoin`, `pegCurrency` and `targetPeg` read the registry first, then the fallback.
+  - `StablecoinPeg` has a currency and a target, so other pegs can be added later.
 - **Tolerance.** `Stablecoins.tolerance` is ±0.5% of the target, and the edge is inclusive.
 - **Valuation** (when the ledger currency is the peg currency):
 

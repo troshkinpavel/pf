@@ -114,37 +114,45 @@ public actor ProviderRouter {
 
     private func recordSuccess(_ name: String) { failures[name] = 0; blockedUntil[name] = nil }
 
+    /// Per-asset route (MarketMappings.route: preferred source, then Binance, Bybit, CoinGecko,
+    /// canonical DexScreener) restricted to configured providers; providers outside the known
+    /// sources (e.g. Mock) come after. Only verified mappings are ever asked.
+    func order(_ a: Asset) -> [MarketDataProvider] {
+        let byName = Dictionary(providers.map { ($0.name, $0) }, uniquingKeysWith: { a, _ in a })
+        let routed = MarketMappings.route(a).compactMap { byName[$0.rawValue] }
+        let others = providers.filter { p in !routed.contains { $0.name == p.name } && p.supports(a) }
+        return routed + others
+    }
+
     public func quotes(for assets: [Asset], currency: String) async -> Result {
         var r = Result()
-        var remaining = assets
         var answeredBy: [AssetID: String] = [:]
-        // Assets with a user-pinned source ask that provider first.
-        for (name, list) in Dictionary(grouping: assets.filter { $0.preferredSource != nil }, by: { $0.preferredSource! }) {
-            guard let p = providers.first(where: { $0.name == name }), !isBlocked(name) else { continue }
-            let subset = list.filter(p.supports)
-            guard !subset.isEmpty else { continue }
-            do {
-                let q = try await p.quotes(for: subset, currency: currency)
-                recordSuccess(p.name)
-                for (k, v) in q { r.quotes[k] = v; answeredBy[k] = p.name }
-                remaining.removeAll { q[$0.id] != nil }
-            } catch {
-                let e = error as? MarketError ?? .decoding
-                recordFailure(p.name, e); r.errors[p.name] = e
+        var tried: [AssetID: Set<String>] = [:]
+        var remaining = assets
+        // Rounds: each remaining asset goes to its next untried, unblocked provider; one batched
+        // request per provider per round. Failures fall through to the next source.
+        while !remaining.isEmpty {
+            var batch: [String: [Asset]] = [:]
+            for a in remaining {
+                if let p = order(a).first(where: { !(tried[a.id]?.contains($0.name) ?? false) && !isBlocked($0.name) }) {
+                    batch[p.name, default: []].append(a)
+                }
             }
-        }
-        for p in providers where !remaining.isEmpty {
-            let subset = remaining.filter(p.supports)
-            guard !subset.isEmpty, !isBlocked(p.name) else { continue }
-            do {
-                let q = try await p.quotes(for: subset, currency: currency)
-                recordSuccess(p.name)
-                for (k, v) in q { r.quotes[k] = v; answeredBy[k] = p.name }
-                remaining.removeAll { q[$0.id] != nil }
-            } catch {
-                let e = error as? MarketError ?? .decoding
-                recordFailure(p.name, e); r.errors[p.name] = e
+            if batch.isEmpty { break }
+            for name in batch.keys.sorted() {
+                guard let p = providers.first(where: { $0.name == name }), let list = batch[name] else { continue }
+                for a in list { tried[a.id, default: []].insert(name) }
+                guard !isBlocked(name) else { continue }
+                do {
+                    let q = try await p.quotes(for: list, currency: currency)
+                    recordSuccess(name)
+                    for (k, v) in q { r.quotes[k] = v; answeredBy[k] = name }
+                } catch {
+                    let e = error as? MarketError ?? .decoding
+                    recordFailure(name, e); r.errors[name] = e
+                }
             }
+            remaining.removeAll { r.quotes[$0.id] != nil }
         }
         r.unresolved = remaining.map(\.id)
 
@@ -153,9 +161,11 @@ public actor ProviderRouter {
             guard let q = r.quotes[a.id] else { return false }
             return q.circulatingSupply == nil || q.change[.d7] == nil
         }
+        // Metadata (supply, market cap, ATH, multi-period change) comes from CoinGecko only, one
+        // batched request per `metadataTTL`: exchanges don't have it, so asking them is waste.
         if !lacking.isEmpty, now().timeIntervalSince(metadataAt) > metadataTTL {
             metadataAt = now()
-            for p in providers where !isBlocked(p.name) {
+            for p in providers where p.name == MarketSource.coingecko.rawValue && !isBlocked(p.name) {
                 let subset = lacking.filter { p.supports($0) && answeredBy[$0.id] != p.name }
                 guard !subset.isEmpty else { continue }
                 if let q = try? await p.quotes(for: subset, currency: currency) {
@@ -169,7 +179,8 @@ public actor ProviderRouter {
 
     public func history(for asset: Asset, range: ChartRange, currency: String) async throws -> [PricePoint] {
         var last: MarketError = .unsupported
-        for p in providers where p.supports(asset) && !isBlocked(p.name) {
+        // Exchange history first (Binance, Bybit), CoinGecko market_chart only when needed.
+        for p in order(asset) where !isBlocked(p.name) {
             do {
                 let h = try await p.history(for: asset, range: range, currency: currency)
                 if !h.isEmpty { return h }
@@ -182,13 +193,13 @@ public actor ProviderRouter {
         throw last
     }
 
+    /// Online long-tail discovery (assets outside the bundled registry). Local registry search
+    /// comes first in the app; this respects provider backoff and HTTP 429.
     /// Listed coins (CoinGecko) before DEX tokens; exact symbol matches first within each.
-    /// A search is one request the user asked for, so it ignores the quote backoff (like `probe`):
-    /// otherwise a rate-limited CoinGecko drops out and only DEX pools are offered.
     public func search(_ query: String) async -> [Asset] {
         var out: [Asset] = []
         var seen = Set<AssetID>()
-        for p in providers {
+        for p in providers where !isBlocked(p.name) {
             guard let r = try? await p.search(query) else { continue }
             for a in r where !seen.contains(a.id) { seen.insert(a.id); out.append(a) }
         }
@@ -197,9 +208,9 @@ public actor ProviderRouter {
         return Array(out.enumerated().sorted { (rank($0.element), $0.offset) < (rank($1.element), $1.offset) }.map(\.element).prefix(8))
     }
 
-    /// Quote one identity from one named provider (for comparing sources). Ignores backoff.
+    /// Quote one identity from one named provider (for comparing sources). Respects backoff.
     public func probe(_ asset: Asset, provider name: String, currency: String) async -> Quote? {
-        guard let p = providers.first(where: { $0.name == name }) ?? Self.extra(name), p.supports(asset) else { return nil }
+        guard !isBlocked(name), let p = providers.first(where: { $0.name == name }) ?? Self.extra(name), p.supports(asset) else { return nil }
         return try? await p.quotes(for: [asset], currency: currency)[asset.id]
     }
 
@@ -207,6 +218,7 @@ public actor ProviderRouter {
     private static func extra(_ name: String) -> MarketDataProvider? {
         switch name {
         case "Binance": BinanceProvider()
+        case "Bybit": BybitProvider()
         case "DexScreener": DexScreenerProvider()
         case "CoinGecko": CoinGeckoProvider()
         default: nil

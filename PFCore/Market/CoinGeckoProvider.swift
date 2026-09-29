@@ -10,7 +10,7 @@ public struct CoinGeckoProvider: MarketDataProvider {
     private var base: String { "https://api.coingecko.com/api/v3" }
     private var headers: [String: String] { apiKey.map { ["x-cg-demo-api-key": $0] } ?? [:] }
 
-    public func supports(_ asset: Asset) -> Bool { asset.coingeckoID != nil }
+    public func supports(_ asset: Asset) -> Bool { MarketMappings.coingeckoID(asset) != nil }
 
     private struct Market: Decodable {
         public let id: String
@@ -27,7 +27,7 @@ public struct CoinGeckoProvider: MarketDataProvider {
     }
 
     public func quotes(for assets: [Asset], currency: String) async throws -> [AssetID: Quote] {
-        let byID = Dictionary(assets.compactMap { a in a.coingeckoID.map { ($0, a) } }, uniquingKeysWith: { a, _ in a })
+        let byID = Dictionary(assets.compactMap { a in MarketMappings.coingeckoID(a).map { ($0, a) } }, uniquingKeysWith: { a, _ in a })
         var out: [AssetID: Quote] = [:]
         let ids = Array(byID.keys).sorted()
         for chunk in stride(from: 0, to: ids.count, by: 200).map({ Array(ids[$0..<min($0 + 200, ids.count)]) }) {
@@ -59,7 +59,7 @@ public struct CoinGeckoProvider: MarketDataProvider {
     private struct Chart: Decodable { let prices: [[Double]] }
 
     public func history(for asset: Asset, range: ChartRange, currency: String) async throws -> [PricePoint] {
-        guard let id = asset.coingeckoID else { throw MarketError.unsupported }
+        guard let id = MarketMappings.coingeckoID(asset) else { throw MarketError.unsupported }
         let days: String = {
             switch range {
             case .h1, .d1, .h24: "1"

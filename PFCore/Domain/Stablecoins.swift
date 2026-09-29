@@ -43,7 +43,9 @@ public enum Stablecoins {
     /// While on peg, the market price is re-checked at most this often (not every refresh).
     public static let checkInterval: TimeInterval = 5 * 60
 
-    /// Initial whitelist, keyed by canonical asset id (never by ticker: tickers collide).
+    /// Curated fallback, keyed by ledger asset id (never by ticker). The registry's stablecoin
+    /// metadata comes first (39 USD stablecoins in the 2026-09-30 snapshot); this list keeps the
+    /// initial set covered even where the snapshot lacks one (USDS isn't in it).
     public static let whitelist: [AssetID: StablecoinPeg] = [
         "cg:tether": .usd,               // USDT
         "cg:usd-coin": .usd,             // USDC
@@ -53,7 +55,10 @@ public enum Stablecoins {
         "cg:paypal-usd": .usd,           // PYUSD
     ]
 
-    public static func peg(for id: AssetID) -> StablecoinPeg? { whitelist[id] }
+    public static func peg(for id: AssetID, registry: AssetRegistry = .shared) -> StablecoinPeg? {
+        if let s = registry.entry(forID: id)?.stablecoin { return StablecoinPeg(currency: s.pegCurrency.uppercased(), target: s.targetPeg) }
+        return whitelist[id]
+    }
 
     /// Classify a market price against a peg.
     public static func status(market: Decimal?, peg: StablecoinPeg) -> PegStatus {

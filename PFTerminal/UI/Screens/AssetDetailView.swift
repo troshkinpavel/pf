@@ -73,7 +73,9 @@ struct AssetDetailView: View {
                                     KV(k: "! low liquidity", v: "price may be unreliable", c: Theme.neg)
                                 }
                                 TermButton(action: { store.openSourcePicker(v.asset.id) }) {
-                                    KV(k: "price source", v: (q.map { $0.source.lowercased() + " · " + DateFmt.hm($0.timestamp) } ?? "—") + "  ‹ change ›", c: Theme.acc)
+                                    let st = store.sourceState(v.asset.id)
+                                    KV(k: "price source", v: (st?.status.label ?? "—") + (st?.preferred != nil ? " · pinned" : " · auto") + "  ‹ change ›",
+                                       c: Self.statusColor(st?.status))
                                 }
                                 .accessibilityIdentifier("price-source")
                             }
@@ -114,6 +116,16 @@ struct AssetDetailView: View {
             HStack(spacing: 8) { TT(label, 12, Theme.text); TT(key, 12, Theme.t3) }
                 .padding(.horizontal, 10).padding(.vertical, 4)
                 .overlay(Rectangle().strokeBorder(Theme.kbdBorder, lineWidth: 1))
+        }
+    }
+
+    /// Colors for PriceStatus (labels and rules come from PFCore).
+    static func statusColor(_ s: PriceStatus?) -> Color {
+        switch s {
+        case .live?: Theme.pos
+        case .cached?: Theme.t1
+        case .delayed?, .fallback?: Theme.acc
+        case .stale?, .noPrice?, nil: Theme.neg
         }
     }
 

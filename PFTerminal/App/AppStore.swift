@@ -46,7 +46,9 @@ final class AppStore {
 
     // MARK: market
     @ObservationIgnored let router: ProviderRouter
-    @ObservationIgnored private let stream = BinanceStream()
+    @ObservationIgnored let binanceFeed = LiveFeed.binance()
+    @ObservationIgnored let bybitFeed = LiveFeed.bybit()
+    @ObservationIgnored var historyQueue: [(AssetID, ChartRange)] = []
     @ObservationIgnored private let network = NetworkMonitor()
     var mockMarket: Bool
     var quotes: [AssetID: Quote] = [:]
@@ -56,7 +58,9 @@ final class AppStore {
     var lastError: MarketError?
     var consecutiveFailures = 0
     var online = true
-    var streamState: BinanceStream.State = .off
+    var streamState: LiveFeed.State = .off      // Binance
+    var bybitState: LiveFeed.State = .off
+    @ObservationIgnored var lastFullRefresh: Date = .distantPast
     var asleep = false
     var popoverOpen = false
     var series: [String: PriceSeries] = [:]         // "assetID|range"
@@ -191,7 +195,7 @@ final class AppStore {
         network.start()
         let nc = NSWorkspace.shared.notificationCenter
         nc.addObserver(forName: NSWorkspace.willSleepNotification, object: nil, queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated { self?.asleep = true; self?.stream.stop() }
+            MainActor.assumeIsolated { self?.asleep = true; self?.binanceFeed.stop(); self?.bybitFeed.stop() }
         }
         nc.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated {
@@ -201,8 +205,10 @@ final class AppStore {
                 Task { await self.refresh(auto: true) }
             }
         }
-        stream.onTick = { [weak self] sym, price, ch in self?.applyTick(sym, price, ch) }
-        stream.onState = { [weak self] s in self?.streamState = s }
+        binanceFeed.onTick = { [weak self] t in self?.applyTick(.binance, t) }
+        binanceFeed.onState = { [weak self] s in self?.streamState = s }
+        bybitFeed.onTick = { [weak self] t in self?.applyTick(.bybit, t) }
+        bybitFeed.onState = { [weak self] s in self?.bybitState = s }
         timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.tick() }
         }
@@ -211,25 +217,6 @@ final class AppStore {
         connectStream()
         if settings.appLock { locked = true }
         startSync()
-    }
-
-    private func makeProviders() -> [MarketDataProvider] {
-        if mockMarket { return [MockMarketDataProvider()] }
-        let key = Keychain.get("coingecko-api-key")
-        var list: [MarketDataProvider] = []
-        let cg = CoinGeckoProvider(apiKey: key)
-        let names = [settings.primaryProvider, settings.primaryProvider == "Binance" ? "CoinGecko" : "Binance", settings.fallbackProvider, "CoinGecko"]
-        for n in names {
-            guard !list.contains(where: { $0.name == n }) else { continue }
-            switch n {
-            case "CoinGecko": list.append(cg)
-            case "Binance": list.append(BinanceProvider())
-            case "DexScreener": list.append(DexScreenerProvider())
-            default: break
-            }
-        }
-        if !list.contains(where: { $0.name == "DexScreener" }) { list.append(DexScreenerProvider()) }
-        return list
     }
 
     /// Effective refresh interval: active window uses the setting; background backs off; failures back off.
@@ -265,7 +252,13 @@ final class AppStore {
         if let t = targetAssetID { ids.insert(t) }
         // On-peg stablecoins join the normal batched refresh only every Stablecoins.checkInterval.
         let cur = settings.currency, t = Date()
-        return doc.assets.filter { ids.contains($0.id) && Stablecoins.needsMarketCheck($0.id, quote: quotes[$0.id], currency: cur, now: t) }
+        // Assets priced by a live exchange feed right now skip the REST refresh (no CoinGecko every
+        // minute for streamed coins); a full pass every `fullRefreshInterval` keeps metadata current.
+        let full = t.timeIntervalSince(lastFullRefresh) >= Self.fullRefreshInterval
+        return doc.assets.filter {
+            ids.contains($0.id) && Stablecoins.needsMarketCheck($0.id, quote: quotes[$0.id], currency: cur, now: t)
+                && (full || !isStreamLive($0))
+        }.map(routed)
     }
 
     func refresh(auto: Bool) async {
@@ -275,6 +268,7 @@ final class AppStore {
         guard !assets.isEmpty else { lastSuccess = Date(); return }
         inFlight = true
         let t0 = Date()
+        if t0.timeIntervalSince(lastFullRefresh) >= Self.fullRefreshInterval { lastFullRefresh = t0 }
         let r = await router.quotes(for: assets, currency: settings.currency)
         inFlight = false
         let ms = Int(Date().timeIntervalSince(t0) * 1000)
@@ -300,22 +294,6 @@ final class AppStore {
         recordSnapshot()
         checkAlert()
         connectStream()
-    }
-
-    private func connectStream() {
-        guard !mockMarket, settings.realtimeProvider == "Binance", settings.currency == "USD", !asleep else { stream.stop(); return }
-        let syms = summary.positions.compactMap(\.asset.binanceSymbol)
-        stream.connect(symbols: syms)
-    }
-
-    private func applyTick(_ sym: String, _ price: Decimal, _ ch: Double) {
-        guard let a = doc.assets.first(where: { $0.binanceSymbol == sym }), var q = quotes[a.id] else { return }
-        q.price = price
-        q.change[.h24] = ch
-        q.timestamp = Date()
-        if q.source == "cache" { q.source = "Binance" }
-        quotes[a.id] = q
-        recompute(historyChanged: false)
     }
 
     private func recordSnapshot() {
@@ -346,18 +324,10 @@ final class AppStore {
                 if series[key] == nil { series[key] = PriceSeries(c.points); dataVersion += 1 }
                 if Date().timeIntervalSince(c.fetchedAt) < histRange.historyTTL { continue }
             } else if series[key] != nil { continue }
-            loadingHistory.insert(key)
-            let cur = settings.currency
-            Task {
-                let pts = try? await router.history(for: asset, range: histRange, currency: cur)
-                loadingHistory.remove(key)
-                if let pts, !pts.isEmpty {
-                    cache.saveHistory(id, histRange, cur, pts)
-                    series[key] = PriceSeries(pts)
-                    dataVersion += 1
-                }
-            }
+            _ = asset
+            if !historyQueue.contains(where: { $0.0 == id && $0.1 == histRange }) { historyQueue.append((id, histRange)) }
         }
+        pumpHistory()
     }
 
     /// Price history as the portfolio values it (stablecoin peg noise flattened; see Stablecoins).
@@ -565,6 +535,7 @@ final class AppStore {
             mockMarket = settings.primaryProvider == "Mock"
             if wasMock != mockMarket { quotes = [:]; series = [:]; recompute(); connectStream() }
             let p = makeProviders()
+            connectStream()   // the route decides which feeds each asset subscribes to
             Task { await router.setProviders(p); await refresh(auto: false) }
         }
         if old.menuBarContext != settings.menuBarContext { scheduleWidgetSnapshot() }

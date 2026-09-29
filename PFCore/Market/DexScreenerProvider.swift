@@ -1,13 +1,14 @@
 import Foundation
 
-/// On-chain tokens identified by chain + contract (or a catalog fallback for listed coins).
-/// Picks the most-traded pair per token (see `best`).
+/// On-chain tokens, only by verified chain + contract (MarketMappings.dexTargets): the registry's
+/// canonical contracts, the curated TEL chains, or a token the user picked by contract. Never by
+/// ticker. Picks the most-traded pair per token (see `best`).
 public struct DexScreenerProvider: MarketDataProvider {
     public init() {}
     public let name = "DexScreener"
     private let base = "https://api.dexscreener.com"
 
-    public func supports(_ asset: Asset) -> Bool { AssetCatalog.dexIdentity(asset) != nil }
+    public func supports(_ asset: Asset) -> Bool { !MarketMappings.dexTargets(asset).isEmpty }
 
     struct Pair: Decodable {
         public struct Token: Decodable { let address: String; let name: String?; let symbol: String? }
@@ -23,31 +24,34 @@ public struct DexScreenerProvider: MarketDataProvider {
 
     public func quotes(for assets: [Asset], currency: String) async throws -> [AssetID: Quote] {
         guard currency.uppercased() == "USD" else { throw MarketError.unsupported }
-        let ids = assets.compactMap { a in AssetCatalog.dexIdentity(a).map { (asset: a, chains: $0.chains.map { $0.lowercased() }, contract: $0.contract) } }
+        // (asset, chain, contract) per verified target; one request per chain batch.
+        let targets = assets.flatMap { a in MarketMappings.dexTargets(a).map { (asset: a, chain: $0.chain, contract: $0.contract) } }
+        let ids = Dictionary(grouping: targets, by: \.asset.id).compactMap { $0.value.first?.asset }
         var pairs: [AssetID: [Pair]] = [:]
         var lastError: Error?, answered = false
-        for chain in Set(ids.flatMap(\.chains)).sorted() {
-            let list = ids.filter { $0.chains.contains(chain) }
+        for chain in Set(targets.map(\.chain)).sorted() {
+            let list = targets.filter { $0.chain == chain }
             for chunk in stride(from: 0, to: list.count, by: 30).map({ Array(list[$0..<min($0 + 30, list.count)]) }) {
-                guard let url = URL(string: "\(base)/tokens/v1/\(chain)/\(chunk.map(\.contract).joined(separator: ","))") else { continue }
+                let contracts = Array(Set(chunk.map(\.contract))).sorted()
+                guard let url = URL(string: "\(base)/tokens/v1/\(chain)/\(contracts.joined(separator: ","))") else { continue }
                 // One chain failing doesn't lose the others.
                 do {
                     let got = try await HTTP.json([Pair].self, url)
                     answered = true
-                    for x in chunk { pairs[x.asset.id, default: []] += got.filter { $0.baseToken.address.lowercased() == x.contract.lowercased() } }
+                    for x in chunk { pairs[x.asset.id, default: []] += got.filter { $0.baseToken.address.lowercased() == x.contract } }
                 } catch { lastError = error }
             }
         }
         if !answered, let lastError { throw lastError }
         let ts = Date()
         var out: [AssetID: Quote] = [:]
-        for x in ids {
-            guard let b = Self.best(pairs[x.asset.id] ?? []), let ps = b.priceUsd,
+        for a in ids {
+            guard let b = Self.best(pairs[a.id] ?? []), let ps = b.priceUsd,
                   let p = Decimal(string: ps, locale: Locale(identifier: "en_US_POSIX")), p > 0 else { continue }
             var ch: [ChangePeriod: Double] = [:]
             ch[.h1] = b.priceChange?["h1"]?.value
             ch[.h24] = b.priceChange?["h24"]?.value
-            out[x.asset.id] = Quote(price: p, change: ch, marketCap: b.marketCap.map(Decimal.of),
+            out[a.id] = Quote(price: p, change: ch, marketCap: b.marketCap.map(Decimal.of),
                                     volume24h: b.volume?["h24"]?.value.map(Decimal.of), source: name, timestamp: ts)
         }
         return out

@@ -57,10 +57,12 @@ public enum AssetCatalog {
         "cg:telcoin": (["ethereum", "base", "polygon"], "0x7e13b43065380acdec1c2d138c579cbbbafa0731"),
     ]
 
-    /// Chains + contract for DexScreener: the asset's own (one chain), else the fallback above.
+    /// Verified DexScreener targets (see MarketMappings.dexTargets), grouped as chains + contract
+    /// when they share one contract. Kept for callers that expect the older shape.
     public static func dexIdentity(_ a: Asset) -> (chains: [String], contract: String)? {
-        if let c = a.chain, let x = a.contractAddress { return ([c], x) }
-        return dexFallback[a.id]
+        let t = MarketMappings.dexTargets(a)
+        guard let first = t.first else { return nil }
+        return (t.filter { $0.contract == first.contract }.map(\.chain), first.contract)
     }
 
     public static func binanceSymbol(forCoinGecko id: String) -> String? {

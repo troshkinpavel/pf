@@ -65,15 +65,17 @@ struct SettingsView: View {
         #if DEBUG
         providers.append("Mock")
         #endif
-        let ws: String = {
-            switch store.streamState {
+        func feedText(_ st: LiveFeed.State) -> String {
+            switch st {
             case .off: return s.realtimeProvider == "off" ? "off" : (s.currency != "USD" ? "USD only" : "idle")
             case .connecting: return "connecting…"
             case .connected: return "connected"
-            case let .disconnected(r): return "disconnected (\(r)) · retrying"
+            case let .disconnected(r): return "retrying (\(r))"
             }
-        }()
-        let wsColor: Color = store.streamState == .connected ? Theme.pos : (store.streamState == .off ? Theme.t2 : Theme.neg)
+        }
+        let ws = "binance " + feedText(store.streamState) + " · bybit " + feedText(store.bybitState)
+        let wsColor: Color = (store.streamState == .connected || store.bybitState == .connected) ? Theme.pos
+            : (store.streamState == .off && store.bybitState == .off ? Theme.t2 : Theme.neg)
         let updateColor: Color = {
             switch store.updateState {
             case .updateAvailable: return Theme.acc
@@ -91,9 +93,11 @@ struct SettingsView: View {
                 Row(k: "keep in Dock when closed", v: s.keepInDock ? "on" : "off", action: { store.settings.keepInDock.toggle() }),
             ]),
             Section(title: "MARKET DATA", rows: [
-                Row(k: "primary provider", v: s.primaryProvider, action: cycle(providers, s.primaryProvider) { store.settings.primaryProvider = $0 }),
-                Row(k: "realtime provider", v: s.realtimeProvider, action: cycle(AppSettings.realtimeOptions, s.realtimeProvider) { store.settings.realtimeProvider = $0 }),
-                Row(k: "fallback provider", v: s.fallbackProvider, action: cycle(AppSettings.fallbackOptions, s.fallbackProvider) { store.settings.fallbackProvider = $0 }),
+                Row(k: "preferred source", v: s.primaryProvider == "Auto" ? "auto · live feeds first" : s.primaryProvider,
+                    action: cycle(providers, s.primaryProvider) { store.settings.primaryProvider = $0 }),
+                Row(k: "live feeds", v: s.realtimeProvider == "off" ? "off" : "binance + bybit",
+                    action: { store.settings.realtimeProvider = s.realtimeProvider == "off" ? "Binance" : "off" }),
+                Row(k: "asset registry", v: "\(AssetRegistry.shared.count) assets · \(AssetRegistry.shared.version)", c: Theme.t2),
                 Row(k: "refresh interval", v: s.intervalLabel, action: cycle(AppSettings.intervalOptions, s.refreshSeconds) { store.settings.refreshSeconds = $0 }),
                 Row(k: "currency", v: s.currency, action: { store.cycleCurrency() }),
                 Row(k: "coingecko api key", v: store.hasAPIKey ? "[ in keychain · change ]" : "[ optional · add ]", c: Theme.acc, action: { store.apiKeyEntry = "" }),

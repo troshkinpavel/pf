@@ -26,7 +26,8 @@ struct PriceSourceTests {
         let s = store()
         let a = pinnedToPool("cg:tether", "USDT")
         let c = await s.sourceCandidates(for: a, currency: "USD")
-        #expect(c.contains { $0.provider == "CoinGecko" && $0.identity.coingeckoID == "tether" }, "way back to CoinGecko")
+        #expect(c.contains { $0.provider == "CoinGecko" && $0.label == "tether" }, "way back to CoinGecko (registry-verified)")
+        #expect(c.first?.provider == "Auto")
         #expect(c.first { $0.isCurrent }?.provider == "DexScreener", "the pinned pool stays marked current")
         #expect(c.filter(\.isCurrent).count == 1)
     }
@@ -36,8 +37,8 @@ struct PriceSourceTests {
         let pair = AssetCatalog.binanceSymbol(forCoinGecko: "bitcoin")
         #expect(pair != nil, "catalog maps bitcoin to a Binance pair")
         let c = await s.sourceCandidates(for: pinnedToPool("cg:bitcoin", "BTC"), currency: "USD")
-        #expect(c.contains { $0.provider == "Binance" && $0.identity.binanceSymbol == pair })
-        #expect(c.contains { $0.provider == "CoinGecko" && $0.identity.coingeckoID == "bitcoin" })
+        #expect(c.contains { $0.provider == "Binance" && $0.label == pair })
+        #expect(c.contains { $0.provider == "CoinGecko" && $0.label == "bitcoin" })
     }
 
     @Test func guessedBinancePairWithoutQuoteIsStillDropped() async {
