@@ -183,10 +183,12 @@ public actor ProviderRouter {
     }
 
     /// Listed coins (CoinGecko) before DEX tokens; exact symbol matches first within each.
+    /// A search is one request the user asked for, so it ignores the quote backoff (like `probe`):
+    /// otherwise a rate-limited CoinGecko drops out and only DEX pools are offered.
     public func search(_ query: String) async -> [Asset] {
         var out: [Asset] = []
         var seen = Set<AssetID>()
-        for p in providers where !isBlocked(p.name) {
+        for p in providers {
             guard let r = try? await p.search(query) else { continue }
             for a in r where !seen.contains(a.id) { seen.insert(a.id); out.append(a) }
         }

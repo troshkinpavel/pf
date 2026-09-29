@@ -49,6 +49,18 @@ extension AppStore {
         if let cg = a.coingeckoID { ids.append(("CoinGecko", ident("CoinGecko", cg: cg))) }
         if let bn = a.binanceSymbol { ids.append(("Binance", ident("Binance", bn: bn))) }
         if let ch = a.chain, let ct = a.contractAddress { ids.append(("DexScreener", ident("DexScreener", chain: ch, contract: ct))) }
+        // The canonical id never changes and names the asset's original market. Offer it (and its
+        // catalog Binance pair) even after applySource replaced the identifiers with another
+        // provider's, so a pick can always be undone without relying on a live search.
+        let parts = a.id.split(separator: ":").map(String.init)
+        var catalogPair: String?
+        if parts.count == 2, parts[0] == "cg" {
+            ids.append(("CoinGecko", ident("CoinGecko", cg: parts[1])))
+            catalogPair = AssetCatalog.binanceSymbol(forCoinGecko: parts[1])
+            if let bn = catalogPair { ids.append(("Binance", ident("Binance", bn: bn))) }
+        } else if parts.count == 3, parts[0] == "dex" {
+            ids.append(("DexScreener", ident("DexScreener", chain: parts[1], contract: parts[2])))
+        }
         for f in await router.search(a.symbol) where f.symbol == a.symbol.uppercased() {
             if let cg = f.coingeckoID { ids.append(("CoinGecko", ident("CoinGecko", cg: cg, name: f.name))) }
             if let ch = f.chain, let ct = f.contractAddress { ids.append(("DexScreener", ident("DexScreener", chain: ch, contract: ct, name: f.name))) }
@@ -60,7 +72,8 @@ extension AppStore {
         for (p, i) in ids where !seen.contains(i.id) {
             seen.insert(i.id)
             let q = await router.probe(i, provider: p, currency: currency)
-            if q == nil && p == "Binance" && a.binanceSymbol == nil { continue }   // guessed pair doesn't exist
+            // A guessed pair that doesn't quote doesn't exist; known pairs stay (maybe just offline).
+            if q == nil && p == "Binance" && a.binanceSymbol == nil && i.binanceSymbol != catalogPair { continue }
             let current = (p == "CoinGecko" && i.coingeckoID == a.coingeckoID) || (p == "Binance" && i.binanceSymbol == a.binanceSymbol)
                 || (p == "DexScreener" && i.contractAddress?.lowercased() == a.contractAddress?.lowercased() && a.contractAddress != nil)
             let label = i.coingeckoID ?? i.binanceSymbol ?? "\(i.chain ?? "") · \(Self.short(i.contractAddress))"

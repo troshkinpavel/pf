@@ -137,6 +137,28 @@ struct RouterTests {
 
     let btc = AssetCatalog.known[0]
 
+    struct SearchStub: MarketDataProvider {
+        let name = "CoinGecko"
+        func supports(_ a: Asset) -> Bool { true }
+        func quotes(for assets: [Asset], currency: String) async throws -> [AssetID: Quote] { throw MarketError.rateLimited(retryAfter: 60) }
+        func search(_ query: String) async throws -> [Asset] {
+            [Asset(id: "cg:tether", symbol: "USDT", name: "Tether", coingeckoID: "tether")]
+        }
+    }
+
+    @Test func searchStillAsksAProviderThatIsBackingOff() async {
+        let r = ProviderRouter(providers: [SearchStub()])
+        _ = await r.quotes(for: [btc], currency: "USD")
+        #expect(await r.isBlocked("CoinGecko"), "quotes put it in backoff")
+        #expect(await r.search("usdt").map(\.id) == ["cg:tether"], "the user's search still reaches it")
+    }
+
+    @Test func usdtResolvesOfflineToTether() {
+        let a = AssetCatalog.resolve("USDT", in: AssetCatalog.known)
+        #expect(a?.id == "cg:tether" && a?.coingeckoID == "tether" && a?.binanceSymbol == nil)
+        #expect(AssetCatalog.resolve("USDC", in: AssetCatalog.known)?.id == "cg:usd-coin")
+    }
+
     @Test func fallsBackWhenPrimaryFails() async {
         let r = ProviderRouter(providers: [Stub(name: "A", result: .failure(.rateLimited(retryAfter: 30))), Stub(name: "B", result: .success(5))])
         let out = await r.quotes(for: [btc], currency: "USD")
