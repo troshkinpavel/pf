@@ -35,7 +35,7 @@
 
 PF Terminal tracks crypto portfolios from a ledger of transactions. It shows positions, cost basis, realized and unrealized P&L, performance and 24h movement. The interface is a native macOS window that you can drive entirely from the keyboard. PF Terminal does not execute trades and does not hold funds.
 
-> **Status:** the current release is v0.4.1, a maintenance release. v0.4.0 was the first public release. PF Terminal is distributed as a `.dmg` through GitHub Releases. There is no Homebrew package.
+> **Status:** the current release is v0.4.2, a maintenance release. v0.4.0 was the first public release. PF Terminal is distributed as a `.dmg` through GitHub Releases. There is no Homebrew package.
 >
 > **New in v0.4: [iCloud sync](#icloud-sync).** Optional sync between your own devices through your private iCloud. Off by default.
 
@@ -43,7 +43,7 @@ PF Terminal tracks crypto portfolios from a ledger of transactions. It shows pos
 
 | Platform | Version | Status |
 |---|---:|---|
-| macOS | 0.4.1 | Available · Open source |
+| macOS | 0.4.2 | Available · Open source |
 | iPhone | 0.1.0 | In development |
 
 The iPhone companion app is currently in development.

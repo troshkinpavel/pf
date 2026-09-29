@@ -2,12 +2,14 @@
 
 All notable changes to PF Terminal are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.4.2] - Maintenance Release
+
+A maintenance release: more reliable prices and a shared core for PF clients.
 
 ### Changed (macOS, no behavior change)
 - **PFCore is a Swift package** (`Package.swift` at the repository root; products `PFCore`, `PFCoreUI`, `PFCoreTestSupport`). The macOS app uses it locally; other PF clients, such as the iPhone companion app in development, use the same package, so models, accounting and sync exist once.
 - Platform-independent code moved into `PFCore`: market-data providers and cache, transaction validation and preview, history charts, freshness, sync host helpers, formatting, the widget snapshot model.
-- The macOS version now comes from `Config/Versions.xcconfig` (still 0.4.1, build 2).
+- The macOS version is set in one place, `Config/Versions.xcconfig`.
 
 ### Added
 - TEL gets a second price source (DexScreener) when CoinGecko is rate-limited, using the canonical `telcoin-2` token (`0x7e13…0731` on Ethereum, Base and Polygon, per CoinGecko). The asset id stays `cg:telcoin`.

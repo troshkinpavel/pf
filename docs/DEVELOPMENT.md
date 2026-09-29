@@ -60,8 +60,8 @@ The platform-neutral core is a Swift package, **PFCore**, defined by `Package.sw
 The macOS version lives in **`Config/Versions.xcconfig`** and nowhere else:
 
 ```
-MACOS_MARKETING_VERSION = 0.4.1     // CFBundleShortVersionString of PF Terminal.app and PFWidgets
-MACOS_BUILD_NUMBER = 2              // CFBundleVersion
+MACOS_MARKETING_VERSION = 0.4.2     // CFBundleShortVersionString of PF Terminal.app and PFWidgets
+MACOS_BUILD_NUMBER = 3              // CFBundleVersion
 ```
 
 - The app and widget targets map them to `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION`.
