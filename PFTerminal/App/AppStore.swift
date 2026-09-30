@@ -284,9 +284,13 @@ final class AppStore {
             lastSuccess = Date()
             let src = Set(r.quotes.values.map { $0.source.lowercased() }).sorted().joined(separator: "+")
             var m = "✓ \(auto ? "auto-" : "")refreshed \(r.quotes.count) price\(r.quotes.count == 1 ? "" : "s") · \(src) · \(ms)ms"
+            // Streamed coins skip this REST pass: name the live feeds so the line isn't misleading.
+            let live = [MarketSource.binance, .bybit].filter { s in doc.assets.contains { liveSources($0).contains(s) } }
+            if !live.isEmpty { m += " · live: " + live.map { $0.rawValue.lowercased() }.joined(separator: "+") }
             if !r.unresolved.isEmpty {
                 let syms = r.unresolved.compactMap { id in doc.assets.first { $0.id == id }?.symbol }
-                m += " · no quote for " + syms.joined(separator: ", ")
+                let why = r.errors.sorted { $0.key < $1.key }.map { "\($0.key.lowercased()) \($0.value)" }.first ?? "no source answered"
+                m += " · no price for " + syms.joined(separator: ", ") + " (" + why + ") · last known kept"
             }
             message = m
         }

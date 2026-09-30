@@ -57,6 +57,9 @@ struct RegistryTests {
     @Test func bybitMappingOnlyWhereVerified() {
         #expect(MarketMappings.bybitSymbol(tel) == "TELUSDT", "curated, verified overlay")
         #expect(MarketMappings.bybitSymbol(btc) == nil, "not inferred from the ticker")
+        let kas = reg.asset(for: reg.entry(registryID: "cmc-20396")!)
+        #expect(MarketMappings.bybitSymbol(kas) == "KASUSDT", "curated: Bybit + CoinGecko tickers confirm it")
+        #expect(MarketMappings.availableSources(kas) == [.bybit, .coingecko])
         #expect(MarketMappings.availableSources(tel) == [.bybit, .coingecko, .dexscreener])
     }
 

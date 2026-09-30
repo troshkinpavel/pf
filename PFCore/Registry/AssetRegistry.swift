@@ -99,9 +99,13 @@ public struct RegistryOverlay: Codable, Equatable, Sendable {
     /// Verified corrections shipped with the app.
     /// - TEL: Bybit spot TELUSDT (checked 2026-09-30: /v5/market/instruments-info → TEL/USDT, Trading).
     ///   CoinGecko `telcoin-2` lists one contract on Ethereum, Base and Polygon (same address).
+    /// - KAS: Bybit spot KASUSDT (checked 2026-09-30: instruments-info → KAS/USDT, Trading, and
+    ///   CoinGecko /coins/kaspa/tickers lists Bybit KAS/USDT for this coin id). Not on Binance and
+    ///   no contracts, so without this CoinGecko was its only source.
     public static let curated = RegistryOverlay(overlayVersion: "curated-2026-09-30", patches: [
         Patch(id: "cmc-2394", bybitSymbol: "TELUSDT",
               contracts: ["base": "0x7e13b43065380acdec1c2d138c579cbbbafa0731", "polygon-pos": "0x7e13b43065380acdec1c2d138c579cbbbafa0731"]),
+        Patch(id: "cmc-20396", bybitSymbol: "KASUSDT"),
     ])
 
     public enum ValidationError: Error, Equatable { case wrongBase(String), unknownID(String), duplicateID(String), empty }
