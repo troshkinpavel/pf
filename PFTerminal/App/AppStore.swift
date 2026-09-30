@@ -283,7 +283,9 @@ final class AppStore {
             lastError = r.errors.values.first
             lastSuccess = Date()
             let src = Set(r.quotes.values.map { $0.source.lowercased() }).sorted().joined(separator: "+")
-            var m = "✓ \(auto ? "auto-" : "")refreshed \(r.quotes.count) price\(r.quotes.count == 1 ? "" : "s") · \(src) · \(ms)ms"
+            // Prices are shared: every live portfolio's coins refresh together, not only the active one's.
+            let scope = context != .all && doc.livePortfolios.count > 1 ? " across all \(doc.livePortfolios.count) portfolios" : ""
+            var m = "✓ \(auto ? "auto-" : "")refreshed \(r.quotes.count) price\(r.quotes.count == 1 ? "" : "s")\(scope) · \(src) · \(ms)ms"
             // Streamed coins skip this REST pass: name the live feeds so the line isn't misleading.
             let live = [MarketSource.binance, .bybit].filter { s in doc.assets.contains { liveSources($0).contains(s) } }
             if !live.isEmpty { m += " · live: " + live.map { $0.rawValue.lowercased() }.joined(separator: "+") }
