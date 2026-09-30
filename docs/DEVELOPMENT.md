@@ -60,8 +60,8 @@ The platform-neutral core is a Swift package, **PFCore**, defined by `Package.sw
 The macOS version lives in **`Config/Versions.xcconfig`** and nowhere else:
 
 ```
-MACOS_MARKETING_VERSION = 0.4.2     // CFBundleShortVersionString of PF Terminal.app and PFWidgets
-MACOS_BUILD_NUMBER = 3              // CFBundleVersion
+MACOS_MARKETING_VERSION = 0.5.0     // CFBundleShortVersionString of PF Terminal.app and PFWidgets
+MACOS_BUILD_NUMBER = 4              // CFBundleVersion
 ```
 
 - The app and widget targets map them to `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION`.
@@ -242,7 +242,7 @@ Views never decide routing or status. They render `SourceState` from PFCore (`PF
   - `AssetRegistry.entry(for:)` finds a record by CoinGecko id or registry id, never by ticker.
 - **Overlays.** Overlays patch the snapshot; they never replace it. An overlay that fails validation (wrong base version, unknown ids, bad JSON, over 2 MB) is ignored.
   - **Curated overlay** (`RegistryOverlay.curated`, shipped in code, verified by hand): Bybit `TELUSDT`, and TEL's Base and Polygon contracts.
-  - **Remote overlay** (`RegistryOverlayStore`, for later): at most one check every 5 days, never at startup, cached in `Application Support/pf/registry/`, and applied on the next launch. **0.5.0 has no `remoteURL`, so no overlay request is ever made.**
+  - **Remote overlay** (`RegistryOverlayStore`, for later): at most one check every 5 days, never at startup, cached in `Application Support/pf/registry/`, and applied on the next launch. **No `remoteURL` is set (0.5.0), so no overlay request is ever made.**
 - **Versioning.**
   - `registryVersion` names the snapshot.
   - An overlay lists the snapshot versions it applies to (`baseRegistryVersions`).

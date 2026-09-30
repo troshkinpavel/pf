@@ -35,7 +35,7 @@
 
 PF Terminal tracks crypto portfolios from a ledger of transactions. It shows positions, cost basis, realized and unrealized P&L, performance and 24h movement. The interface is a native macOS window that you can drive entirely from the keyboard. PF Terminal does not execute trades and does not hold funds.
 
-> **Status:** the current release is v0.4.2, a maintenance release. v0.4.0 was the first public release. PF Terminal is distributed as a `.dmg` through GitHub Releases. There is no Homebrew package.
+> **Status:** the current release is v0.5.0: live exchange prices and a built-in asset registry. v0.4.0 was the first public release. PF Terminal is distributed as a `.dmg` through GitHub Releases. There is no Homebrew package.
 >
 > **New in v0.4: [iCloud sync](#icloud-sync).** Optional sync between your own devices through your private iCloud. Off by default.
 
@@ -43,7 +43,7 @@ PF Terminal tracks crypto portfolios from a ledger of transactions. It shows pos
 
 | Platform | Version | Status |
 |---|---:|---|
-| macOS | 0.4.2 | Available · Open source |
+| macOS | 0.5.0 | Available · Open source |
 | iPhone | 0.1.0 | In development |
 
 The iPhone companion app is currently in development.
@@ -65,7 +65,7 @@ Most portfolio trackers are cloud accounts. PF Terminal is a desktop instrument 
 | | |
 |---|---|
 | **Portfolios** | Multiple independent portfolios and an **ALL PORTFOLIOS** aggregate. Buy, sell, transfer in and transfer out. Average-cost accounting with fees. Realized and unrealized P&L. Editable transactions. |
-| **Market** | CoinGecko, Binance and DexScreener, with fallback and a last-known-price cache. A choice of price source per asset. Live Binance prices over WebSocket. USD, EUR and CHF. |
+| **Market** | Live prices from Binance and Bybit, CoinGecko as a batched fallback, DexScreener by verified contract. A built-in registry of the top 1,000 assets for instant, offline search. Each price shows where it comes from (LIVE, CACHED, FALLBACK, STALE). A preferred source, globally or per asset. Stablecoins valued at their peg, with depeg detection. USD, EUR and CHF. |
 | **Analysis** | Performance charts (value or P&L). Flow-adjusted 24h contribution. Movers by % or $ impact. Allocation, contribution, cost basis → value. Time-weighted drawdown. Target price scenarios. |
 | **Terminal UX** | `⌘K` palette with structured commands. Portfolio switching with `⌘P` and `[ ]`. ASCII-style charts. Adjustable density. |
 | **macOS** | Menu bar companion. Desktop widgets (small, medium, large). Share cards: copy, save PNG, share sheet. Opt-in notifications. Touch ID app lock. |
@@ -241,16 +241,19 @@ market-data APIs ◀── coin identifiers only (e.g. "bitcoin", "BTCUSDT", cha
 ```
 
 - **Portfolio data** stays on your Mac: transactions, quantities, cost basis and portfolio names. If you turn on [iCloud sync](#icloud-sync), it is also copied to your private iCloud. PF has no account, no backend, no analytics and no crash reporting.
-- **Network requests** go only to CoinGecko, Binance and DexScreener, plus Apple's iCloud if you turn on sync. They carry asset identifiers, plus your search text when you look up a new asset. They use an ephemeral HTTP session, with no cookies. No quantities or values are ever sent.
+- **Network requests** go only to Binance, Bybit, CoinGecko and DexScreener (public market data, no account), plus Apple's iCloud if you turn on sync. They carry asset identifiers, plus your search text when you look up a new asset. They use an ephemeral HTTP session, with no cookies. No quantities or values are ever sent.
 - **API key.** You can add an optional CoinGecko key. It is stored in the Keychain and sent only to `api.coingecko.com`.
 - **Sandboxing.** The app is sandboxed, with outgoing network access and access to files you choose. Widgets read a small snapshot from a shared App Group container. That snapshot contains no transactions.
 - **Backups.** Export writes a readable `.json` backup. Import validates the whole file and asks for confirmation before it replaces anything.
 
 ## Market data
 
-- **Default provider order.** CoinGecko covers prices, metadata and history. Binance serves liquid USDT pairs. DexScreener serves tokens identified by chain + contract. If a provider fails, its assets fall through to the next one. Failing providers are backed off exponentially. The last-known quotes are cached, and old or cached data is marked as stale.
-- **Refresh.** Prices are refreshed by polling while the window is active, every 60 s by default (configurable from 15 s to 5 min). The app polls less in the background, not at all during sleep, and refreshes on wake. For Binance-listed assets in USD, a WebSocket stream updates prices between polls.
-- **Wrong prices.** Tickers collide. If a coin shows the wrong price, open **Asset Detail → price source**. It compares the same ticker across providers, with price, 24h change and volume, and lets you choose. Thin markets are flagged.
+- **Asset registry.** The app includes a registry of the top 1,000 assets, with their verified exchange pairs and contracts. Searching for an asset is instant and works offline. Tickers that belong to more than one asset are never picked for you.
+- **Where prices come from.** With **Auto** (the default), each asset uses live exchange feeds first: Binance, then Bybit. CoinGecko is the batched fallback, and DexScreener is used only for an asset's verified contract. A source is used only when the asset is verified to trade there; nothing is matched by ticker alone.
+- **Price status.** Asset Detail shows the source and state of each price: `LIVE · BINANCE`, `CACHED · 2m`, `DELAYED · 6m`, `FALLBACK · COINGECKO`, `STALE · 18m` or `NO PRICE`. If your preferred source fails, the fallback is labeled as such.
+- **Preferred source.** Choose Auto, Binance, Bybit or CoinGecko in Settings → MARKET DATA. For a single asset, use **Asset Detail → price source**, which only offers the sources that asset actually has.
+- **Refresh.** Live feeds update prices continuously. Other prices refresh every 60 s by default (15 s to 5 min), less often in the background, never during sleep. Cached prices appear immediately at launch. CoinGecko is asked much less often than before, so rate limits rarely leave a gap.
+- **Stablecoins.** USDT, USDC and other USD stablecoins are valued at exactly $1.00 while within ±0.5% of the peg. Their peg is checked every few minutes. Outside that band they're marked **DEPEG** and valued at the real market price.
 
 ## Accounting model
 
@@ -333,8 +336,8 @@ Roadmap milestones are product milestones, not app version numbers. The iPhone a
 | v0.1 · Core terminal | Overview, movers, analytics, asset detail, transactions, command palette, share cards, menu bar, settings | **done** · internal milestone |
 | v0.2 · Multiple portfolios | Independent portfolios, ALL aggregate, switcher, management, v1 → v2 migration | **done** · internal milestone |
 | v0.3 · Widgets & alerts | Desktop widgets, portfolio 24h-move notification | **done** · internal milestone |
-| v0.4 · iCloud sync | Optional sync between your own devices through your private iCloud (CloudKit) database, off by default | **done** · current |
-| v0.5 · Market data | Canonical Asset Registry (bundled top-1000) · offline local asset search · Binance + Bybit live pricing · selectable preferred source · LIVE / CACHED / FALLBACK source status · far fewer CoinGecko requests · canonical-contract DexScreener fallback · stablecoin / cash-like support with peg monitoring · stale-while-revalidate caching | in development · not released |
+| v0.4 · iCloud sync | Optional sync between your own devices through your private iCloud (CloudKit) database, off by default | **done** |
+| v0.5 · Market data | Canonical Asset Registry (bundled top-1000) · offline local asset search · Binance + Bybit live pricing · selectable preferred source · LIVE / CACHED / FALLBACK source status · far fewer CoinGecko requests · canonical-contract DexScreener fallback · stablecoin / cash-like support with peg monitoring · stale-while-revalidate caching | **done** · current |
 | v0.6 · Advanced analytics | Benchmarks (vs BTC / ETH), period return tables, realized P&L reports | planned |
 | v0.7 · Scenario lab | Multi-asset and portfolio-wide scenarios (today: single-asset target simulator) | planned |
 | v0.8 · Automation & alerts | Per-asset price alerts, Shortcuts / App Intents actions, scheduled exports and share cards | planned |

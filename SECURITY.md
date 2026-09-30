@@ -28,4 +28,4 @@ Examples of what counts as a security problem:
 - privacy-mode bypasses in share cards or widgets;
 - sandbox or entitlement problems.
 
-PF Terminal has no server and no account system. It uses public market-data APIs (CoinGecko, Binance, DexScreener) and, only when you turn sync on, your own private iCloud database.
+PF Terminal has no server and no account system. It uses public market-data APIs (Binance, Bybit, CoinGecko, DexScreener) and, only when you turn sync on, your own private iCloud database.

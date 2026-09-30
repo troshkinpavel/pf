@@ -2,12 +2,12 @@
 
 All notable changes to PF Terminal are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.5.0] - Market Data Release
 
-Work toward 0.5.0 (not released).
+Live exchange prices, a built-in asset registry, and stablecoin support.
 
 ### Added
-- **Canonical Asset Registry.** A bundled top-1000 snapshot (registry version 2026-09-30) with CoinGecko ids, Binance pairs, contracts by chain and stablecoin metadata. It adds a curated, verified overlay (Bybit TELUSDT, and TEL on Base and Polygon), and a validated overlay mechanism for rare future updates (disabled in 0.5.0: no requests).
+- **Canonical Asset Registry.** A bundled top-1000 snapshot (registry version 2026-09-30) with CoinGecko ids, Binance pairs, contracts by chain and stablecoin metadata. It adds a curated, verified overlay (Bybit TELUSDT and KASUSDT, and TEL on Base and Polygon), and a validated overlay mechanism for rare future updates (disabled in 0.5.0: no requests).
 - **Offline asset search.** Typing an asset searches the registry instantly: offline, during CoinGecko rate limits, and without `/search`. Online search is only used for tokens outside the registry. Tickers listed more than once are never auto-selected.
 - **Bybit.** Public spot market data: a live WebSocket, prices and chart history, for verified pairs only.
 - **Live feeds.** Binance and Bybit feeds with heartbeat, stale detection and reconnect with backoff. A backup exchange takes over when the first choice drops.

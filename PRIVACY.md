@@ -20,8 +20,9 @@ PF Terminal does not operate a server that receives or stores your portfolio dat
 
 PF Terminal connects directly to third-party market-data services, including:
 
-- CoinGecko
 - Binance
+- Bybit
+- CoinGecko
 - DexScreener
 
 These requests are used only to retrieve market prices and related public market information.
