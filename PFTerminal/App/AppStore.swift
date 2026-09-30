@@ -271,7 +271,6 @@ final class AppStore {
         if t0.timeIntervalSince(lastFullRefresh) >= Self.fullRefreshInterval { lastFullRefresh = t0 }
         let r = await router.quotes(for: assets, currency: settings.currency)
         inFlight = false
-        let ms = Int(Date().timeIntervalSince(t0) * 1000)
         for (k, q) in r.quotes { quotes[k] = q }
         if !r.quotes.isEmpty { cache.saveQuotes(r.quotes, currency: settings.currency) }
         if r.quotes.isEmpty {
@@ -282,17 +281,16 @@ final class AppStore {
             consecutiveFailures = 0
             lastError = r.errors.values.first
             lastSuccess = Date()
-            let src = Set(r.quotes.values.map { $0.source.lowercased() }).sorted().joined(separator: "+")
-            // Prices are shared: every live portfolio's coins refresh together, not only the active one's.
-            let scope = context != .all && doc.livePortfolios.count > 1 ? " across all \(doc.livePortfolios.count) portfolios" : ""
-            var m = "✓ \(auto ? "auto-" : "")refreshed \(r.quotes.count) price\(r.quotes.count == 1 ? "" : "s")\(scope) · \(src) · \(ms)ms"
-            // Streamed coins skip this REST pass: name the live feeds so the line isn't misleading.
+            // Short: count, scope (prices are shared by every live portfolio), sources, live feeds.
+            let src = Set(r.quotes.values.map { MarketSource(rawValue: $0.source).label.lowercased() }).sorted().joined(separator: "+")
+            let pfs = doc.livePortfolios.count
+            var m = "✓ \(r.quotes.count) price\(r.quotes.count == 1 ? "" : "s")" + (pfs > 1 ? " · \(pfs) portfolios" : "") + " · " + src
             let live = [MarketSource.binance, .bybit].filter { s in doc.assets.contains { liveSources($0).contains(s) } }
-            if !live.isEmpty { m += " · live: " + live.map { $0.rawValue.lowercased() }.joined(separator: "+") }
+            if !live.isEmpty { m += " · live: " + live.map { $0.label.lowercased() }.joined(separator: "+") }
             if !r.unresolved.isEmpty {
                 let syms = r.unresolved.compactMap { id in doc.assets.first { $0.id == id }?.symbol }
-                let why = r.errors.sorted { $0.key < $1.key }.map { "\($0.key.lowercased()) \($0.value)" }.first ?? "no source answered"
-                m += " · no price for " + syms.joined(separator: ", ") + " (" + why + ") · last known kept"
+                let why = r.errors.sorted { $0.key < $1.key }.map { "\($0.key.lowercased()) \($0.value)" }.first
+                m += " · no price: " + syms.joined(separator: ", ") + (why.map { " (\($0))" } ?? "")
             }
             message = m
         }
