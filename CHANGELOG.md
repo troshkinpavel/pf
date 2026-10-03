@@ -22,10 +22,13 @@ Know what changed. Know what matters. In development on `release/0.7.0`; not rel
 - **Status bar**: five fixed zones. One message slot (events fade, failures stay longer), ⚑ count of unseen alerts, one health glyph with a popover (prices · feeds · iCloud · ledger · recovery). The title bar no longer shows LIVE / last update.
 - **Settings**: one section at a time from a sidebar of nine, each with its status, a filter over every setting and a health summary. Nothing was removed; storage / cloud sync and health appear once.
 - **Overview**: TWR · ALL replaces the 24h driver cell; TODAY · WHAT MOVED is a band with the market move, flows and the top three; ▲ marks positions above their target weight.
-- **0.6 notifications are alert rules now**: the 24h move and stablecoin depeg switches become editable rules (once, on first launch). The 24h rule watches each held asset, as designed.
+- **0.6 notifications are alert rules now**: the 24h move and stablecoin depeg switches become editable rules, once, with the same behaviour: the 24h rule watches the active portfolio's 24h change (as in 0.6), at most once a day, with the same notification.
+
+### Fixed
+- **Locked Mac.** The ledger and recovery snapshots can't be read or written while the Mac is locked (complete file protection). PF Terminal now waits for unlock instead: a launch while locked no longer sets `portfolio.json` aside as unreadable or offers to start over, a save waits in memory, and iCloud sync pauses without moving its change token past data that isn't saved, so nothing can be uploaded as a deletion.
 
 ### Data
-- Watchlist, alerts and scenarios are stored in `intel.json` next to the ledger, on this Mac only (not synced in 0.7.0). The ledger, its format and iCloud sync are unchanged. A newer `intel.json` is opened read-only; an unreadable one is set aside, never deleted.
+- Watchlist and scenarios are stored in `intel.json`, alert rules and their log in `alerts.json`, next to the ledger, on this Mac only (not synced in 0.7.0). The ledger, its format and iCloud sync are unchanged. Watchlist notes and scenarios use complete file protection; alert rules use "until first unlock" so alerts run while the Mac is locked. A newer file is opened read-only; an unreadable one is set aside, never deleted.
 
 ## [0.6.0] - A Ledger You Can Trust
 

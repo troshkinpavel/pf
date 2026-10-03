@@ -18,6 +18,14 @@ PF Terminal does not operate a server that receives or stores your portfolio dat
 
 PF Terminal keeps local recovery snapshots of your portfolio data next to it on your device, so you can restore an earlier state. They never sync and are not sent anywhere.
 
+The portfolio ledger and recovery snapshots use macOS "complete" file protection: while the Mac is locked they can't be read or written, and PF Terminal waits for unlock instead of changing or syncing them.
+
+## Watchlist, alerts and scenarios
+
+Your watchlist (with its notes), alert rules and scenarios are stored locally on your device, on that Mac only; they are not synced and not sent anywhere. Watchlist and scenarios use the same "complete" protection as the ledger. Alert rules and their log use "until first unlock" protection so alerts can run from the menu bar while the Mac is locked; they hold no notes or scenario values.
+
+Alerts are evaluated on your device. Alert notifications contain asset symbols, prices and percentages, never the amounts you hold.
+
 ## Market data
 
 PF Terminal connects directly to third-party market-data services, including:
