@@ -1,6 +1,6 @@
 # PF Terminal 0.6.0: a ledger you can trust
 
-**Status: in development** on `release/0.6.0`. Not released yet. [CHANGELOG.md](../CHANGELOG.md) lists what is done under `[Unreleased]`.
+**Status: released** as v0.6.0. [CHANGELOG.md](../CHANGELOG.md) lists every change.
 
 0.6.0 makes PF Terminal safer to trust with a real ledger than a spreadsheet or a browser dashboard. It has three outcomes:
 1. Understand what happened to the portfolio faster.
@@ -64,11 +64,14 @@ There are no new providers, no trading, and no redesign. The scope comes from th
 - **Import preview (10k into 10k):** 24 ms.
 - **Snapshot write and verify:** 125 ms, run in the background 20 s after edits settle.
 
-## Before release
+Also shipped in 0.6.0: appearance themes (dark, light, midnight, graphite, system), Movers and Analytics following the design layout, share-card gainers by your own return.
 
-- [ ] Run a two-device soak on two physical Macs, or a Mac and an iPhone build, against Development. The `--sync-e2e` soak uses two independent clients on one Mac.
-- [ ] Run a release-candidate check on Production with the notarized build, the same way 0.4.0 was checked.
-- [ ] Update screenshots for the new Overview and Analytics headers.
+## Follow-ups
+
+- [ ] Run a two-device soak on two physical Macs, or a Mac and an iPhone build, against Development. Before release, the `--sync-e2e` soak ran with two independent clients on one Mac.
+- [ ] Update README screenshots for the new Overview, Movers and Analytics layouts.
+
+Before release, the 0.6.0 build was used on a real ledger with Production iCloud sync.
 
 ## Deferred (later releases)
 

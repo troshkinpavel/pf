@@ -2,9 +2,9 @@
 
 All notable changes to PF Terminal are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.6.0] - A Ledger You Can Trust
 
-Planned as 0.6.0, "a ledger you can trust". Nothing here is released yet.
+Reliability and data integrity: safer iCloud sync, local recovery snapshots, correct return figures, safer imports, an app lock that holds, and appearance themes.
 
 ### Fixed
 - **iCloud sync could delete or revert data in a few edge cases.**
@@ -14,6 +14,7 @@ Planned as 0.6.0, "a ledger you can trust". Nothing here is released yet.
 - **Clock-independent ordering.** Edits are stamped after the version they're based on, so a Mac with a slow clock can't lose its newer edit or delete.
 - **Sync passes never overlap.** Turning sync off during a pass now stops it without writing anything.
 - **Missing iCloud zone.** If the iCloud zone disappears after syncing, sync stops and keeps local data, instead of silently starting over empty.
+- **Chart drop after a profitable sell.** When price history was missing and the chart fell back to locally recorded snapshots, a sell at a profit showed as a loss in the time-weighted chart (share card, drawdown). Money in and out now comes from the ledger.
 - **Development builds.** A build signed for another CloudKit environment (a Debug build sharing the release app's data) pauses sync instead of mixing that environment's change tokens into the release app's sync state. The unit-test host no longer opens the real ledger or syncs.
 - **RETURN was unrealized only.** The Overview and Analytics "RETURN" ignored realized P&L, so it was misleading after taking profit or a loss.
   - Overview now shows **TOTAL PNL** and **total return**: realized + unrealized over everything ever invested.
@@ -27,6 +28,7 @@ Planned as 0.6.0, "a ledger you can trust". Nothing here is released yet.
   - The menu bar item and popover show no amounts while the app is locked.
 
 ### Added
+- **Appearance themes.** Settings → APPEARANCE → theme cycles through **dark** (the default, unchanged), **light**, **midnight**, **graphite** and **system**, which follows macOS. The switch is instant. Every theme meets WCAG AA contrast for text and gain/loss colours. Share cards and widgets keep their own look.
 - **Recovery snapshots.**
   - Bounded, verified local snapshots of the ledger after changes. They are versioned and hold no settings, keys or caches.
   - A verified safety snapshot is taken before replace-import, restore, remove position, portfolio delete and USE ICLOUD. If that snapshot fails, the operation is cancelled.
@@ -46,11 +48,21 @@ Planned as 0.6.0, "a ledger you can trust". Nothing here is released yet.
 - A compact iCloud status in the status bar while sync is on: synced, syncing, offline, review or sync error.
 
 ### Changed
+- **Movers** follows the Overview layout: a NET / DRIVER / BREADTH strip with the mode and range controls, and the table in a MOVERS panel with its note.
+- **Analytics** is reorganised:
+  - one two-row stat box (value, net contributed, open cost basis, unrealized, realized, total P&L / total return, TWR, max drawdown, best, worst);
+  - performance with its drawdown underneath, beside a full-height allocation;
+  - a POSITIONS · P&L table replaces the separate contribution and cost-to-value panels.
+- **Share card "TOP GAINERS"** ranks your own return on each asset over the period, flow-adjusted like the headline, instead of the asset's price move. Only positive returns are listed, and stablecoins are left out.
+- **Share screen.**
+  - The options column scrolls, so picking fields never resizes the window.
+  - The Quick Share header fits the narrow portrait and story formats.
 - **Large portfolios.** Measured on a 10,000-transaction fixture:
   - Contribution maths is about 2× faster.
   - Unchanged-ledger sync change detection is about 12× faster (≈140 ms → ≈12 ms).
   - Live price ticks are coalesced to at most one recalculation every 0.5 s.
   - Portfolio history is cached between renders.
+- Tables that end at a panel border no longer draw a double line under the last row.
 - USE ICLOUD's pre-replace backup is now a verified recovery snapshot (previously a `portfolio.before-icloud-*.json` file).
 - Settings shows the iPhone app as "in development", as the README does.
 

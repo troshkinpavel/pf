@@ -35,15 +35,15 @@
 
 PF Terminal tracks crypto portfolios from a ledger of transactions. It shows positions, cost basis, realized and unrealized P&L, performance and 24h movement. The interface is a native macOS window that you can drive entirely from the keyboard. PF Terminal does not execute trades and does not hold funds.
 
-> **Status:** the current release is v0.5.0: live exchange prices and a built-in asset registry. v0.4.0 was the first public release. PF Terminal is distributed as a `.dmg` through GitHub Releases. There is no Homebrew package.
+> **Status:** the current release is v0.6.0, "a ledger you can trust". v0.4.0 was the first public release. PF Terminal is distributed as a `.dmg` through GitHub Releases. There is no Homebrew package.
 >
-> **In development: v0.6.0, "a ledger you can trust".** Reliability and data integrity: hardened iCloud sync, local recovery snapshots, correct total return, safer imports, an app lock that holds. It is not released yet; items marked *(0.6)* below describe that work. See the [plan](docs/ROADMAP-0.6.md).
+> **New in v0.6.0:** hardened iCloud sync, local recovery snapshots with restore, correct total return and TWR, safer imports and transaction prices, an app lock that also covers the menu bar, Data Health, a privacy-safe diagnostic report, and appearance themes. See the [CHANGELOG](CHANGELOG.md).
 
 ## Platforms
 
 | Platform | Version | Status |
 |---|---:|---|
-| macOS | 0.5.0 | Available · Open source |
+| macOS | 0.6.0 | Available · Open source |
 | iPhone | 0.1.0 | In development |
 
 The iPhone companion app is currently in development.
@@ -66,11 +66,11 @@ Most portfolio trackers are cloud accounts. PF Terminal is a desktop instrument 
 |---|---|
 | **Portfolios** | Multiple independent portfolios and an **ALL PORTFOLIOS** aggregate. Buy, sell, transfer in and transfer out. Average-cost accounting with fees. Realized and unrealized P&L. Editable transactions. |
 | **Market** | Live prices from Binance and Bybit, CoinGecko as a batched fallback, DexScreener by verified contract. A built-in registry of the top 1,000 assets for instant, offline search. Each price shows where it comes from (LIVE, CACHED, FALLBACK, STALE). A preferred source, globally or per asset. Stablecoins valued at their peg, with depeg detection. USD, EUR and CHF. |
-| **Analysis** | Performance charts (value or P&L). Total P&L, total return and TWR *(0.6)*. Flow-adjusted 24h contribution. Movers by % or $ impact. Allocation, contribution, cost basis → value. Time-weighted drawdown. Target price scenarios. |
-| **Terminal UX** | `⌘K` palette with structured commands. Portfolio switching with `⌘P` and `[ ]`. ASCII-style charts. Adjustable density. |
+| **Analysis** | Performance charts (value or P&L). Total P&L, total return and TWR. Flow-adjusted 24h contribution. Movers by % or $ impact. Allocation and a positions P&L table. Time-weighted drawdown. Target price scenarios. |
+| **Terminal UX** | `⌘K` palette with structured commands. Portfolio switching with `⌘P` and `[ ]`. ASCII-style charts. Adjustable density. Themes: dark, light, midnight, graphite, or follow macOS. |
 | **macOS** | Menu bar companion. Desktop widgets (small, medium, large). Share cards: copy, save PNG, share sheet. Opt-in notifications. Touch ID app lock. |
 | **Sync** | Optional iCloud sync through your private CloudKit database. Off by default. It includes an offline queue, conflict review with restore, and a safe merge when you turn it on. |
-| **Recovery** *(0.6)* | Local recovery snapshots after ledger changes and before anything that replaces data; restore with a preview. Data Health check. Diagnostic report without portfolio data. |
+| **Recovery** | Local recovery snapshots after ledger changes and before anything that replaces data; restore with a preview. Data Health check. Diagnostic report without portfolio data. |
 | **Privacy** | No telemetry. Only public market-data requests leave your Mac. Share cards and widgets have privacy modes. Optional API key stored in the Keychain. |
 
 ## Install
@@ -145,7 +145,7 @@ movers   pnl   allocation   settings   refresh   export   import
 | Portfolio · Movers · Analytics · Settings | `⌘1`–`⌘4` | | Copy / save card | `⌘C` / `⌘S` |
 | Select · open · back | `↑↓` `↵` `esc` | | Chart range | `←` `→` |
 | Search assets | `/` | | Target (asset) · edit · delete tx | `t` · `e` · `⌫` |
-| Export backup *(0.6)* | `⌘⇧E` | | Remove position *(0.6)* | right-click a position |
+| Export backup | `⌘⇧E` | | Remove position | right-click a position |
 
 Shortcuts are bound to physical key positions, so they also work with non-Latin keyboard layouts. Keys without modifiers are ignored while a text field has focus.
 
@@ -157,7 +157,7 @@ Shortcuts are bound to physical key positions, so they also work with non-Latin 
 
 - **Performance charts** switch between **value** and **P&L** (value minus net money invested). P&L shows the drawdown periods that deposits would otherwise hide.
 - **Performance headers** show the P&L change and a money-weighted return.
-- **Return figures** *(0.6)*. **Total P&L** is realized + unrealized. **Total return** is total P&L over everything ever invested, so taking profit doesn't change it. **TWR** (time-weighted return) shows market performance with deposits and withdrawals removed. **Unrealized %** is labelled as such: it only covers what is still held.
+- **Return figures**. **Total P&L** is realized + unrealized. **Total return** is total P&L over everything ever invested, so taking profit doesn't change it. **TWR** (time-weighted return) shows market performance with deposits and withdrawals removed. **Unrealized %** is labelled as such: it only covers what is still held.
 - **Drawdown** uses a time-weighted index.
 - **Portfolio history** is rebuilt from what you held at each point in time. It never multiplies today's holdings by past prices.
 - **The target simulator** turns a price target into position value, profit, multiple and implied market cap. It is a calculator, not a prediction.
@@ -176,7 +176,7 @@ PF Terminal stays in the menu bar when the main window is closed, and leaves the
 
 - **Menu bar item.** Four display formats. It follows the active portfolio or is pinned to ALL.
 - **Popover.** Today's change, total P&L, the top positions with 24h sparklines, best and worst, refresh, and a button to open the app.
-- **While the app is locked** *(0.6)*, the menu bar item shows `PF 🔒` and the popover shows no portfolio data.
+- **While the app is locked**, the menu bar item shows `PF 🔒` and the popover shows no portfolio data.
 
 ## Desktop widgets
 
@@ -224,10 +224,10 @@ iCloud sync keeps your portfolios in step across your own devices. It is **off b
 - **Turning it on.** PF first compares this Mac with iCloud, then asks what to do:
   - iCloud is empty → **upload**.
   - This Mac is empty → **use iCloud**.
-  - Both have data → **merge** or **use iCloud**. Before replacing anything, PF saves a backup of this Mac's ledger (from 0.6, a verified recovery snapshot).
+  - Both have data → **merge** or **use iCloud**. Before replacing anything, PF saves a backup of this Mac's ledger (a verified recovery snapshot).
 - **Offline.** Changes are saved locally first and queued. They upload when iCloud is reachable again, even after a restart.
 - **Conflicts.** Sometimes the same transaction changes on two devices before they sync. PF keeps the newer edit, and an edit always wins over a delete. The other version stays in **Settings → DATA & SYNC → conflicts**, where you can restore it.
-- **Protection against stale data** *(0.6)*:
+- **Protection against stale data**:
   - A copy that was never synced (for example, a restored backup or an old Mac) never overrides what is in iCloud, and never brings back something deleted.
   - An older version arriving from another device never replaces a newer one.
   - If this Mac's ledger is reset or unreadable while sync is on, PF fetches your portfolios back from iCloud instead of deleting them there.
@@ -253,9 +253,9 @@ market-data APIs ◀── coin identifiers only (e.g. "bitcoin", "BTCUSDT", cha
 - **API key.** You can add an optional CoinGecko key. It is stored in the Keychain and sent only to `api.coingecko.com`.
 - **Sandboxing.** The app is sandboxed, with outgoing network access and access to files you choose. Widgets read a small snapshot from a shared App Group container. That snapshot contains no transactions.
 - **Backups.** Export writes a readable `.json` backup. Import validates the whole file and asks for confirmation before it replaces anything.
-- **Recovery snapshots** *(0.6)*. PF keeps a bounded set of local snapshots of the ledger in `backups/` next to `portfolio.json`. Each is verified after writing. They hold only portfolios, transactions and asset identities: no settings, keys or caches. They never sync, and like `portfolio.json` they are not encrypted by PF.
-- **App lock** *(0.6)*. Touch ID or your login password. It locks at launch, as soon as you turn it on, when the Mac sleeps or the screen locks, and after 5 minutes in the background. If the system can't authenticate, PF stays locked; it never unlocks by default.
-- **Diagnostics** *(0.6)*. A local log of operational events, and a report you can copy from Settings → DIAGNOSTICS. It holds versions, sync and source status and error types, but no portfolio names, values, quantities, notes, keys or account identifiers. Nothing is sent anywhere unless you paste the report somewhere yourself.
+- **Recovery snapshots**. PF keeps a bounded set of local snapshots of the ledger in `backups/` next to `portfolio.json`. Each is verified after writing. They hold only portfolios, transactions and asset identities: no settings, keys or caches. They never sync, and like `portfolio.json` they are not encrypted by PF.
+- **App lock**. Touch ID or your login password. It locks at launch, as soon as you turn it on, when the Mac sleeps or the screen locks, and after 5 minutes in the background. If the system can't authenticate, PF stays locked; it never unlocks by default.
+- **Diagnostics**. A local log of operational events, and a report you can copy from Settings → DIAGNOSTICS. It holds versions, sync and source status and error types, but no portfolio names, values, quantities, notes, keys or account identifiers. Nothing is sent anywhere unless you paste the report somewhere yourself.
 
 ## Market data
 
@@ -272,10 +272,10 @@ Transactions are the source of truth. PF never stores a balance; it derives ever
 
 - **Average cost.** Fees are added to the cost basis on buys and subtracted from the proceeds on sells. A sell realizes P&L against the average cost. A full exit clears the cost basis exactly.
 - **Exact decimals.** Ledger maths uses `Decimal`.
-- **24h change is flow-adjusted.** A buy made today is not counted as a gain. The **24H DRIVER** (from 0.6, **TODAY · WHAT MOVED**, the top three) is the position that moved the portfolio's value the most, which is not necessarily the one with the largest percentage move.
+- **24h change is flow-adjusted.** A buy made today is not counted as a gain. **TODAY · WHAT MOVED** lists the three positions that moved the portfolio's value the most; the first is that moved the portfolio's value the most, which is not necessarily the one with the largest percentage move.
 - **Validation.** A sell can't exceed what the portfolio held at that date.
-- **Total return** *(0.6)* = (realized + unrealized P&L) ÷ everything ever invested (buys and transfers in, at cost, with fees).
-- **Prices you leave blank** *(0.6)*. A buy or sell dated today uses the market price. A backdated one uses that day's price from history, or asks you for it; it never uses today's price. A transfer in uses the average entry of a matching transfer out, or asks for its cost basis (0 is allowed, but must be entered). The preview always says when a price was filled in automatically.
+- **Total return** = (realized + unrealized P&L) ÷ everything ever invested (buys and transfers in, at cost, with fees).
+- **Prices you leave blank**. A buy or sell dated today uses the market price. A backdated one uses that day's price from history, or asks you for it; it never uses today's price. A transfer in uses the average entry of a matching transfer out, or asks for its cost basis (0 is allowed, but must be entered). The preview always says when a price was filled in automatically.
 
 ## Architecture
 
@@ -309,7 +309,7 @@ The app is built with Swift, SwiftUI and AppKit. It also uses SwiftData (the mar
   - share-card and widget privacy;
   - sync, against a simulated CloudKit store with two devices, including a second client exchanging portfolios, transactions and deletes with the real Mac app state;
   - the PFCore package tests pin the sync payloads and CloudKit record fields that every PF client shares.
-  - *(0.6)* return semantics, blank-price rules, recovery snapshots and restore, import classification, Data Health, diagnostic report redaction, app-lock and menu bar privacy, depeg alerts, a 10,000-transaction benchmark, and the sync hardening matrix.
+  - return semantics, blank-price rules, recovery snapshots and restore, import classification, Data Health, diagnostic report redaction, app-lock and menu bar privacy, depeg alerts, a 10,000-transaction benchmark, and the sync hardening matrix.
 - UI tests cover onboarding, a palette trade with confirmation, quick share, and the Dock / menu bar lifecycle.
 
 The build, signing, data formats and how to add a market-data provider are documented in **[docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)**.
@@ -353,8 +353,8 @@ Roadmap milestones are product milestones, not app version numbers. The iPhone a
 | v0.2 · Multiple portfolios | Independent portfolios, ALL aggregate, switcher, management, v1 → v2 migration | **done** · internal milestone |
 | v0.3 · Widgets & alerts | Desktop widgets, portfolio 24h-move notification | **done** · internal milestone |
 | v0.4 · iCloud sync | Optional sync between your own devices through your private iCloud (CloudKit) database, off by default | **done** |
-| v0.5 · Market data | Canonical Asset Registry (bundled top-1000) · offline local asset search · Binance + Bybit live pricing · selectable preferred source · LIVE / CACHED / FALLBACK source status · far fewer CoinGecko requests · canonical-contract DexScreener fallback · stablecoin / cash-like support with peg monitoring · stale-while-revalidate caching | **done** · current |
-| v0.6 · A ledger you can trust | Hardened iCloud sync, recovery snapshots and restore, correct total return and TWR, safer transaction prices and imports, app lock that holds, Data Health and diagnostics without portfolio data ([plan](docs/ROADMAP-0.6.md)) | **in development** |
+| v0.5 · Market data | Canonical Asset Registry (bundled top-1000) · offline local asset search · Binance + Bybit live pricing · selectable preferred source · LIVE / CACHED / FALLBACK source status · far fewer CoinGecko requests · canonical-contract DexScreener fallback · stablecoin / cash-like support with peg monitoring · stale-while-revalidate caching | **done** |
+| v0.6 · A ledger you can trust | Hardened iCloud sync, recovery snapshots and restore, correct total return and TWR, safer transaction prices and imports, app lock that holds, Data Health and diagnostics without portfolio data, appearance themes ([plan](docs/ROADMAP-0.6.md)) | **done** · current |
 | v0.7 · Advanced analytics & scenario lab | Benchmarks (vs BTC / ETH), period return tables, realized P&L reports, multi-asset and portfolio-wide scenarios (today: single-asset target simulator) | planned |
 | v0.8 · Automation & alerts | Per-asset price alerts, Shortcuts / App Intents actions, scheduled exports and share cards | planned |
 | v0.9 · Wallets & exchanges | Read-only on-chain addresses (watch-only wallets), read-only exchange APIs, CSV import | planned |
