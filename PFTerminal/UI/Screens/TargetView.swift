@@ -33,7 +33,7 @@ struct TargetView: View {
                     .padding(.bottom, 14).overlay(alignment: .bottom) { Hairline() }
 
                     HStack(alignment: .top, spacing: 18) {
-                        Panel(title: "\(v.asset.symbol) · INPUT", padding: .init(top: 20, leading: 20, bottom: 18, trailing: 20)) {
+                        Panel(title: "\(v.asset.symbol) · INPUT", padding: .init(top: 20, leading: 20, bottom: 18, trailing: 20), fill: true) {
                             VStack(alignment: .leading, spacing: 20) {
                                 HStack(alignment: .top, spacing: 24) {
                                     VStack(alignment: .leading, spacing: 8) {
@@ -82,7 +82,7 @@ struct TargetView: View {
                                 }
                             }
                         }
-                        Panel(title: "RESULT", padding: .init(top: 16, leading: 16, bottom: 12, trailing: 16)) {
+                        Panel(title: "RESULT", padding: .init(top: 16, leading: 16, bottom: 12, trailing: 16), fill: true) {
                             VStack(spacing: 8) {
                                 if let tv {
                                     let s = eval(tv)
@@ -106,6 +106,7 @@ struct TargetView: View {
                         }
                         .frame(width: 400)
                     }
+                    .fixedSize(horizontal: false, vertical: true)   // INPUT stretches to RESULT's height
 
                     Panel(title: "SCENARIOS · \(v.asset.symbol) · \(f.amount(v.position.quantity)) \(v.asset.symbol)", padding: .init(top: 12, leading: 0, bottom: 4, trailing: 0)) {
                         VStack(spacing: 0) {
