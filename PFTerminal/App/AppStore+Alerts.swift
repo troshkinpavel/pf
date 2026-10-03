@@ -39,8 +39,15 @@ extension AppStore {
         var pegs: [AssetID: PegCheck] = [:]
         for id in heldAnywhere.union(intel.watchlist.filter(\.isActive).map(\.assetID)) { if let c = pegCheck(id) { pegs[id] = c } }
         let targets = Scenarios.base(intel)?.targets.mapValues(\.price) ?? [:]
+        // 0.6's 24h alert input: the flow-adjusted 24h change, only when nothing is unpriced.
+        var moves: [String: Double] = [:]
+        func move(_ s: PortfolioSummary, _ k: String) { if !s.isPartial, let p = s.change24hPct { moves[k] = p } }
+        move(all, PortfolioContext.all.storageKey)
+        move(context == .all ? all : summary(for: context), AlertSubject.activePortfolio)
+        for p in doc.livePortfolios { move(summary(for: .portfolio(p.id)), PortfolioContext.portfolio(p.id).storageKey) }
         return AlertInputs(now: now, quotes: quotes, staleAfter: max(2 * TimeInterval(settings.refreshSeconds), 300), held: heldAnywhere,
-                           positionPnL: pnl, weights: weights, portfolioValues: values, drawdowns: dd, pegs: pegs, baseTargets: targets)
+                           positionPnL: pnl, weights: weights, portfolioValues: values, drawdowns: dd, pegs: pegs, baseTargets: targets,
+                           portfolioChange24h: moves)
     }
 
     /// After every refresh (and after rule edits): fire, log, deliver.
@@ -58,7 +65,13 @@ extension AppStore {
             let text = alertMessage(r, f.reading)
             let delivery = !settings.alertBanner ? "menu bar only" : quiet ? "queued · quiet hours" : "banner"
             events.append(AlertEvent(at: now, rule: r.id, number: r.number, message: text, delivery: delivery))
-            if settings.alertBanner && !quiet { Notifier.postAlert(id: "pf.alert.\(r.number)", title: "pf · ⚑ #\(r.number) " + alertSubjectLabel(r.subject), body: text, sound: settings.alertSound) }
+            if settings.alertBanner && !quiet {
+                if r.kind == .move24h, case .portfolio = r.subject {
+                    Notifier.postMove(pct: f.reading.value, fmt: .current)      // the 0.6 notification, unchanged
+                } else {
+                    Notifier.postAlert(id: "pf.alert.\(r.number)", title: "pf · ⚑ #\(r.number) " + alertSubjectLabel(r.subject), body: text, sound: settings.alertSound)
+                }
+            }
             diagnostics.record(.alert, .info, "alert-fired")
         }
         // Quiet hours over: deliver what waited, once.
@@ -98,7 +111,9 @@ extension AppStore {
     func alertSubjectLabel(_ s: AlertSubject) -> String {
         switch s {
         case let .asset(a): return asset(a)?.symbol ?? watchContext(a)?.asset.symbol ?? a
-        case let .portfolio(k): return PortfolioContext(storageKey: k).map { doc.displayName($0) } ?? k
+        case let .portfolio(k):
+            if k == AlertSubject.activePortfolio { return "active portfolio" }
+            return PortfolioContext(storageKey: k).map { doc.displayName($0) } ?? k
         case .anyHeld: return "any held"
         case .anyStablecoin: return "any stablecoin"
         }

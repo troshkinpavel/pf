@@ -41,6 +41,8 @@ public enum AlertSubject: Hashable, Codable, Sendable {
     public init(from decoder: Decoder) throws { self.init(raw: try decoder.singleValueContainer().decode(String.self)) }
     public func encode(to encoder: Encoder) throws { var c = encoder.singleValueContainer(); try c.encode(raw) }
     public var assetID: AssetID? { if case let .asset(a) = self { return a }; return nil }
+    /// `.portfolio(activePortfolio)`: whichever portfolio (or ALL) is selected, as 0.6's 24h alert.
+    public static let activePortfolio = "active"
 }
 
 public enum AlertRepeat: String, Codable, CaseIterable, Sendable {
@@ -111,7 +113,8 @@ public struct AlertEvent: Codable, Equatable, Identifiable, Sendable {
 public struct AlertInputs: Sendable {
     public init(now: Date, quotes: [AssetID: Quote], staleAfter: TimeInterval, held: Set<AssetID>, positionPnL: [AssetID: Double] = [:],
                 weights: [AssetID: Double] = [:], portfolioValues: [String: Decimal] = [:], drawdowns: [String: Double] = [:],
-                pegs: [AssetID: PegCheck] = [:], baseTargets: [AssetID: Decimal] = [:]) {
+                pegs: [AssetID: PegCheck] = [:], baseTargets: [AssetID: Decimal] = [:], portfolioChange24h: [String: Double] = [:]) {
+        self.portfolioChange24h = portfolioChange24h
         self.now = now; self.quotes = quotes; self.staleAfter = staleAfter; self.held = held; self.positionPnL = positionPnL
         self.weights = weights; self.portfolioValues = portfolioValues; self.drawdowns = drawdowns; self.pegs = pegs; self.baseTargets = baseTargets
     }
@@ -127,6 +130,9 @@ public struct AlertInputs: Sendable {
     public var drawdowns: [String: Double]
     public var pegs: [AssetID: PegCheck]
     public var baseTargets: [AssetID: Decimal]
+    /// Portfolio context key (incl. "active") → 24h change in %, flow-adjusted, only when every
+    /// position is priced (0.6's 24h alert input).
+    public var portfolioChange24h: [String: Double]
 
     func freshPrice(_ a: AssetID) -> Decimal? {
         guard let q = quotes[a], now.timeIntervalSince(q.timestamp) <= staleAfter else { return nil }
@@ -172,6 +178,10 @@ public enum AlertEngine {
             guard case let .portfolio(k) = r.subject, let d = i.drawdowns[k] else { return nil }
             return Reading(value: d, met: d <= -abs(t), reset: d > -abs(t) + h, asset: nil)
         case .move24h:
+            if case let .portfolio(k) = r.subject {
+                guard let v = i.portfolioChange24h[k] else { return nil }
+                return Reading(value: v, met: abs(v) >= t, reset: abs(v) < t - h, asset: nil)
+            }
             let ids: [AssetID] = r.subject == .anyHeld ? i.held.sorted() : asset().map { [$0] } ?? []
             let moves = ids.compactMap { a -> (AssetID, Double)? in
                 guard i.freshPrice(a) != nil, let c = i.quotes[a]?.change24h, !Stablecoins.isStablecoin(a) || r.subject != .anyHeld else { return nil }
@@ -362,6 +372,7 @@ public enum AlertCommand {
             guard let n, n > 0 else { return need("24h move %") }
             if isAny { return .success(Draft(kind: .move24h, subject: .anyHeld, threshold: n)) }
             if let a = assetID { return .success(Draft(kind: .move24h, subject: .asset(a), threshold: n)) }
+            if let p = pfKey { return .success(Draft(kind: .move24h, subject: .portfolio(p), threshold: n)) }
         case "depeg":
             let t = n.map(abs) ?? Stablecoins.tolerance.double * 100
             if isAny { return .success(Draft(kind: .depeg, subject: .anyStablecoin, threshold: t)) }

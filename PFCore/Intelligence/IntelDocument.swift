@@ -91,16 +91,29 @@ public struct IntelStore {
 }
 
 extension IntelDocument {
+    public static let moveNote = "from 0.6 · 24h move alert"
+
     /// 0.6 had two notification settings; 0.7 makes them alert rules (design §13:
     /// "Notifications → Alerts"). Applied once; the 0.6 settings are left as they were so a
     /// downgrade to 0.6 still behaves the same.
     public mutating func migrateNotifications(alertThreshold: Double, depegAlerts: Bool, now: Date) {
         let key = "0.6-notifications"
+        // An early 0.7 build migrated the 24h alert to "any held asset". 0.6 watched the active
+        // portfolio's 24h change: put that back, once, keeping the rule's number and state.
+        let fix = "0.6-move-portfolio"
+        if migrations.contains(key), !migrations.contains(fix) {
+            migrations.append(fix)
+            for i in alerts.indices where alerts[i].kind == .move24h && alerts[i].subject == .anyHeld && alerts[i].note == Self.moveNote {
+                alerts[i].subject = .portfolio(AlertSubject.activePortfolio)
+            }
+        }
         guard !migrations.contains(key) else { return }
-        migrations.append(key)
+        migrations += [key, fix]
         if alertThreshold > 0 {
-            alerts.append(AlertRule(number: nextAlertNumber, kind: .move24h, subject: .anyHeld, threshold: alertThreshold,
-                                    repeatMode: .daily, createdAt: now, note: "from 0.6 · 24h move alert"))
+            // Same semantics as 0.6: |active portfolio 24h change| ≥ threshold, at most once a day,
+            // with 0.6's notification text.
+            alerts.append(AlertRule(number: nextAlertNumber, kind: .move24h, subject: .portfolio(AlertSubject.activePortfolio), threshold: alertThreshold,
+                                    repeatMode: .daily, createdAt: now, note: Self.moveNote))
         }
         if depegAlerts {
             alerts.append(AlertRule(number: nextAlertNumber, kind: .depeg, subject: .anyStablecoin, threshold: Double(truncating: Stablecoins.tolerance * 100 as NSNumber),

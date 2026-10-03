@@ -243,8 +243,28 @@ struct IntelAppTests {
         let s = store(defaults: d, seed: false)
         #expect(s.intel.alerts.map(\.kind) == [.move24h, .depeg])
         #expect(s.intel.alerts[0].threshold == 7 && s.intel.alerts[0].repeatMode == .daily)
+        #expect(s.intel.alerts[0].subject == .portfolio(AlertSubject.activePortfolio), "the active portfolio's 24h change, as in 0.6")
         #expect(s.intel.alerts[1].state == .fired, "a coin 0.6 already notified about doesn't notify again")
         #expect(s.settings.alertThreshold == 7, "0.6 values left as they were (downgrade keeps working)")
+    }
+
+    /// 0.6 semantics: the portfolio's 24h change, not any single asset; once a day.
+    @Test func migrated24hRuleWatchesThePortfolioNotAssets() throws {
+        let d = UserDefaults(suiteName: "pf-intel-move-\(UUID().uuidString)")!
+        var st = AppSettings(); st.alertThreshold = 5; st.save(d)
+        let s = store(defaults: d)
+        let eth = AssetCatalog.known.first { $0.symbol == "ETH" }!
+        // A small ETH position moves 30% while the portfolio moves ~1%: 0.6 stayed quiet, so does 0.7.
+        s.openTx(TxDraft(asset: "ETH", amount: "0.1", price: "3000", date: "2026-01-02")); s.confirmTx()
+        s.quotes[btc.id] = Quote(price: 90000, change: [.h24: 0.5], source: "test", timestamp: Date())
+        s.quotes[eth.id] = Quote(price: 3000, change: [.h24: 30], source: "test", timestamp: Date())
+        s.recompute(); s.evaluateAlerts()
+        #expect(s.intel.alertLog.isEmpty, "a single asset's move never fires the migrated rule")
+        // The portfolio itself moves 8%: fires once.
+        s.quotes[btc.id] = Quote(price: 90000, change: [.h24: 8], source: "test", timestamp: Date())
+        s.quotes[eth.id] = Quote(price: 3000, change: [.h24: 8], source: "test", timestamp: Date())
+        s.recompute(); s.evaluateAlerts(); s.evaluateAlerts()
+        #expect(s.intel.alertLog.count == 1 && s.intel.alerts[0].state == .fired, "once, then quiet for the day")
     }
 
     @Test func settingsDecodeFrom06() throws {

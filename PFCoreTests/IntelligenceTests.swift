@@ -136,6 +136,44 @@ struct AlertTests {
         #expect(FileManager.default.fileExists(atPath: store.url.path), "an unreadable-right-now file is never treated as missing")
     }
 
+    @Test func notificationMigrationIsExactAndIdempotent() {
+        var d = IntelDocument()
+        d.migrateNotifications(alertThreshold: 5, depegAlerts: true, now: t0)
+        let move = d.alerts[0]
+        #expect(move.kind == .move24h && move.subject == .portfolio(AlertSubject.activePortfolio) && move.threshold == 5 && move.repeatMode == .daily)
+        #expect(d.alerts[1].kind == .depeg && d.alerts[1].subject == .anyStablecoin && d.alerts[1].repeatMode == .cross, "depeg unchanged")
+        for _ in 0..<3 { d.migrateNotifications(alertThreshold: 9, depegAlerts: true, now: t0) }
+        #expect(d.alerts.count == 2 && d.alerts[0].threshold == 5, "once: no duplicates, later 0.6 values ignored")
+        var off = IntelDocument()
+        off.migrateNotifications(alertThreshold: 0, depegAlerts: false, now: t0)
+        #expect(off.alerts.isEmpty && off.migrations.contains("0.6-notifications"))
+    }
+
+    @Test func earlyPerAssetMigrationIsPutBack() {
+        // What the first 0.7 build wrote: the 0.6 rule as "any held asset", plus a user rule.
+        var d = IntelDocument()
+        d.migrations = ["0.6-notifications"]
+        d.alerts = [AlertRule(number: 1, kind: .move24h, subject: .anyHeld, threshold: 5, repeatMode: .daily, createdAt: t0, note: IntelDocument.moveNote),
+                    AlertRule(number: 2, kind: .move24h, subject: .anyHeld, threshold: 15, repeatMode: .daily, createdAt: t0)]
+        d.alerts[0].state = .fired; d.alerts[0].firedAt = t0
+        d.migrateNotifications(alertThreshold: 5, depegAlerts: false, now: t0)
+        d.migrateNotifications(alertThreshold: 5, depegAlerts: false, now: t0)
+        #expect(d.alerts.count == 2)
+        #expect(d.alerts[0].subject == .portfolio(AlertSubject.activePortfolio) && d.alerts[0].number == 1 && d.alerts[0].state == .fired, "same rule, state kept")
+        #expect(d.alerts[1].subject == .anyHeld, "a rule the user made is left alone")
+    }
+
+    @Test func portfolioMoveReadsThePortfolioChange() {
+        var rules = [AlertRule(number: 1, kind: .move24h, subject: .portfolio("active"), threshold: 5, repeatMode: .daily, createdAt: t0)]
+        let quiet = AlertInputs(now: t0, quotes: [:], staleAfter: 600, held: [], portfolioChange24h: ["active": 1.2])
+        #expect(AlertEngine.evaluate(&rules, quiet).isEmpty)
+        let loud = AlertInputs(now: t0, quotes: [:], staleAfter: 600, held: [], portfolioChange24h: ["active": -6.1])
+        #expect(AlertEngine.evaluate(&rules, loud).count == 1)
+        #expect(AlertEngine.evaluate(&rules, loud).isEmpty, "daily: once per day")
+        let unpriced = AlertInputs(now: t0.addingTimeInterval(86400 * 2), quotes: [:], staleAfter: 600, held: [])
+        #expect(AlertEngine.read(rules[0], unpriced) == nil, "no portfolio figure (partial prices): never fires")
+    }
+
     @Test func unreadableFileIsSetAsideNeverLost() throws {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("pf-intel-bad-\(UUID().uuidString)")
         let store = IntelStore(directory: dir)
