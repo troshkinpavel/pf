@@ -10,6 +10,10 @@ extension AppStore {
             var d = try intelStore.load() ?? IntelDocument()
             let before = d
             d.migrateNotifications(alertThreshold: settings.alertThreshold, depegAlerts: settings.depegAlerts, now: Date())
+            // A coin 0.6 already notified about (still off peg) shouldn't notify again after the upgrade.
+            if before.alerts.isEmpty, !(defaults.stringArray(forKey: "pf.depeg.alerted") ?? []).isEmpty {
+                for i in d.alerts.indices where d.alerts[i].kind == .depeg { d.alerts[i].state = .fired; d.alerts[i].firedAt = Date() }
+            }
             intel = d
             if d != before { saveIntel() }
         } catch let e as IntelStoreError {

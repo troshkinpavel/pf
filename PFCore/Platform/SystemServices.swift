@@ -72,6 +72,15 @@ public enum AppLock {
 }
 
 extension Notifier {
+    /// An alert rule fired (0.7). Callers pass prices and percentages only, never amounts held.
+    public static func postAlert(id: String, title: String, body: String, sound: Bool) {
+        let c = UNMutableNotificationContent()
+        c.title = title
+        c.body = body
+        if sound { c.sound = .default }
+        UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: id, content: c, trigger: nil))
+    }
+
     /// Names the coin and its deviation, never an amount held.
     public static func postDepeg(symbol: String, deviationPercent: Double, target: String, fmt: Fmt) {
         let c = UNMutableNotificationContent()

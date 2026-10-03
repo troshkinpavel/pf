@@ -250,6 +250,25 @@ extension AppStore {
         case .benchmark:
             if k == "b" { toggleBenchmark(); return true }
             if isLeft || isRight { setBenchmarkRange(Benchmark.Range.allCases.cycled(from: benchmarkRange, by: isRight ? 1 : -1)); return true }
+        case .watch:
+            let rows = watchRows, w = rows[safe: watchSel]?.item
+            if k == "n" { openWatchAdd(); return true }
+            if isDown, !rows.isEmpty { watchSel = (watchSel + 1) % rows.count; watchConfirmRemove = nil; return true }
+            if isUp, !rows.isEmpty { watchSel = (watchSel - 1 + rows.count) % rows.count; watchConfirmRemove = nil; return true }
+            guard let w else { break }
+            if k == "e" || isReturn { openWatchEdit(w); return true }
+            if k == "a" { openAlertSetup(subject: .asset(w.assetID)); return true }
+            if code == 51 || code == 117 { requestRemoveWatch(w); return true }
+        case .alerts:
+            let rows = alertRows, r = rows[safe: alertSel]?.rule
+            if k == "n" { openAlertSetup(); return true }
+            if isDown, !rows.isEmpty { alertSel = (alertSel + 1) % rows.count; alertConfirmDelete = nil; return true }
+            if isUp, !rows.isEmpty { alertSel = (alertSel - 1 + rows.count) % rows.count; alertConfirmDelete = nil; return true }
+            guard let r else { break }
+            if isReturn { openAlertEdit(r); return true }
+            if k == " " { togglePause(r.id); return true }
+            if k == "r" { rearm(r.id); return true }
+            if code == 51 || code == 117 { requestDeleteAlert(r.id); return true }
         case .settings:
             if k == "/" { settingsFocusFilter = true; return true }
             return handleSettingsKey(e)

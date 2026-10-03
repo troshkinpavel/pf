@@ -38,6 +38,8 @@ struct RootView: View {
 
                 if store.quickShare { Scrim { store.quickShare = false } content: { QuickShareView() } }
                 if store.tx != nil { Scrim(top: 40, dismiss: nil) { TransactionSheet() } }
+                if store.alertSetup != nil { Scrim(top: 40) { store.alertSetup = nil } content: { AlertSetupSheet() } }
+                if store.watchDraft != nil { Scrim(top: 40) { store.watchDraft = nil } content: { WatchSheet() } }
                 if store.palette != nil { Scrim(top: 40) { store.palette = nil } content: { CommandPaletteView() } }
                 if store.sourcePicker != nil { Scrim(top: 40) { store.sourcePicker = nil } content: { SourcePickerView() } }
                 if store.switcher != nil { Scrim(top: 40) { store.switcher = nil } content: { PortfolioSwitcherView() } }

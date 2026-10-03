@@ -64,8 +64,13 @@ enum DebugSnapshots {
                     ("41-movers-mode", { store.toggleChangesMode() }),
                     ("42-benchmark", { store.analyticsUsesBenchmark = true; store.go(.benchmark); store.loadBenchmarkHistory() }),
                     ("43-watch", { store.go(.watch) }),
-                    ("44-alerts", { store.go(.alerts) }),
-                    ("45-scenarios", { store.go(.scenarios) }),
+                    ("43b-watch-add", { store.openWatchAdd("LINK") }),
+                    ("43c-convert", { store.watchDraft = nil; if let w = store.watchRows.first?.item { store.convertWatch(w) } }),
+                    ("44-alerts", { store.tx = nil; store.go(.alerts) }),
+                    ("44b-alert-setup", { store.openAlertSetup(subject: .asset(tel)); store.alertSetup?.line = "alert tel above 0.005" }),
+                    ("44c-alert-review", { store.advanceAlertSetup() }),
+                    ("44d-alert-empty-cmd", { store.alertSetup = AlertSetup() }),
+                    ("45-scenarios", { store.alertSetup = nil; store.go(.scenarios) }),
                     ("46-settings", { store.settingsSection = "general"; store.go(.settings) }),
                     ("46b-settings-filter", { store.settingsFilter = "sync" }),
                     ("47-health", { store.settingsFilter = ""; store.go(.overview); store.healthPopover = true }),
@@ -192,6 +197,7 @@ enum DebugSnapshots {
                 }
             }
         }
+        Task { await store.refresh(auto: false) }   // price the watched assets
     }
 
     /// The design's portfolio set, for ui-testing snapshots only (in-memory store).

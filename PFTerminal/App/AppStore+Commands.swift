@@ -200,6 +200,8 @@ extension AppStore {
         if cmd, let n = Int(k), (1...4).contains(n), screen != .settings { goTab(n - 1); return true }
         if cmd, let n = Int(k), (1...9).contains(n), screen == .settings { selectSettingsSection(Self.settingsSectionIDs[n - 1]); return true }
         if cmd && k == "," { go(.settings); return true }
+        if cmd && k == "z" && !inInput && convertUndo != nil && tx == nil { undoConversion(); return true }
+        if cmd && isReturn && screen == .watch && tx == nil && watchDraft == nil, let w = watchRows[safe: watchSel]?.item { convertWatch(w); return true }
         // g leader: the next key picks a destination; anything else cancels it. Never sticks.
         if leaderActive && !cmd && !inInput {
             if isEsc { back(); return true }
@@ -217,6 +219,16 @@ extension AppStore {
             if !inInput, !cmd, let ch = e.characters, !ch.isEmpty, ch.unicodeScalars.allSatisfy({ !CharacterSet.controlCharacters.contains($0) }) {
                 switcher!.query += ch; switcher!.sel = 0; return true
             }
+            return false
+        }
+        if let a = alertSetup {
+            if isReturn { advanceAlertSetup(); return true }
+            if a.review && (isLeft || isRight) { return true }
+            if !inInput && (isLeft || isRight) { alertSetup!.repeatMode = AlertRepeat.allCases.cycled(from: a.repeatMode, by: isRight ? 1 : -1); return true }
+            return false
+        }
+        if watchDraft != nil {
+            if isReturn { saveWatch(); return true }
             return false
         }
         if newPortfolio != nil {
@@ -479,7 +491,7 @@ extension AppStore {
         save()
         cache.invalidateSnapshots(from: .distantPast)
         series = [:]
-        quotes = cache.quotes(currency: settings.currency).filter { k, _ in doc.assets.contains { $0.id == k } }
+        quotes = cache.quotes(currency: settings.currency).filter { k, _ in pricedIDs.contains(k) }
         recompute()
         go(.overview)
         message = "✓ imported \(d.transactions.count) transactions · \(d.assets.count) assets"
@@ -493,7 +505,14 @@ extension AppStore {
     /// Menu bar follows the active context unless pinned to ALL in Settings.
     var menuBarContext: PortfolioContext { settings.menuBarContext == "all" ? .all : context }
 
+    /// Menu bar title, with "⚑n" while fired alerts are unseen (Settings › alerts › badge).
     func trayText(_ f: MenuBarFormat? = nil) -> String {
+        let base = trayBase(f)
+        guard !locked, settings.alertBadge, unseenAlerts > 0 else { return base }
+        return base + "  ⚑\(unseenAlerts)"
+    }
+
+    private func trayBase(_ f: MenuBarFormat?) -> String {
         let fm = Fmt.current, s = menuBarContext == context ? summary : summary(for: menuBarContext)
         if locked { return "PF  🔒" }          // no amounts while the app is locked
         guard hasPortfolio, !s.isEmpty else { return "PF  —" }

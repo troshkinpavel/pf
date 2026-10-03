@@ -97,7 +97,15 @@ final class AppStore {
     var sourcePicker: SourcePickerState?
     var newPortfolio: NewPortfolioDraft?
     var manage = ManageState()
-    var tx: TxDraft?
+    var tx: TxDraft? { didSet { if tx == nil { converting = nil } } }
+    /// Watch → position in progress: the add-transaction sheet shows the carry-over block.
+    var converting: WatchConvertState?
+    /// The last conversion, for ⌘Z (removes the transaction, restores the watch item).
+    var convertUndo: ConvertUndo?
+    var watchDraft: WatchDraft?
+    var watchConfirmRemove: UUID?
+    var alertSetup: AlertSetup?
+    var alertConfirmDelete: UUID?
     var quickShare = false
     var flash = ""
     var message = "ready" { didSet { messageAt = Date() } }
@@ -153,7 +161,6 @@ final class AppStore {
     @ObservationIgnored private var timer: Timer?
     @ObservationIgnored var flashTask: Task<Void, Never>?
     @ObservationIgnored var searchTask: Task<Void, Never>?
-    @ObservationIgnored private var lastAlertDay: String?
     // widgets
     let publishWidgets: Bool
     var widgetStatus = "not written yet"
@@ -234,9 +241,9 @@ final class AppStore {
         loadSyncState()
         syncRemote = o.syncRemote ?? Self.makeSyncRemote()
         if o.syncRemote == nil, syncRemote != nil { syncRemoteEnvironment = Self.cloudEnvironment }
-        quotes = cache.quotes(currency: s.currency).filter { k, _ in doc.assets.contains { $0.id == k } }
-        snapshotList = snapshots.list()
         loadIntel()
+        quotes = cache.quotes(currency: s.currency).filter { k, _ in pricedIDs.contains(k) }
+        snapshotList = snapshots.list()
         recompute()
     }
 
@@ -269,7 +276,7 @@ final class AppStore {
         timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.tick() }
         }
-        if settings.alertThreshold > 0 || settings.depegAlerts { Notifier.requestAuthorization() }
+        if settings.alertBanner && intel.alerts.contains(where: { !$0.paused }) { Notifier.requestAuthorization() }
         Task { await refresh(auto: true) }
         connectStream()
         if settings.appLock { locked = true }
@@ -307,6 +314,9 @@ final class AppStore {
 
     /// Quotes are shared market data: track holdings of every live portfolio, not only the
     /// active one, so switching contexts never waits on the network.
+    /// Ledger assets plus watched ones: the ids whose cached quotes are kept.
+    var pricedIDs: Set<AssetID> { Set(doc.assets.map(\.id)).union(intel.watchlist.filter(\.isActive).map(\.assetID)) }
+
     var trackedAssets: [Asset] {
         var ids = heldAnywhere.union(summary.positions.map(\.asset.id))
         if let a = assetID { ids.insert(a) }
@@ -316,7 +326,10 @@ final class AppStore {
         // Assets priced by a live exchange feed right now skip the REST refresh (no CoinGecko every
         // minute for streamed coins); a full pass every `fullRefreshInterval` keeps metadata current.
         let full = t.timeIntervalSince(lastFullRefresh) >= Self.fullRefreshInterval
-        return doc.assets.filter {
+        // Watched assets are priced too (not held, so not in any ledger: from intel.json).
+        let watched = intel.watchlist.filter { w in w.isActive && !doc.assets.contains { $0.id == w.assetID } }.map(\.asset)
+        ids.formUnion(watched.map(\.id))
+        return (doc.assets + watched).filter {
             ids.contains($0.id) && Stablecoins.needsMarketCheck($0.id, quote: quotes[$0.id], currency: cur, now: t)
                 && (full || !isStreamLive($0))
         }.map(routed)
@@ -333,6 +346,7 @@ final class AppStore {
         let r = await router.quotes(for: assets, currency: settings.currency)
         inFlight = false
         for (k, q) in r.quotes { quotes[k] = q }
+        backfillWatchPrices()
         if !r.quotes.isEmpty { cache.saveQuotes(r.quotes, currency: settings.currency) }
         for (name, e) in r.errors.sorted(by: { $0.key < $1.key }) {
             diagnostics.record(.market, .warning, "provider-failed", error: e, source: MarketSource(rawValue: name))
@@ -361,8 +375,7 @@ final class AppStore {
         }
         recompute()
         recordSnapshot()
-        checkAlert()
-        checkDepeg()
+        evaluateAlerts()
         connectStream()
     }
 
@@ -370,14 +383,6 @@ final class AppStore {
         guard !summary.isEmpty, !summary.isPartial, freshness == .live else { return }
         cache.addSnapshot(.init(timestamp: Date(), value: summary.totalValue.double, costBasis: summary.costBasis.double, unrealized: summary.unrealized.double),
                           context: context.storageKey)
-    }
-
-    private func checkAlert() {
-        guard settings.alertThreshold > 0, let p = summary.change24hPct, abs(p) >= settings.alertThreshold else { return }
-        let day = DateFmt.ymd(Date())
-        guard lastAlertDay != day else { return }
-        lastAlertDay = day
-        Notifier.postMove(pct: p, fmt: Fmt.current)
     }
 
     // MARK: history
@@ -562,7 +567,8 @@ final class AppStore {
     func go(_ s: Screen) {
         screen = s
         palette = nil; tx = nil; quickShare = false; switcher = nil; newPortfolio = nil; syncSheet = nil; restore = nil; importPreview = nil
-        healthPopover = false; keysOverlay = false; leaderActive = false
+        healthPopover = false; keysOverlay = false; leaderActive = false; watchDraft = nil; watchConfirmRemove = nil; alertSetup = nil; alertConfirmDelete = nil
+        if s == .alerts { markAlertsSeen() }
         manage.renaming = nil; manage.confirmDelete = nil
         if s == .overview { loadHistory(assetsHeld(during: overviewRange), overviewRange) }
     }
@@ -587,6 +593,10 @@ final class AppStore {
         if leaderActive { leaderActive = false; leaderTask?.cancel(); return }
         if keysOverlay { keysOverlay = false; return }
         if healthPopover { healthPopover = false; return }
+        if watchDraft != nil { watchDraft = nil; return }
+        if watchConfirmRemove != nil { watchConfirmRemove = nil; return }
+        if alertSetup != nil { if alertSetup!.review { alertSetup!.review = false } else { alertSetup = nil }; return }
+        if alertConfirmDelete != nil { alertConfirmDelete = nil; return }
         if restore != nil { restore = nil; return }
         if importPreview != nil { importPreview = nil; return }
         if syncSheet != nil { syncSheet = nil; return }
@@ -629,14 +639,13 @@ final class AppStore {
         }
         if old.menuBarContext != settings.menuBarContext { scheduleWidgetSnapshot() }
         if old.currency != settings.currency {
-            quotes = cache.quotes(currency: settings.currency).filter { k, _ in doc.assets.contains { $0.id == k } }
+            quotes = cache.quotes(currency: settings.currency).filter { k, _ in pricedIDs.contains(k) }
             series = [:]
             recompute()
             Task { await refresh(auto: false) }
         }
         if old.realtimeProvider != settings.realtimeProvider { connectStream() }
-        if old.alertThreshold == 0 && settings.alertThreshold > 0 { Notifier.requestAuthorization() }
-        if !old.depegAlerts && settings.depegAlerts { Notifier.requestAuthorization(); checkDepeg() }
+        if !old.alertBanner && settings.alertBanner { Notifier.requestAuthorization() }
         if old.appLock != settings.appLock { appLockToggled() }
         if old.numbers != settings.numbers { recompute() }
         if old.widgetPrivacy != settings.widgetPrivacy { writeWidgetSnapshot() }

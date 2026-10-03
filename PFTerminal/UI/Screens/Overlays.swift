@@ -69,7 +69,7 @@ struct TransactionSheet: View {
         let p = store.preview(d)
         VStack(spacing: 0) {
             HStack {
-                TT(d.editing == nil ? "ADD TRANSACTION" : "EDIT TRANSACTION", 12, Theme.t1, tracking: 0.72)
+                TT(store.converting.map { "CONVERT · \($0.item.asset.symbol) → POSITION" } ?? (d.editing == nil ? "ADD TRANSACTION" : "EDIT TRANSACTION"), 12, Theme.t1, tracking: 0.72)
                 Spacer()
                 TT("tab next · ↵ confirm · esc cancel", 11, Theme.t4)
             }
@@ -103,6 +103,7 @@ struct TransactionSheet: View {
                 row("date") { HStack(spacing: 10) { prompt; field("YYYY-MM-DD", \.date, .date) } }
                 row("fee") { HStack(spacing: 10) { prompt; field("optional", \.fee, .fee) } }
                 row("note") { HStack(spacing: 10) { prompt; field("optional", \.note, .note) } }
+                if let c = store.converting { ConvertCarryOver(c: c) }
             }
             .padding(.horizontal, 16).padding(.vertical, 18)
 
@@ -110,6 +111,15 @@ struct TransactionSheet: View {
                 TT(p.line, 13, Theme.t1)
                 ForEach(p.rows) { r in
                     HStack { TT(r.k, 12, Theme.t3); Spacer(); TT(r.v, 12, r.c) }
+                }
+                if let c = store.converting, let q = NumberInput.parse(d.amount, style: Fmt.current.style), let px = p.tx?.price {
+                    let f = Fmt.current
+                    let pv = d.portfolioID.map { store.summary(for: .portfolio($0)).totalValue } ?? 0
+                    let rv = WatchConversion.review(c.item, quantity: q, price: px, fee: 0, portfolioValue: pv)
+                    if let a = c.item.priceAtAdd { HStack { TT("vs watch-add \(f.price(a))", 12, Theme.t3); Spacer(); TT(f.pct(rv.vsWatchAdd, 1) + ((rv.vsWatchAdd ?? 0) < 0 ? " better" : ""), 12, Theme.signColor(rv.vsWatchAdd.map { -$0 })) } }
+                    if let e = c.item.entry { HStack { TT("vs your entry \(f.price(e))", 12, Theme.t3); Spacer(); TT(f.pct(rv.vsEntry, 1), 12, Theme.signColor(rv.vsEntry.map { -$0 })) } }
+                    HStack { TT("weight after", 12, Theme.t3); Spacer(); TT(rv.weightAfter.map { f.num($0, 1) + "%" } ?? "—", 12, Theme.t2) }
+                    HStack { TT("cash source", 12, Theme.t3); Spacer(); TT("new deposit · excluded from twr", 12, Theme.t3) }
                 }
             }
             .padding(.horizontal, 14).padding(.vertical, 12)
@@ -124,7 +134,7 @@ struct TransactionSheet: View {
                     BracketButton("delete", color: Theme.neg) { store.tx = nil; store.requestDelete(t) }
                 }
                 Spacer()
-                BracketButton(d.editing == nil ? "confirm transaction ↵" : "save changes ↵", color: p.ok ? Theme.acc : Theme.faint) { store.confirmTx() }
+                BracketButton(store.converting != nil ? "convert ↵" : d.editing == nil ? "confirm transaction ↵" : "save changes ↵", color: p.ok ? Theme.acc : Theme.faint) { store.confirmTx() }
                     .disabled(!p.ok)
                     .accessibilityIdentifier("tx-confirm")
             }

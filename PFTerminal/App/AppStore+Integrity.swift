@@ -213,8 +213,8 @@ extension AppStore {
         i.transactionBucket = DiagnosticReport.bucket(doc.transactions.count)
         let s = settings
         i.flags = [("source", s.primaryProvider), ("live feeds", s.realtimeProvider == "off" ? "off" : "on"), ("refresh", "\(s.refreshSeconds)s"),
-                   ("currency", s.currency), ("app lock", s.appLock ? "on" : "off"), ("24h alert", s.alertThreshold == 0 ? "off" : "on"),
-                   ("depeg alerts", s.depegAlerts ? "on" : "off"), ("widget privacy", s.widgetPrivacy == .full ? "full" : "percent only"),
+                   ("currency", s.currency), ("app lock", s.appLock ? "on" : "off"), ("alert rules", "\(intel.alerts.count)"),
+                   ("alert delivery", s.alertBanner ? "banner" : "menu bar"), ("widget privacy", s.widgetPrivacy == .full ? "full" : "percent only"),
                    ("menu bar", "\(s.menuBar)")]
         let st = syncState
         i.sync = [("mode", st.mode.rawValue), ("status", syncStatusKind), ("last sync", DiagnosticReport.age(st.lastSync, now: i.now)),
@@ -251,23 +251,6 @@ extension AppStore {
     }
 
     func refreshProviderHealth() { Task { providerHealth = await router.health() } }
-
-    // MARK: depeg alerts
-
-    func checkDepeg() {
-        guard settings.depegAlerts else { return }
-        var checks: [AssetID: PegCheck] = [:]
-        for id in heldAnywhere { if let c = pegCheck(id) { checks[id] = c } }
-        var alerted = Set(defaults.stringArray(forKey: Self.depegKey) ?? [])
-        let fire = Stablecoins.depegTransitions(checks, alerted: &alerted)
-        defaults.set(Array(alerted).sorted(), forKey: Self.depegKey)
-        for id in fire {
-            guard let c = checks[id], let d = c.deviationPercent else { continue }
-            Notifier.postDepeg(symbol: asset(id)?.symbol ?? id, deviationPercent: d, target: Fmt.current.price(c.peg.target), fmt: Fmt.current)
-            diagnostics.record(.alert, .warning, "depeg-notified")
-        }
-    }
-    static let depegKey = "pf.depeg.alerted"
 
     // MARK: app lock
 

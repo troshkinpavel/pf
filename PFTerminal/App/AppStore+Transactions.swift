@@ -33,7 +33,8 @@ extension AppStore {
     /// unambiguous registry symbol, then the picked search hit. A ticker the registry lists more
     /// than once is never auto-selected.
     func resolveAsset(_ text: String, searchResults: [Asset] = []) -> Asset? {
-        AssetCatalog.resolve(text, in: doc.assets) ?? AssetCatalog.resolve(text, in: AssetCatalog.known)
+        AssetCatalog.resolve(text, in: doc.assets) ?? AssetCatalog.resolve(text, in: intel.watchlist.map(\.asset))
+            ?? AssetCatalog.resolve(text, in: AssetCatalog.known)
             ?? registryUnique(text) ?? searchResults[safe: tx?.pick ?? 0] ?? searchResults.first
     }
 
@@ -142,11 +143,15 @@ extension AppStore {
         doc.upsert(t, asset: a)
         save()
         cache.invalidateSnapshots(from: min(t.timestamp, old?.timestamp ?? t.timestamp))
+        let conversion = converting
         tx = nil
         recompute()
+        if let c = conversion, c.item.assetID == a.id, old == nil { finishConversion(c, tx: t) }
         let afterAvg = PortfolioEngine.positions(doc.transactions.filter { $0.portfolioID == t.portfolioID })[a.id]?.averageEntry
         if context != .all { context = .portfolio(t.portfolioID); persistContext(); recompute() }
-        message = "✓ \(p.line) \(old == nil ? "recorded" : "updated")" + (t.type == .buy ? " · avg entry \(f.price(beforeAvg ?? t.price)) → \(f.price(afterAvg))" : "")
+        if conversion == nil {
+            message = "✓ \(p.line) \(old == nil ? "recorded" : "updated")" + (t.type == .buy ? " · avg entry \(f.price(beforeAvg ?? t.price)) → \(f.price(afterAvg))" : "")
+        }
         if summary.valuation(a.id) != nil { openAsset(a.id) } else { go(.overview) }
         Task { await refresh(auto: false) }
     }
