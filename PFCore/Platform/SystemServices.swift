@@ -45,13 +45,39 @@ public enum Notifier {
     }
 }
 
-/// Touch ID / password gate for the main window (opt-in).
+/// Touch ID / password gate for the main window (opt-in). Fails closed: if the system can't
+/// authenticate (no password, policy unavailable), the app stays locked.
 public enum AppLock {
-    public static func authenticate() async -> Bool {
+    public enum Outcome: Equatable, Sendable { case unlocked, failed, unavailable(String) }
+
+    /// nil when Touch ID or the login password can be used; otherwise why not.
+    public static func unavailableReason() -> String? {
+        var err: NSError?
+        guard LAContext().canEvaluatePolicy(.deviceOwnerAuthentication, error: &err) else {
+            return "Touch ID and the login password are unavailable (\(err.map { LAError.Code(rawValue: $0.code).map { "\($0)" } ?? "\($0.code)" } ?? "unknown"))"
+        }
+        return nil
+    }
+
+    public static func evaluate(reason: String = "unlock your portfolio") async -> Outcome {
         let ctx = LAContext()
         var err: NSError?
-        guard ctx.canEvaluatePolicy(.deviceOwnerAuthentication, error: &err) else { return true }
-        return (try? await ctx.evaluatePolicy(.deviceOwnerAuthentication, localizedReason: "unlock your portfolio")) ?? false
+        guard ctx.canEvaluatePolicy(.deviceOwnerAuthentication, error: &err) else {
+            return .unavailable(unavailableReason() ?? "authentication unavailable")
+        }
+        return ((try? await ctx.evaluatePolicy(.deviceOwnerAuthentication, localizedReason: reason)) ?? false) ? .unlocked : .failed
+    }
+
+    public static func authenticate() async -> Bool { await evaluate() == .unlocked }
+}
+
+extension Notifier {
+    /// Names the coin and its deviation, never an amount held.
+    public static func postDepeg(symbol: String, deviationPercent: Double, target: String, fmt: Fmt) {
+        let c = UNMutableNotificationContent()
+        c.title = "pf · \(symbol) off its peg"
+        c.body = "\(symbol) is \(fmt.pct(deviationPercent, 2)) from \(target)."
+        UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: "pf.depeg." + symbol, content: c, trigger: nil))
     }
 }
 

@@ -50,15 +50,34 @@ public enum SyncEngine {
 
     public static func localObjects(_ d: PortfolioDocument) -> [String: LocalObject] {
         var out: [String: LocalObject] = [:]
-        func add<T: Encodable>(_ kind: SyncKind, _ id: String, _ v: T, pid: String? = nil) {
-            guard let data = try? encoder.encode(v) else { return }
-            out[SyncRecord.key(kind, id)] = LocalObject(kind: kind, id: id, payload: data, hash: hash(data), portfolioID: pid)
+        out.reserveCapacity(d.transactions.count + d.portfolios.count + d.assets.count)
+        func add<T: Encodable & Hashable>(_ kind: SyncKind, _ id: String, _ v: T, pid: String? = nil) {
+            // Encoding + hashing every record is the cost of change detection; an unchanged value
+            // reuses its last encoding (keyed by the value itself, so any edit misses the cache).
+            let key = AnyHashable(v)
+            let (data, h): (Data, String)
+            if let hit = payloadCache.get(key) { (data, h) = hit } else {
+                guard let e = try? encoder.encode(v) else { return }
+                (data, h) = (e, hash(e))
+                payloadCache.put(key, (e, h))
+            }
+            out[SyncRecord.key(kind, id)] = LocalObject(kind: kind, id: id, payload: data, hash: h, portfolioID: pid)
         }
         for p in d.portfolios { add(.portfolio, p.id.uuidString, p) }
         for t in d.transactions { add(.transaction, t.id.uuidString, t, pid: t.portfolioID.uuidString) }
         for a in d.assets { add(.asset, a.id, a) }
         return out
     }
+
+    /// ponytail: one process-wide cache, cleared wholesale past `limit` entries; an LRU if ledgers outgrow it.
+    final class PayloadCache: @unchecked Sendable {
+        private var map: [AnyHashable: (Data, String)] = [:]
+        private let lock = NSLock()
+        let limit = 60_000
+        func get(_ k: AnyHashable) -> (Data, String)? { lock.lock(); defer { lock.unlock() }; return map[k] }
+        func put(_ k: AnyHashable, _ v: (Data, String)) { lock.lock(); defer { lock.unlock() }; if map.count >= limit { map.removeAll(keepingCapacity: true) }; map[k] = v }
+    }
+    static let payloadCache = PayloadCache()
 
     public static func split(_ key: String) -> (SyncKind, String)? {
         guard let dot = key.firstIndex(of: "."), let k = SyncKind(rawValue: String(key[..<dot])) else { return nil }

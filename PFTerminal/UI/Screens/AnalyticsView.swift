@@ -18,13 +18,22 @@ struct AnalyticsView: View {
 
         ScrollView(.vertical) {
             VStack(alignment: .leading, spacing: 18) {
+                // PORTFOLIO PERFORMANCE: what was made, on what, and how the market did (TWR).
                 Columns(Array(repeating: .fr(1), count: 7)) {
                     stat("VALUE", f.money(s.totalValue, 0), Theme.t1, "\(s.positions.count) positions", first: true)
-                    stat("COST BASIS", f.money(s.costBasis, 0), Theme.t1, "\(s.transactionCount) transactions")
-                    stat("UNREALIZED", f.signed(s.unrealized, 0), Theme.signColor(s.unrealized), "realized " + f.signed(s.realized, 0))
-                    stat("RETURN", f.pct(s.returnPct), Theme.signColor(s.returnPct), s.firstDate.map { "since " + DateFmt.ymd($0) } ?? "—")
-                    stat("BEST", byRet.first.map { $0.asset.symbol + " " + f.pct($0.returnPct, 1) } ?? "—", Theme.signColor(byRet.first?.returnPct), f.signed(byRet.first?.unrealized, 0))
-                    stat("WORST", byRet.count > 1 ? byRet.last!.asset.symbol + " " + f.pct(byRet.last!.returnPct, 1) : "—", Theme.signColor(byRet.last?.returnPct), byRet.count > 1 ? f.signed(byRet.last?.unrealized, 0) : "")
+                    stat("NET CONTRIBUTED", f.money(s.netContributed, 0), Theme.t1, "in − out · \(s.transactionCount) tx")
+                    stat("UNREALIZED", f.signed(s.unrealized, 0), Theme.signColor(s.unrealized), f.pct(s.unrealizedReturnPct, 1) + " on open cost")
+                    stat("REALIZED", f.signed(s.realized, 0), Theme.signColor(s.realized), "\(s.closed.count) closed position\(s.closed.count == 1 ? "" : "s")")
+                    stat("TOTAL P&L", f.signed(s.totalPnL, 0), Theme.signColor(s.totalPnL), "realized + unrealized")
+                    stat("TOTAL RETURN", f.pct(s.totalReturnPct, 1), Theme.signColor(s.totalReturnPct), s.isPartial ? "needs every price" : "on \(f.money(s.invested, 0)) invested")
+                    stat("TWR", f.pct(hist.twrPercent, 1), Theme.signColor(hist.twrPercent), hist.twrPercent == nil ? "needs history" : "deposits excluded" + (s.firstDate.map { " · since " + DateFmt.ymd($0) } ?? ""))
+                }
+                .overlay(Rectangle().strokeBorder(Theme.border, lineWidth: 1))
+                .accessibilityIdentifier("performance-stats")
+                Columns(Array(repeating: .fr(1), count: 4)) {
+                    stat("OPEN COST BASIS", f.money(s.costBasis, 0), Theme.t1, "what is still held", first: true)
+                    stat("BEST", byRet.first.map { $0.asset.symbol + " " + f.pct($0.returnPct, 1) } ?? "—", Theme.signColor(byRet.first?.returnPct), f.signed(byRet.first?.unrealized, 0) + " unrealized")
+                    stat("WORST", byRet.count > 1 ? byRet.last!.asset.symbol + " " + f.pct(byRet.last!.returnPct, 1) : "—", Theme.signColor(byRet.last?.returnPct), byRet.count > 1 ? f.signed(byRet.last?.unrealized, 0) + " unrealized" : "")
                     stat("MAX DRAWDOWN", all.count > 1 ? f.num(dd.max * 100, 1) + "%" : "—", Theme.neg, ddDate.map { DateFmt.ymd($0) + " · twr" } ?? "needs history")
                 }
                 .overlay(Rectangle().strokeBorder(Theme.border, lineWidth: 1))

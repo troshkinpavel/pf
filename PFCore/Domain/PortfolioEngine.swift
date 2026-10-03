@@ -8,6 +8,9 @@ public struct Position: Hashable, Sendable {
     public var costBasis: Decimal = 0
     public var realizedPnL: Decimal = 0
     public var transactions: [Transaction] = []
+    /// Gross capital put into this position over its life (buys and transfers in, at cost incl.
+    /// fees). Never reduced by sells: the denominator of total return.
+    public var invested: Decimal = 0
 
     public var averageEntry: Decimal? { quantity > 0 ? costBasis / quantity : nil }
     public var isOpen: Bool { quantity > 0 }
@@ -43,12 +46,10 @@ public enum PortfolioEngine {
     public static func apply(_ t: Transaction, to p: inout Position) {
         p.transactions.append(t)
         switch t.type {
-        case .buy:
+        case .buy, .transferIn:
             p.quantity += t.quantity
             p.costBasis += t.quantity * t.price + t.fee
-        case .transferIn:
-            p.quantity += t.quantity
-            p.costBasis += t.quantity * t.price + t.fee
+            p.invested += t.quantity * t.price + t.fee
         case .sell, .transferOut:
             let q = min(t.quantity, p.quantity)
             guard q > 0 else { return }
@@ -88,6 +89,7 @@ public enum PortfolioEngine {
                 m.quantity += p.quantity
                 m.costBasis += p.costBasis
                 m.realizedPnL += p.realizedPnL
+                m.invested += p.invested
                 m.transactions += p.transactions
                 out[id] = m
             }
@@ -135,20 +137,25 @@ public enum PortfolioEngine {
         _ txs: [Transaction], quotes: [AssetID: Quote], start: Date, now: Date,
         startPrice: (AssetID) -> Decimal?
     ) -> [AssetID: (contribution: Decimal, startValue: Decimal, inflow: Decimal)] {
-        let before = positions(txs, until: start)
-        let after = positions(txs, until: now)
+        // One ordered pass per asset (not one scan of the whole ledger per asset).
         var out: [AssetID: (Decimal, Decimal, Decimal)] = [:]
-        for id in Set(before.keys).union(after.keys) {
+        for (id, list) in Dictionary(grouping: txs, by: \.assetID) {
             guard let q = quotes[id] else { continue }
-            let qStart = before[id]?.quantity ?? 0, qNow = after[id]?.quantity ?? 0
-            if qStart == 0 && qNow == 0 && !txs.contains(where: { $0.assetID == id && $0.timestamp > start && $0.timestamp <= now }) { continue }
-            guard let p0 = qStart > 0 ? startPrice(id) : q.price else { continue }
-            var flow: Decimal = 0, inflow: Decimal = 0
-            for t in txs where t.assetID == id && t.timestamp > start && t.timestamp <= now {
-                let f = externalFlow(t, fallbackPrice: q.price)
-                flow += f
-                if f > 0 { inflow += f }
+            var before = Position(assetID: id), after = Position(assetID: id)
+            var flow: Decimal = 0, inflow: Decimal = 0, traded = false
+            for t in ordered(list) where t.timestamp <= now {
+                if t.timestamp <= start { apply(t, to: &before) }
+                else {
+                    traded = true
+                    let f = externalFlow(t, fallbackPrice: q.price)
+                    flow += f
+                    if f > 0 { inflow += f }
+                }
+                apply(t, to: &after)
             }
+            let qStart = before.quantity, qNow = after.quantity
+            if qStart == 0 && qNow == 0 && !traded { continue }
+            guard let p0 = qStart > 0 ? startPrice(id) : q.price else { continue }
             let startValue = qStart * p0
             out[id] = (qNow * q.price - startValue - flow, startValue, inflow)
         }
@@ -167,9 +174,18 @@ public struct PositionValuation: Identifiable, Hashable, Sendable {
     public var price: Decimal? { quote?.price }
     public var value: Decimal? { price.map { $0 * position.quantity } }
     public var unrealized: Decimal? { value.map { $0 - position.costBasis } }
+    /// Unrealized return of the open position on its current cost basis (what is still held).
     public var returnPct: Double? {
         guard let u = unrealized, position.costBasis > 0 else { return nil }
         return (u / position.costBasis).double * 100
+    }
+    public var unrealizedReturnPct: Double? { returnPct }
+    /// Realized + unrealized over the life of the position.
+    public var totalPnL: Decimal? { unrealized.map { $0 + position.realizedPnL } }
+    /// Total P&L over gross capital invested in the position (includes partial sales).
+    public var totalReturnPct: Double? {
+        guard let t = totalPnL, position.invested > 0 else { return nil }
+        return (t / position.invested).double * 100
     }
     public var change24h: Double? { quote?.change24h }
     /// 24h contribution to portfolio value (set by the summary; accounts for intraday transactions).
@@ -204,12 +220,21 @@ public struct PortfolioSummary: Sendable {
     public var best24: Ranked?, worst24: Ranked?
     public var transactionCount: Int
     public var firstDate: Date?
+    /// Gross capital put in (buys + transfers in, at cost, incl. fees), closed positions included.
+    public var invested: Decimal = 0
+    /// Net external flows: money in (buys, transfers in) minus money out (sells, transfers out).
+    public var netContributed: Decimal = 0
 
     public var isPartial: Bool { !unpriced.isEmpty }
     public var isEmpty: Bool { positions.isEmpty }
     public var totalPnL: Decimal { unrealized + realized }
-    /// Unrealized return on current cost basis.
+    /// Unrealized return on the cost basis of what is still held. Not a total return: it ignores
+    /// realized P&L. Label it "unrealized" wherever it is shown.
     public var returnPct: Double? { costBasis > 0 ? (unrealized / costBasis).double * 100 : nil }
+    public var unrealizedReturnPct: Double? { returnPct }
+    /// Total P&L (realized + unrealized) over gross capital invested — the money-on-money return
+    /// of everything ever bought, so taking profit doesn't change it.
+    public var totalReturnPct: Double? { invested > 0 && !isPartial ? (totalPnL / invested).double * 100 : nil }
 
     public func valuation(_ id: AssetID) -> PositionValuation? { positions.first { $0.asset.id == id } }
 
@@ -271,7 +296,9 @@ extension PortfolioEngine {
             unpriced: vals.filter { $0.value == nil }.map(\.asset.id),
             costBasis: cost, unrealized: total - cost, realized: realized,
             change24h: d24, change24hPct: d24p, transactionCount: transactions.count,
-            firstDate: ordered(transactions).first?.timestamp)
+            firstDate: transactions.lazy.map(\.timestamp).min())
+        s.invested = pos.values.reduce(Decimal(0)) { $0 + $1.invested }
+        s.netContributed = transactions.reduce(Decimal(0)) { $0 + externalFlow($1, fallbackPrice: quotes[$1.assetID]?.price) }
 
         if let d = d24, d != 0,
            let drv = vals.filter({ $0.contribution24h != nil }).max(by: { abs($0.contribution24h!.double) < abs($1.contribution24h!.double) }) {

@@ -123,7 +123,10 @@ extension AppStore {
             (PaletteItem(label: "Go to portfolio", hint: "⌘1", run: { [weak self] in self?.go(.overview) }), "portfolio overview home positions"),
             (PaletteItem(label: "Refresh market data", hint: "⌘R", run: { [weak self] in self?.palette = nil; Task { await self?.refresh(auto: false) } }), "reload prices"),
             (PaletteItem(label: "Export portfolio", hint: ".json", run: { [weak self] in self?.palette = nil; self?.exportBackup() }), "json backup save"),
-            (PaletteItem(label: "Import portfolio", hint: ".json", run: { [weak self] in self?.palette = nil; self?.importBackup() }), "json load restore"),
+            (PaletteItem(label: "Import portfolio (replace)", hint: ".json", run: { [weak self] in self?.palette = nil; self?.importBackup() }), "json load replace"),
+            (PaletteItem(label: "Import into current portfolio", detail: "preview · duplicates detected", hint: ".json", run: { [weak self] in self?.palette = nil; self?.importIntoCurrentPortfolio() }), "json import merge add"),
+            (PaletteItem(label: "Restore a recovery snapshot", detail: "\(snapshotList.count) local snapshots", hint: "restore", run: { [weak self] in self?.palette = nil; self?.openRestore() }), "restore snapshot backup recovery undo"),
+            (PaletteItem(label: "Copy diagnostic report", detail: "no portfolio data", hint: "diag", run: { [weak self] in self?.palette = nil; self?.copyDiagnosticReport() }), "diagnostics debug report support"),
             (PaletteItem(label: "Open settings", hint: "⌘,", run: { [weak self] in self?.go(.settings) }), "preferences config"),
             (PaletteItem(label: "iCloud sync settings", detail: syncStatusLabel, hint: "sync", run: { [weak self] in self?.go(.settings) }), "sync icloud cloud data"),
         ]
@@ -448,6 +451,9 @@ extension AppStore {
     func applyImport() {
         guard let d = pendingImport else { return }
         pendingImport = nil
+        // Replacing the ledger: a verified snapshot of the current one first, or nothing happens.
+        guard safetySnapshot(.beforeImport) else { return }
+        diagnostics.record(.ledger, .info, "import-replace")
         doc = d
         doc.exportedAt = nil
         if var s = d.settings { s.onboarded = true; s.primaryProvider = mockMarket ? "Mock" : (s.primaryProvider == "Mock" ? "CoinGecko" : s.primaryProvider); settings = s }
@@ -473,6 +479,7 @@ extension AppStore {
 
     func trayText(_ f: MenuBarFormat? = nil) -> String {
         let fm = Fmt.current, s = menuBarContext == context ? summary : summary(for: menuBarContext)
+        if locked { return "PF  🔒" }          // no amounts while the app is locked
         guard hasPortfolio, !s.isEmpty else { return "PF  —" }
         let up = (s.change24h ?? 0) >= 0
         switch f ?? settings.menuBar {

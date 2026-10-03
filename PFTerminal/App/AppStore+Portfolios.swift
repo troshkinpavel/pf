@@ -126,17 +126,8 @@ extension AppStore {
         panel.allowedContentTypes = [.json]
         guard panel.runModal() == .OK, let url = panel.url else { return }
         do {
-            let src = try PortfolioDocument.load(Data(contentsOf: url))
-            var next = doc
-            for a in src.assets where !next.assets.contains(where: { $0.id == a.id }) { next.assets.append(a) }
-            next.transactions += src.transactions.map { var t = $0; t.id = UUID(); t.portfolioID = id; return t }
-            if let e = next.validationErrors().first { message = "✗ import rejected · \(e) · nothing changed"; return }
-            doc = next
-            save()
-            cache.invalidateSnapshots(from: .distantPast)
-            recompute()
-            message = "✓ imported \(src.transactions.count) transactions into \(doc.portfolio(id)?.name ?? "")"
-            Task { await refresh(auto: false) }
+            // Classified first (ready / duplicate / review / invalid); nothing is added until confirmed.
+            previewImport(try PortfolioDocument.load(Data(contentsOf: url), ledgerChecks: false), into: id)
         } catch {
             message = "✗ import rejected · \(error) · nothing changed"
         }
@@ -180,6 +171,7 @@ extension AppStore {
         guard let p = doc.portfolio(id) else { return }
         guard manage.confirmDelete == id else { manage.renaming = nil; manage.confirmDelete = id; return }
         manage.confirmDelete = nil
+        guard transactionCount(id) == 0 || safetySnapshot(.beforeDeletePortfolio) else { return }
         do {
             try doc.deletePortfolio(id)
             save()

@@ -7,6 +7,25 @@ struct MenuBarPopover: View {
     @Environment(AppStore.self) private var store
 
     var body: some View {
+        if store.locked { lockedBody } else { content }
+    }
+
+    /// While locked: no portfolio names, values or positions.
+    private var lockedBody: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack { TT("PF · locked", 11, Theme.acc); Spacer() }
+            TT("unlock in the main window to see your portfolio", 12, Theme.t2)
+            HStack {
+                BracketButton("open & unlock", color: Theme.acc) { store.presentMainWindow(); store.unlock() }
+                Spacer()
+                BracketButton("quit", color: Theme.t2) { NSApp.terminate(nil) }
+            }
+        }
+        .padding(14).frame(width: 340)
+        .background(Color(hex: 0x141517))
+    }
+
+    @ViewBuilder private var content: some View {
         let s = store.summary, f = Fmt.current, fr = store.freshness
         VStack(alignment: .leading, spacing: 12) {
             HStack {
@@ -34,8 +53,8 @@ struct MenuBarPopover: View {
                         Spacer(); TT(f.pct(s.change24hPct), 12, Theme.signColor(s.change24h))
                     }
                     HStack {
-                        HStack(spacing: 0) { TT("all time ", 12, Theme.t3); TT(f.signed(s.unrealized, 0), 12, Theme.signColor(s.unrealized)) }
-                        Spacer(); TT(f.pct(s.returnPct, 1), 12, Theme.signColor(s.unrealized))
+                        HStack(spacing: 0) { TT("total p&l ", 12, Theme.t3); TT(f.signed(s.totalPnL, 0), 12, Theme.signColor(s.totalPnL)) }
+                        Spacer(); TT(f.pct(s.totalReturnPct, 1), 12, Theme.signColor(s.totalPnL))
                     }
                 }
                 VStack(spacing: 0) {

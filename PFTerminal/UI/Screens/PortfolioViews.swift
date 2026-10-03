@@ -327,7 +327,7 @@ struct AllPortfoliosPanel: View {
                 Columns(Self.cols) {
                     Color.clear; Color.clear
                     HeadCell("NAME", align: .leading); HeadCell("POS"); HeadCell("VALUE"); HeadCell("24H"); HeadCell("24H $")
-                    HeadCell("PNL"); HeadCell("RETURN"); HeadCell("WEIGHT", align: .leading).padding(.leading, 28)
+                    HeadCell("TOTAL PNL"); HeadCell("TOTAL RET"); HeadCell("WEIGHT", align: .leading).padding(.leading, 28)
                 }
                 .frame(height: 26).padding(.leading, 4).padding(.trailing, 14)
                 .overlay(alignment: .bottom) { Hairline() }
@@ -344,8 +344,8 @@ struct AllPortfoliosPanel: View {
                             Cell(f.money(s.totalValue), Theme.t1)
                             Cell(s.isEmpty ? "—" : f.pct(s.change24hPct), Theme.signColor(s.change24h))
                             Cell(s.isEmpty ? "—" : f.signed(s.change24h, 0), Theme.signColor(s.change24h))
-                            Cell(s.isEmpty ? "—" : f.signed(s.unrealized, 0), Theme.signColor(s.unrealized))
-                            Cell(s.isEmpty ? "—" : f.pct(s.returnPct, 1), Theme.signColor(s.unrealized))
+                            Cell(s.isEmpty ? "—" : f.signed(s.totalPnL, 0), Theme.signColor(s.totalPnL))
+                            Cell(s.isEmpty ? "—" : f.pct(s.totalReturnPct, 1), Theme.signColor(s.totalPnL))
                             AllocationCell(fraction: w, label: f.num(w * 100, 1) + "%").padding(.leading, 28)
                         }
                         .padding(.leading, 4).padding(.trailing, 14)

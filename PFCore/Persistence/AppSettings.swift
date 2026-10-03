@@ -10,7 +10,6 @@ public struct AppSettings: Codable, Equatable, Sendable {
     /// then CoinGecko, then canonical DEX) or a named source. A per-asset choice overrides it.
     public var primaryProvider: String = "Auto"
     public var realtimeProvider: String = "Binance"
-    public var fallbackProvider: String = "DexScreener"
     public var refreshSeconds: Int = 60
     public var currency: String = "USD"
     public var density: String = "compact"
@@ -20,6 +19,8 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public var popoverRows: Int = 4
     public var appLock: Bool = false
     public var alertThreshold: Double = 0          // 0 = off; otherwise |24h %| that triggers a notification
+    /// Notify once when a held stablecoin leaves its peg band (re-arms after it recovers).
+    public var depegAlerts: Bool = false
     public var shareDefaultPrivacy: SharePrivacy = .public
     public var widgetPrivacy: WidgetPrivacyMode = .full
     /// "active" follows the active context, "all" pins the menu bar to ALL PORTFOLIOS.
@@ -32,7 +33,6 @@ public struct AppSettings: Codable, Equatable, Sendable {
     /// Settings format of market routing. 0 = before 0.5 (CoinGecko was the default primary).
     public var routingVersion: Int = 1
     public static let realtimeOptions = ["Binance", "off"]
-    public static let fallbackOptions = ["DexScreener", "CoinGecko", "none"]
     public static let intervalOptions = [15, 30, 60, 300]
     public static let currencyOptions = ["USD", "EUR", "CHF"]
     public static let alertOptions: [Double] = [0, 5, 10]
@@ -61,7 +61,6 @@ public struct AppSettings: Codable, Equatable, Sendable {
         // 0.5 migration: CoinGecko was the old default, so it becomes Auto (exchange feeds first).
         if routingVersion < 1 { if primaryProvider == "CoinGecko" { primaryProvider = "Auto" }; routingVersion = 1 }
         realtimeProvider = (try? c.decode(String.self, forKey: .realtimeProvider)) ?? d.realtimeProvider
-        fallbackProvider = (try? c.decode(String.self, forKey: .fallbackProvider)) ?? d.fallbackProvider
         refreshSeconds = (try? c.decode(Int.self, forKey: .refreshSeconds)) ?? d.refreshSeconds
         currency = (try? c.decode(String.self, forKey: .currency)) ?? d.currency
         density = (try? c.decode(String.self, forKey: .density)) ?? d.density
@@ -71,6 +70,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         popoverRows = (try? c.decode(Int.self, forKey: .popoverRows)) ?? d.popoverRows
         appLock = (try? c.decode(Bool.self, forKey: .appLock)) ?? d.appLock
         alertThreshold = (try? c.decode(Double.self, forKey: .alertThreshold)) ?? d.alertThreshold
+        depegAlerts = (try? c.decode(Bool.self, forKey: .depegAlerts)) ?? d.depegAlerts
         shareDefaultPrivacy = (try? c.decode(SharePrivacy.self, forKey: .shareDefaultPrivacy)) ?? d.shareDefaultPrivacy
         widgetPrivacy = (try? c.decode(WidgetPrivacyMode.self, forKey: .widgetPrivacy)) ?? d.widgetPrivacy
         menuBarContext = (try? c.decode(String.self, forKey: .menuBarContext)) ?? d.menuBarContext

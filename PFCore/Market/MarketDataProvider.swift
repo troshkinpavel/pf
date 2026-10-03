@@ -103,6 +103,15 @@ public actor ProviderRouter {
 
     public func isBlocked(_ name: String) -> Bool { (blockedUntil[name] ?? .distantPast) > now() }
 
+    /// Per-provider backoff, for Settings and the diagnostic report. Only providers that failed.
+    public struct Health: Equatable, Sendable { public let name: String; public let failures: Int; public let blockedUntil: Date? }
+    public func health() -> [Health] {
+        let t = now()
+        return failures.filter { $0.value > 0 }.keys.sorted().map {
+            Health(name: $0, failures: failures[$0] ?? 0, blockedUntil: blockedUntil[$0].flatMap { $0 > t ? $0 : nil })
+        }
+    }
+
     private func recordFailure(_ name: String, _ e: MarketError) {
         let n = (failures[name] ?? 0) + 1
         failures[name] = n

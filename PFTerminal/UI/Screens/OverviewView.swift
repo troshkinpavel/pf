@@ -39,9 +39,10 @@ private struct MetricStrip: View {
                 HStack(spacing: 14) { TT(f.signed(s.change24h) + " today", 12, dc); TT(f.pct(s.change24hPct), 12, dc) }
             }
             cell {
-                CapsLabel("UNREALIZED PNL")
-                TT(f.signed(s.unrealized), 18, Theme.signColor(s.unrealized), weight: .medium)
-                HStack(spacing: 0) { TT(f.pct(s.returnPct) + " ", 12, Theme.signColor(s.unrealized)); TT("all time", 12, Theme.t3) }
+                CapsLabel("TOTAL PNL")
+                TT(f.signed(s.totalPnL), 18, Theme.signColor(s.totalPnL), weight: .medium)
+                HStack(spacing: 0) { TT(f.pct(s.totalReturnPct) + " ", 12, Theme.signColor(s.totalPnL)); TT("total return", 12, Theme.t3) }
+                    .help("realized + unrealized P&L over everything ever invested · unrealized \(f.signed(s.unrealized, 0)) · realized \(f.signed(s.realized, 0))")
             }
             cell {
                 CapsLabel("COST BASIS")
@@ -49,13 +50,21 @@ private struct MetricStrip: View {
                 TT(store.isAll ? "\(store.doc.livePortfolios.count) portfolios · \(s.transactionCount) tx" : "\(s.positions.count) assets · \(s.transactionCount) tx", 12, Theme.t3)
             }
             cell {
-                CapsLabel("24H DRIVER")
-                if let d = s.driver {
-                    HStack(spacing: 8) {
-                        TT(d.valuation.asset.symbol, 18, Theme.t1, weight: .medium)
-                        TT(f.signed(d.valuation.contribution24h, 0), 18, Theme.signColor(d.valuation.contribution24h), weight: .medium)
+                CapsLabel("TODAY · WHAT MOVED")
+                // Flow-adjusted 24h contributions: buying or depositing today is not a gain.
+                let movers = s.positions.filter { ($0.contribution24h ?? 0) != 0 }
+                    .sorted { abs($0.contribution24h!.double) > abs($1.contribution24h!.double) }.prefix(3)
+                if s.change24h != nil, !movers.isEmpty {
+                    VStack(alignment: .leading, spacing: 3) {
+                        ForEach(Array(movers)) { v in
+                            HStack(spacing: 8) {
+                                TT(v.asset.symbol, 12, Theme.t1, weight: .medium).frame(width: 52, alignment: .leading)
+                                TT(f.signed(v.contribution24h, 0), 12, Theme.signColor(v.contribution24h))
+                            }
+                        }
                     }
-                    TT(f.num(d.share, 1) + "% of today's move", 12, Theme.t3)
+                    .accessibilityIdentifier("what-moved")
+                    if let d = s.driver { TT(d.valuation.asset.symbol + " " + f.num(d.share, 0) + "% of the move", 11, Theme.t3) }
                 } else {
                     TT("—", 18, Theme.t3, weight: .medium)
                     TT("needs 24h change for all positions", 11, Theme.t4)
@@ -123,7 +132,7 @@ private struct PositionsPanel: View {
                 Columns(OverviewView.cols) {
                     Color.clear
                     HeadCell("ASSET", align: .leading); HeadCell("PRICE"); HeadCell("24H"); HeadCell("AMOUNT"); HeadCell("VALUE")
-                    HeadCell("AVG ENTRY"); HeadCell("PNL"); HeadCell("RETURN"); HeadCell("ALLOCATION", align: .leading).padding(.leading, 28)
+                    HeadCell("AVG ENTRY"); HeadCell("UNREALIZED"); HeadCell("UNRLZD %"); HeadCell("ALLOCATION", align: .leading).padding(.leading, 28)
                 }
                 .frame(height: 26).padding(.leading, 4).padding(.trailing, 14)
                 .overlay(alignment: .bottom) { Hairline() }
@@ -154,6 +163,13 @@ private struct PositionsPanel: View {
                                 .padding(.leading, 28)
                         }
                         .padding(.leading, 4).padding(.trailing, 14)
+                    }
+                    .contextMenu {
+                        Button("Open \(v.asset.symbol)") { store.openAsset(v.asset.id) }
+                        Button("Add Transaction…") { store.openTx(TxDraft(asset: v.asset.symbol)) }
+                        Divider()
+                        Button("Remove Position…", role: .destructive) { store.requestRemovePosition(v.asset.id) }
+                            .disabled(store.isAll)
                     }
                 }
 

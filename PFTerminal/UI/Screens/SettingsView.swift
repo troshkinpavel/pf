@@ -32,6 +32,7 @@ struct SettingsView: View {
             .padding(.top, 2)
         }
         .scrollIndicators(.never)
+        .onAppear { store.refreshProviderHealth(); store.reloadSnapshots() }
     }
 
     private func column(_ secs: [Section]) -> some View {
@@ -104,7 +105,10 @@ struct SettingsView: View {
                 Row(k: "realtime stream", v: ws, c: wsColor),
                 Row(k: "last update", v: (store.lastSuccess.map(DateFmt.hms) ?? "—") + " · next \(store.nextRefreshIn)s", c: Theme.t2),
                 Row(k: "status", v: store.lastError.map { "\($0)" } ?? store.freshness.label.lowercased(), c: store.lastError == nil ? Theme.t2 : Theme.neg),
-            ]),
+            ] + store.providerHealth.compactMap { h in
+                // Only sources that are backing off right now: the router skips them until then.
+                h.blockedUntil.map { Row(k: "cooldown · " + h.name.lowercased(), v: "retry in \(max(1, Int($0.timeIntervalSince(store.now))))s · \(h.failures) failure\(h.failures == 1 ? "" : "s")", c: Theme.acc) }
+            }),
             Section(title: "MENU BAR", rows: [
                 Row(k: "display", v: s.menuBar.rawValue, action: cycle(MenuBarFormat.allCases, s.menuBar) { store.settings.menuBar = $0 }),
                 Row(k: "portfolio", v: s.menuBarContext == "all" ? "ALL" : "follow active",
@@ -128,7 +132,8 @@ struct SettingsView: View {
                 Row(k: "account", v: "none required", c: Theme.t2),
                 Row(k: "portfolio data", v: store.syncEnabled ? "this Mac + your iCloud" : "stored locally", c: Theme.t2),
                 Row(k: "cloud sync", v: store.syncEnabled ? "iCloud private database" : "off", c: Theme.t2),
-                Row(k: "app lock", v: s.appLock ? "Touch ID on open" : "off", action: { store.settings.appLock.toggle() }),
+                Row(k: "app lock", v: s.appLock ? "on · sleep, screen lock, 5 min away" : "off", action: { store.settings.appLock.toggle() }),
+                Row(k: "while locked", v: "menu bar shows no amounts", c: Theme.t4),
                 Row(k: "share default", v: s.shareDefaultPrivacy.label, action: cycle([SharePrivacy.public, .value], s.shareDefaultPrivacy) {
                     store.settings.shareDefaultPrivacy = $0; store.share.privacy = $0
                 }),
@@ -142,6 +147,13 @@ struct SettingsView: View {
             ]),
             Section(title: "NOTIFICATIONS", rows: [
                 Row(k: "24h move alert", v: s.alertThreshold == 0 ? "off" : "±\(Int(s.alertThreshold))%", action: cycle(AppSettings.alertOptions, s.alertThreshold) { store.settings.alertThreshold = $0 }),
+                Row(k: "stablecoin depeg", v: s.depegAlerts ? "on · once per depeg" : "off", action: { store.settings.depegAlerts.toggle() }),
+            ]),
+            Section(title: "DIAGNOSTICS", rows: [
+                Row(k: "report", v: "[ copy ]", c: Theme.acc, action: { store.copyDiagnosticReport() }),
+                Row(k: "contains", v: "versions · sync · sources · errors", c: Theme.t4),
+                Row(k: "never", v: "names · values · amounts · notes · keys", c: Theme.t4),
+                Row(k: "recent events", v: "\(store.diagnostics.events.count) · " + (store.diagnostics.events.last.map { "\($0.category.rawValue).\($0.code)" } ?? "none"), c: Theme.t2),
             ]),
         ]
     }
@@ -154,7 +166,8 @@ struct SettingsView: View {
             Row(k: "location", v: store.dataDirectoryDisplay, c: Theme.t2),
             Row(k: "contents", v: "\(d.assets.count) assets · \(d.transactions.count) tx · \(Fmt.current.num(kb, 1)) KB", c: Theme.t2),
             Row(k: "export", v: "[ portfolio.json ]", c: Theme.acc, action: { store.exportBackup() }),
-            Row(k: "import", v: "[ .json ]", c: Theme.acc, action: { store.importBackup() }),
+            Row(k: "import (replace)", v: "[ .json ]", c: Theme.acc, action: { store.importBackup() }),
+            Row(k: "import into portfolio", v: "[ .json · preview ]", c: Theme.acc, action: { store.importIntoCurrentPortfolio() }),
         ]
         if d.portfolios.contains(where: \.isDemo) { data.append(Row(k: "demo data", v: "[ remove ]", c: Theme.acc, action: { store.removeDemo() })) }
         let keys: [(String, String)] = [("command palette", "⌘K"), ("add transaction", "⌘N"), ("refresh", "⌘R"), ("portfolio · movers · analytics", "⌘1 ⌘2 ⌘3"),
@@ -176,10 +189,26 @@ struct SettingsView: View {
         sync += [
             Row(k: "syncs", v: "portfolios · transactions", c: Theme.t4),
             Row(k: "never syncs", v: "prices · keys · settings", c: Theme.t4),
-            Row(k: "iPhone", v: "planned", c: Theme.t4),
+            Row(k: "iPhone", v: "in development", c: Theme.t4),
+        ]
+        let health: [Row] = store.dataHealth.map { h in
+            let glyph = h.level == .ok ? "✓" : h.level == .warning ? "!" : "✗"
+            let c = h.level == .ok ? Theme.t2 : h.level == .warning ? Theme.acc : Theme.neg
+            let actionable = h.level != .ok && (h.asset != nil || h.area == .sync || h.area == .recovery)
+            return Row(k: glyph + " " + h.area.rawValue, v: h.text, c: c, action: actionable ? { store.reviewFinding(h) } : nil)
+        }
+        var recovery: [Row] = store.snapshotList.prefix(3).enumerated().map { i, s in
+            Row(k: i == 0 ? "latest snapshot" : "previous", v: DiagnosticReport.age(s.createdAt, now: store.now) + " · \(s.transactions) tx" + (s.isSafety ? " · " + s.reason : ""), c: Theme.t2)
+        }
+        if recovery.isEmpty { recovery.append(Row(k: "snapshots", v: "none yet · taken after ledger changes", c: Theme.t3)) }
+        recovery += [
+            Row(k: "restore", v: "[ choose a snapshot… ]", c: Theme.acc, action: { store.openRestore() }),
+            Row(k: "kept", v: "\(store.snapshotList.count) local · bounded · never synced", c: Theme.t4),
         ]
         return [
             Section(title: "DATA", rows: data),
+            Section(title: "DATA HEALTH", rows: health),
+            Section(title: "DATA RECOVERY", rows: recovery),
             Section(title: "DATA & SYNC", rows: sync),
             Section(title: "SHORTCUTS", rows: keys.map { Row(k: $0.0, v: $0.1, c: Theme.t2) }),
         ]

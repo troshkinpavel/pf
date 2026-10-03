@@ -49,7 +49,7 @@ public enum WidgetSnapshotBuilder {
 
         let positions = s.positions.prefix(maxRows).map { v in
             WidgetPosition(id: v.asset.id, symbol: v.asset.symbol, value: full ? v.value : nil,
-                           allocation: v.allocation, change24h: v.change24h, returnPercent: v.returnPct)
+                           allocation: v.allocation, change24h: v.change24h, returnPercent: v.totalReturnPct)
         }
 
         var perf: [WidgetPerformancePoint] = []

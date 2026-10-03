@@ -130,3 +130,25 @@ extension Asset {
     public var pegCurrency: String? { stablecoinPeg?.currency }
     public var targetPeg: Decimal? { stablecoinPeg?.target }
 }
+
+extension Stablecoins {
+    /// Depeg notification state machine. A coin alerts once when it leaves the ±tolerance band
+    /// and re-arms only after it is back well inside it (half the band), so a price hovering at
+    /// the edge doesn't notify on every refresh. `alerted` is persisted by the host.
+    public static func depegTransitions(_ checks: [AssetID: PegCheck], alerted: inout Set<AssetID>) -> [AssetID] {
+        var fire: [AssetID] = []
+        let rearm = (tolerance * 100 / 2).double
+        for (id, c) in checks.sorted(by: { $0.key < $1.key }) {
+            switch c.status {
+            case .depeg where !alerted.contains(id):
+                alerted.insert(id); fire.append(id)
+            case .normal:
+                if let d = c.deviationPercent, abs(d) <= rearm { alerted.remove(id) }
+            default: break
+            }
+        }
+        // Coins no longer held drop out of the state.
+        alerted.formIntersection(checks.keys)
+        return fire
+    }
+}

@@ -14,7 +14,10 @@ struct PFTerminalApp: App {
         var o = AppStore.Options()
         o.mockMarket = args.contains("--mock-market")
         o.seedDemo = args.contains("--demo")
-        if args.contains("--ui-testing") {
+        // Unit tests run inside this app: the host must not open the user's ledger or sync it.
+        let hostedTests = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+        AppDelegate.isTestHost = hostedTests && !args.contains("--ui-testing")
+        if args.contains("--ui-testing") || hostedTests {
             // Isolated, throwaway state: never touches the user's portfolio or preferences.
             o.inMemory = true
             o.directory = FileManager.default.temporaryDirectory.appendingPathComponent("pf-uitest-\(UUID().uuidString)")
@@ -72,9 +75,11 @@ private struct TrayLabel: View {
 
 final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate {
     @MainActor static var store: AppStore?
+    @MainActor static var isTestHost = false
     private var monitor: Any?
 
     @MainActor func applicationDidFinishLaunching(_ n: Notification) {
+        if AppDelegate.isTestHost { return }   // isolated store, nothing started (no network, no sync)
         AppDelegate.store?.start()
         UNUserNotificationCenter.current().delegate = self
         #if DEBUG
@@ -118,8 +123,12 @@ struct AppCommands: Commands {
         CommandGroup(replacing: .newItem) {
             Button("New Transaction") { show(); store.openTx() }.keyboardShortcut("n")
             Divider()
-            Button("Import Portfolio…") { store.importBackup() }
-            Button("Export Portfolio…") { store.exportBackup() }
+            Button("Import into Current Portfolio…") { show(); store.importIntoCurrentPortfolio() }
+            Button("Import Backup (Replace)…") { show(); store.importBackup() }
+            Button("Export Backup…") { store.exportBackup() }.keyboardShortcut("e", modifiers: [.command, .shift])
+            Divider()
+            Button("Restore Recovery Snapshot…") { show(); store.openRestore() }
+            Button("Copy Diagnostic Report") { store.copyDiagnosticReport() }
         }
         CommandMenu("Go") {
             Button("Portfolio") { show(); store.go(.overview) }.keyboardShortcut("1")
@@ -128,6 +137,7 @@ struct AppCommands: Commands {
             Button("Settings") { show(); store.go(.settings) }.keyboardShortcut("4")
             Divider()
             Button("Command Palette") { show(); store.openPalette() }.keyboardShortcut("k")
+            Button("Switch Portfolio…") { show(); store.openSwitcher() }.keyboardShortcut("p")
             Button("Quick Share") { show(); store.quickShare = true }.keyboardShortcut("s", modifiers: [.command, .shift])
             Button("Refresh Market Data") { Task { await store.refresh(auto: false) } }.keyboardShortcut("r")
         }

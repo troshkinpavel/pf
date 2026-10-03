@@ -132,6 +132,7 @@ struct TransactionSheet: View {
         }
         .frame(width: 580)
         .onAppear { focus = d.asset.isEmpty ? .asset : (d.amount.isEmpty ? .amount : .price) }
+        .onChange(of: "\(d.type.rawValue)|\(d.date)|\(p.asset?.id ?? "")|\(d.price.isEmpty)") { store.loadDraftHistoricalPrice() }
     }
 
     private var prompt: some View { TT(">", 12, Theme.acc) }
@@ -234,7 +235,17 @@ struct LockView: View {
             VStack(spacing: 14) {
                 PFGlyph(size: 28, color: Theme.t3)
                 TT("LOCKED", 12, Theme.t2, tracking: 1.2)
-                BracketButton("unlock with Touch ID", color: Theme.acc) { store.unlock() }
+                if let e = store.lockError {
+                    // Fail closed: without a way to authenticate, the portfolio stays hidden.
+                    TT("can't unlock: \(e)", 11, Theme.neg).multilineTextAlignment(.center).frame(maxWidth: 460)
+                    TT("set a login password or Touch ID in System Settings, then try again", 11, Theme.t3)
+                    HStack(spacing: 18) {
+                        BracketButton("try again", color: Theme.acc) { store.unlock() }
+                        BracketButton("quit", color: Theme.t2) { NSApp.terminate(nil) }
+                    }
+                } else {
+                    BracketButton("unlock with Touch ID", color: Theme.acc) { store.unlock() }
+                }
             }
         }
         .onAppear { store.unlock() }

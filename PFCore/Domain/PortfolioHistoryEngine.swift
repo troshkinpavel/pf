@@ -201,7 +201,7 @@ public enum MoversEngine {
     ) -> [Mover] {
         if range == .all {
             return summary.positions.map { v in
-                Mover(valuation: v, changePct: v.returnPct, impact: v.unrealized.map { $0 + v.position.realizedPnL })
+                Mover(valuation: v, changePct: v.totalReturnPct, impact: v.totalPnL)
             }
         }
         let start = range.start(now: now, firstTransaction: summary.firstDate)
@@ -252,6 +252,9 @@ public struct PortfolioChart: Sendable {
     public var twr: [Double] = []       // time-weighted index, deposits removed
     public var points: [HistoryPoint] = []
     public var isEmpty: Bool { value.count < 2 }
+    /// Time-weighted return over the chart in %: market performance with deposits and
+    /// withdrawals removed. nil without enough history.
+    public var twrPercent: Double? { twr.count > 1 ? (twr[twr.count - 1] / twr[0] - 1) * 100 : nil }
 }
 
 extension PortfolioHistoryEngine {

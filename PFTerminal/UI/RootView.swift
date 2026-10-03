@@ -38,6 +38,8 @@ struct RootView: View {
                 if store.switcher != nil { Scrim(top: 40) { store.switcher = nil } content: { PortfolioSwitcherView() } }
                 if store.newPortfolio != nil { Scrim(top: 40, dismiss: nil) { NewPortfolioView() } }
                 if store.syncSheet != nil { Scrim(top: 40, dismiss: nil) { SyncSheetView() } }
+                if store.restore != nil { Scrim(top: 40, dismiss: nil) { RestoreSheet() } }
+                if store.importPreview != nil { Scrim(top: 40, dismiss: nil) { ImportPreviewSheet() } }
                 if let k = store.apiKeyEntry { Scrim(top: 40) { store.apiKeyEntry = nil } content: { APIKeySheet(initial: k) } }
                 if store.locked { LockView() }
             }
@@ -54,13 +56,21 @@ struct RootView: View {
             Button("Replace", role: .destructive) { store.applyImport() }
             Button("Cancel", role: .cancel) { store.pendingImport = nil }
         } message: { d in
-            Text("The backup contains \(d.portfolios.count) portfolio\(d.portfolios.count == 1 ? "" : "s") and \(d.transactions.count) transactions\(d.portfolios.contains(where: \.isDemo) ? " (demo data)" : ""). All current portfolios (\(store.doc.portfolios.count), \(store.doc.transactions.count) transactions) will be replaced\(store.syncEnabled ? " here and on every device syncing with your iCloud; records that match by id are updated, not duplicated" : ""). Export a backup first if you may need it. To add a backup to one portfolio instead, use NEW PORTFOLIO → import.")
+            Text("A verified recovery snapshot of the current ledger is saved first (Settings → DATA RECOVERY). The backup contains \(d.portfolios.count) portfolio\(d.portfolios.count == 1 ? "" : "s") and \(d.transactions.count) transactions\(d.portfolios.contains(where: \.isDemo) ? " (demo data)" : ""). All current portfolios (\(store.doc.portfolios.count), \(store.doc.transactions.count) transactions) will be replaced\(store.syncEnabled ? " here and on every device syncing with your iCloud; records that match by id are updated, not duplicated" : ""). To add a backup to one portfolio instead, with duplicate detection, use ⌘K → import into current portfolio.")
         }
         .alert("Delete transaction?", isPresented: Binding(get: { store.pendingDelete != nil }, set: { if !$0 { store.pendingDelete = nil } }), presenting: store.pendingDelete) { t in
             Button("Delete", role: .destructive) { store.deleteTx(t) }
             Button("Cancel", role: .cancel) { store.pendingDelete = nil }
         } message: { t in
             Text("\(t.type.short) \(Fmt.current.amount(t.quantity)) \(store.asset(t.assetID)?.symbol ?? "") on \(DateFmt.ymd(t.timestamp)). Holdings, P&L and history will be recalculated.")
+        }
+        .alert("Remove position?", isPresented: Binding(get: { store.pendingRemovePosition != nil }, set: { if !$0 { store.pendingRemovePosition = nil } }),
+               presenting: store.pendingRemovePosition) { r in
+            Button("Remove", role: .destructive) { store.removePosition(r.asset, from: r.portfolio) }
+            Button("Cancel", role: .cancel) { store.pendingRemovePosition = nil }
+        } message: { r in
+            let n = store.doc.transactions.filter { $0.assetID == r.asset && $0.portfolioID == r.portfolio }.count
+            Text("Deletes all \(n) \(store.asset(r.asset)?.symbol ?? "") transaction\(n == 1 ? "" : "s") in \(store.doc.portfolio(r.portfolio)?.name ?? "this portfolio"). Other portfolios keep theirs. A recovery snapshot is saved first, so this can be undone in Settings → DATA RECOVERY.")
         }
         .onAppear {
             if store.hasPortfolio { store.loadHistory(store.assetsHeld(during: store.overviewRange), store.overviewRange) }

@@ -40,7 +40,7 @@ final class AppStore {
     var hasPortfolio = false
     /// Active portfolio context (a portfolio or ALL). Persisted; all calculations are scoped by it.
     var context: PortfolioContext = .all   // change via setContext(_:)
-    @ObservationIgnored private var heldAnywhere: Set<AssetID> = []
+    @ObservationIgnored var heldAnywhere: Set<AssetID> = []
     var settings: AppSettings { didSet { settingsChanged(oldValue) } }
     var share: ShareConfig { didSet { persistShare() } }
 
@@ -61,6 +61,7 @@ final class AppStore {
     var streamState: LiveFeed.State = .off      // Binance
     var bybitState: LiveFeed.State = .off
     @ObservationIgnored var lastFullRefresh: Date = .distantPast
+    @ObservationIgnored var tickRecomputeTask: Task<Void, Never>?
     var asleep = false
     var popoverOpen = false
     var series: [String: PriceSeries] = [:]         // "assetID|range"
@@ -98,6 +99,20 @@ final class AppStore {
     var pendingImport: PortfolioDocument?
     var pendingDelete: Transaction?
     var locked = false
+    /// Why unlocking can't work right now (no Touch ID / password policy). The app stays locked.
+    var lockError: String?
+    @ObservationIgnored var unlocking = false
+    @ObservationIgnored var inactiveSince: Date?
+    // recovery + diagnostics (see AppStore+Integrity)
+    @ObservationIgnored let snapshots: SnapshotStore
+    @ObservationIgnored let diagnostics: DiagnosticLog
+    @ObservationIgnored var snapshotTask: Task<Void, Never>?
+    var snapshotList: [SnapshotInfo] = []
+    var restore: RestoreState?
+    var importPreview: ImportPreviewState?
+    var pendingRemovePosition: (asset: AssetID, portfolio: UUID)?
+    var providerHealth: [ProviderRouter.Health] = []
+    @ObservationIgnored var historyCache: (key: String, chart: PortfolioChart)?
     var apiKeyEntry: String?
     /// Set when data from the previous app identity exists but could not be read automatically.
     var legacyDataUnreadable = false
@@ -121,6 +136,8 @@ final class AppStore {
     @ObservationIgnored var syncApplying = false
     @ObservationIgnored var lastSyncAttempt: Date = .distantPast
     @ObservationIgnored var syncRemote: SyncRemoteStore?
+    /// CloudKit environment of `syncRemote`; nil for injected (test) stores.
+    @ObservationIgnored var syncRemoteEnvironment: String?
     // lifecycle + updates (see AppStore+Lifecycle)
     var updateState: UpdateState = .idle
     @ObservationIgnored var updateChecker: UpdateChecking = GitHubReleaseChecker()
@@ -148,6 +165,8 @@ final class AppStore {
             migration = LegacyMigration.live(newDir: dir, defaults: o.defaults).run()
         }
         files = PortfolioStore(directory: dir)
+        snapshots = SnapshotStore(directory: dir)
+        diagnostics = DiagnosticLog(directory: dir)
         cache = MarketCache(directory: dir, inMemory: o.inMemory)
         defaults = o.defaults
         var s = AppSettings.load(o.defaults)
@@ -179,7 +198,9 @@ final class AppStore {
         context = doc.validContext(o.defaults.string(forKey: Self.contextKey).flatMap(PortfolioContext.init(storageKey:)))
         loadSyncState()
         syncRemote = o.syncRemote ?? Self.makeSyncRemote()
+        if o.syncRemote == nil, syncRemote != nil { syncRemoteEnvironment = Self.cloudEnvironment }
         quotes = cache.quotes(currency: s.currency).filter { k, _ in doc.assets.contains { $0.id == k } }
+        snapshotList = snapshots.list()
         recompute()
     }
 
@@ -212,10 +233,13 @@ final class AppStore {
         timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.tick() }
         }
-        if settings.alertThreshold > 0 { Notifier.requestAuthorization() }
+        if settings.alertThreshold > 0 || settings.depegAlerts { Notifier.requestAuthorization() }
         Task { await refresh(auto: true) }
         connectStream()
         if settings.appLock { locked = true }
+        startLockObservers()
+        diagnostics.record(.app, .info, "launch")
+        rollingSnapshotNow()        // first snapshot after an upgrade, or after edits made by another version
         startSync()
     }
 
@@ -273,6 +297,10 @@ final class AppStore {
         inFlight = false
         for (k, q) in r.quotes { quotes[k] = q }
         if !r.quotes.isEmpty { cache.saveQuotes(r.quotes, currency: settings.currency) }
+        for (name, e) in r.errors.sorted(by: { $0.key < $1.key }) {
+            diagnostics.record(.market, .warning, "provider-failed", error: e, source: MarketSource(rawValue: name))
+        }
+        if !r.errors.isEmpty || !providerHealth.isEmpty { refreshProviderHealth() }
         if r.quotes.isEmpty {
             consecutiveFailures += 1
             lastError = r.errors.values.first ?? .unavailable(0)
@@ -297,6 +325,7 @@ final class AppStore {
         recompute()
         recordSnapshot()
         checkAlert()
+        checkDepeg()
         connectStream()
     }
 
@@ -364,15 +393,21 @@ final class AppStore {
         _ = dataVersion
         let c = c ?? context
         let summary = c == context ? self.summary : summary(for: c)
+        // Views ask for this on every render; reconstruction only reruns when data, the live total
+        // or the minute changes.
+        let key = "\(c.storageKey)|\(range.rawValue)|\(points)|\(dataVersion)|\(summary.totalValue)|\(summary.isPartial)|\(Int(Date().timeIntervalSince1970 / 60))"
+        if let h = historyCache, h.key == key { return h.chart }
         let txs = doc.transactions(c)
         var s: [AssetID: PriceSeries] = [:]
         for id in assetsHeld(during: range, in: c) {
             if let x = assetSeries(id, range) ?? assetSeries(id, .all) { s[id] = x }
             else if let peg = pegCheck(id), peg.status != .depeg { s[id] = Stablecoins.flatSeries(peg.peg) }
         }
-        return PortfolioHistoryEngine.chart(transactions: txs, summary: summary, range: range, points: points, series: s, now: Date()) {
+        let chart = PortfolioHistoryEngine.chart(transactions: txs, summary: summary, range: range, points: points, series: s, now: Date()) {
             self.cache.snapshots(since: $0, context: c.storageKey)
         }
+        historyCache = (key, chart)
+        return chart
     }
 
     // MARK: - derived
@@ -435,8 +470,12 @@ final class AppStore {
 
     func save() {
         do { try files.save(doc); hasPortfolio = true }
-        catch { message = "✗ could not save portfolio · \(error.localizedDescription)" }
+        catch {
+            message = "✗ could not save portfolio · \(error.localizedDescription)"
+            diagnostics.record(.ledger, .error, "save-failed", error: error)
+        }
         scheduleSync()
+        scheduleRollingSnapshot()
     }
 
     func createEmpty() {
@@ -485,7 +524,7 @@ final class AppStore {
 
     func go(_ s: Screen) {
         screen = s
-        palette = nil; tx = nil; quickShare = false; switcher = nil; newPortfolio = nil; syncSheet = nil
+        palette = nil; tx = nil; quickShare = false; switcher = nil; newPortfolio = nil; syncSheet = nil; restore = nil; importPreview = nil
         manage.renaming = nil; manage.confirmDelete = nil
         if s == .overview { loadHistory(assetsHeld(during: overviewRange), overviewRange) }
     }
@@ -507,6 +546,8 @@ final class AppStore {
     }
 
     func back() {
+        if restore != nil { restore = nil; return }
+        if importPreview != nil { importPreview = nil; return }
         if syncSheet != nil { syncSheet = nil; return }
         if sourcePicker != nil { sourcePicker = nil; return }
         if switcher != nil { switcher = nil; return }
@@ -534,7 +575,7 @@ final class AppStore {
     private func settingsChanged(_ old: AppSettings) {
         settings.save(defaults)
         Fmt.current = Fmt(style: settings.numbers, currency: settings.currency)
-        if old.primaryProvider != settings.primaryProvider || old.fallbackProvider != settings.fallbackProvider {
+        if old.primaryProvider != settings.primaryProvider {
             let wasMock = mockMarket
             mockMarket = settings.primaryProvider == "Mock"
             if wasMock != mockMarket { quotes = [:]; series = [:]; recompute(); connectStream() }
@@ -551,6 +592,8 @@ final class AppStore {
         }
         if old.realtimeProvider != settings.realtimeProvider { connectStream() }
         if old.alertThreshold == 0 && settings.alertThreshold > 0 { Notifier.requestAuthorization() }
+        if !old.depegAlerts && settings.depegAlerts { Notifier.requestAuthorization(); checkDepeg() }
+        if old.appLock != settings.appLock { appLockToggled() }
         if old.numbers != settings.numbers { recompute() }
         if old.widgetPrivacy != settings.widgetPrivacy { writeWidgetSnapshot() }
         if old.keepInDock != settings.keepInDock { keepInDockChanged() }   // privacy applies immediately
@@ -578,7 +621,4 @@ final class AppStore {
         if let d = try? JSONEncoder().encode(share.safeForReuse) { defaults.set(d, forKey: "pf.share.v1") }
     }
 
-    func unlock() {
-        Task { if await AppLock.authenticate() { locked = false } }
-    }
 }

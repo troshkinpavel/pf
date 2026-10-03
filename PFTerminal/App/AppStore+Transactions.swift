@@ -97,6 +97,35 @@ extension AppStore {
         }
     }
 
+    /// A backdated BUY/SELL with a blank price needs that day's price, never today's: from cached
+    /// history first, else one history request. If none is found the user enters it.
+    func loadDraftHistoricalPrice() {
+        guard let d = tx, d.price.trimmingCharacters(in: .whitespaces).isEmpty, d.type == .buy || d.type == .sell,
+              let a = resolveAsset(d.asset, searchResults: d.searchResults), let day = DateFmt.parseYMD(d.date),
+              DateFmt.ymd(day) != DateFmt.ymd(Date()), day < Date() else { return }
+        let key = TxDraft.historicalKey(a.id, d.date)
+        guard d.historicalKey != key else { return }   // loaded, loading, or not found for this day
+        let at = day.addingTimeInterval(12 * 3600)
+        let range: ChartRange = Date().timeIntervalSince(day) < 360 * 86400 ? .y1 : .all
+        func lookup(_ s: PriceSeries?) -> Decimal? { s?.price(at: at, tolerance: 2 * 86400).map(Decimal.of) }
+        if let p = lookup(series[seriesKey(a.id, range)]) ?? lookup(series[seriesKey(a.id, .all)]) {
+            tx?.historicalPrice = p; tx?.historicalKey = key; tx?.loadingHistorical = false
+            return
+        }
+        tx?.historicalPrice = nil; tx?.historicalKey = key; tx?.loadingHistorical = true
+        let cur = settings.currency, asset = routed(a)
+        Task {
+            let pts = (try? await router.history(for: asset, range: range, currency: cur)) ?? []
+            if !pts.isEmpty, doc.assets.contains(where: { $0.id == a.id }) {
+                cache.saveHistory(a.id, range, cur, pts)
+                series[seriesKey(a.id, range)] = PriceSeries(pts)
+            }
+            guard tx?.historicalKey == key else { return }   // the draft moved on
+            tx?.historicalPrice = lookup(PriceSeries(pts))
+            tx?.loadingHistorical = false
+        }
+    }
+
     func preview(_ d: TxDraft) -> TxPreview {
         TransactionPlanner.preview(d, doc: doc, quotes: valuationQuotes, currency: settings.currency,
                                    resolve: { resolveAsset($0, searchResults: $1) })

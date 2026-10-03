@@ -107,6 +107,12 @@ public struct SyncState: Codable, Equatable, Sendable {
     /// Set when the local document was found replaced; the next fetch is a full one and merges
     /// iCloud's records back (`adoptCloud`: the local document was empty). Cleared after it.
     public var recovering: Recovery?
+    /// CloudKit environment ("Production" / "Development") this state was built against. nil:
+    /// written by 0.4–0.5 release builds, i.e. Production. A build signed for another
+    /// environment must not sync with this state (its tokens and change tags mean nothing there).
+    public var environment: String?
+    public static let assumedEnvironment = "Production"
+    public func matches(environment env: String) -> Bool { (environment ?? Self.assumedEnvironment) == env }
     public enum Recovery: String, Codable, Sendable { case merge, adoptCloud }
 
     public init() {}

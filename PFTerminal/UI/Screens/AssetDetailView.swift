@@ -52,10 +52,12 @@ struct AssetDetailView: View {
                                 KV(k: "cost basis", v: f.money(v.position.costBasis))
                                 KV(k: "current value", v: f.money(v.value))
                                 KV(k: "unrealized pnl", v: f.signed(v.unrealized), c: Theme.signColor(v.unrealized))
-                                KV(k: "return", v: f.pct(v.returnPct), c: Theme.signColor(v.returnPct))
+                                KV(k: "unrealized return", v: f.pct(v.returnPct), c: Theme.signColor(v.returnPct))
                                 if v.position.realizedPnL != 0 {
                                     KV(k: "realized pnl", v: f.signed(v.position.realizedPnL), c: Theme.signColor(v.position.realizedPnL))
                                 }
+                                KV(k: "total pnl", v: f.signed(v.totalPnL), c: Theme.signColor(v.totalPnL))
+                                KV(k: "total return", v: f.pct(v.totalReturnPct), c: Theme.signColor(v.totalReturnPct))
                                 KV(k: "portfolio weight", v: v.allocation.map { f.num($0, 1) + "%" } ?? "—", c: Theme.t2)
                             }
                         }
@@ -207,6 +209,11 @@ struct AssetDetailView: View {
                     .contextMenu {
                         Button("Edit…") { store.editTx(t) }
                         Button("Delete…", role: .destructive) { store.requestDelete(t) }
+                    }
+                    if let n = t.note?.trimmingCharacters(in: .whitespacesAndNewlines), !n.isEmpty {
+                        TT("↳ " + n, 11, Theme.t3).lineLimit(2)
+                            .frame(maxWidth: .infinity, alignment: .leading).padding(.leading, 26).padding(.trailing, 14).padding(.bottom, 4)
+                            .accessibilityIdentifier("tx-note")
                     }
                 }
                 HStack(spacing: 0) {

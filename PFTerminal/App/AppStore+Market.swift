@@ -73,8 +73,21 @@ extension AppStore {
             quotes[a.id] = q
             changed = true
         }
-        if changed { recompute(historyChanged: false) }
+        if changed { scheduleTickRecompute() }
     }
+
+    /// Live feeds can tick many times a second across assets; portfolio maths runs at most every
+    /// `tickRecomputeInterval` (a 10k-transaction ALL summary costs tens of milliseconds).
+    func scheduleTickRecompute() {
+        guard tickRecomputeTask == nil else { return }
+        tickRecomputeTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64(Self.tickRecomputeInterval * 1_000_000_000))
+            guard let self else { return }
+            self.tickRecomputeTask = nil
+            self.recompute(historyChanged: false)
+        }
+    }
+    static let tickRecomputeInterval: TimeInterval = 0.5
 
     /// Where this asset's price comes from, for the UI.
     func sourceState(_ id: AssetID) -> SourceState? {

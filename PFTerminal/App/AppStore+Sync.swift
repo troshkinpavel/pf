@@ -50,13 +50,16 @@ extension AppStore {
         return services.contains("CloudKit") && containers.contains(id)
     }
 
-    #if DEBUG
-    /// CloudKit environment this binary is signed for ("Development"/"Production"), for diagnostics.
+    /// CloudKit environment this binary is signed for ("Development"/"Production").
     static var cloudEnvironment: String {
         guard let task = SecTaskCreateFromSelf(nil) else { return "unknown" }
         return SecTaskCopyValueForEntitlement(task, "com.apple.developer.icloud-container-environment" as CFString, nil) as? String ?? "none"
     }
-    #endif
+
+    /// A Debug build (CloudKit Development) shares the release app's container, and so its sync
+    /// state (Production). Syncing that state against the other environment would mix tokens and
+    /// change tags; such a build leaves sync paused instead. Injected test stores always match.
+    var syncEnvironmentMatches: Bool { syncRemoteEnvironment.map { syncState.matches(environment: $0) } ?? true }
 
     static func makeSyncRemote() -> SyncRemoteStore? {
         guard Self.hasCloudEntitlement, let id = Self.cloudContainerID else { return nil }
@@ -107,6 +110,11 @@ extension AppStore {
     func syncNow(reason: SyncTrigger) {
         guard syncEnabled, syncTask == nil else { return }
         guard let remote = syncRemote else { syncStatus = .iCloudUnavailable; return }
+        guard syncEnvironmentMatches else {
+            syncStatus = .error("paused · sync state belongs to CloudKit \(syncState.environment ?? SyncState.assumedEnvironment)")
+            diagnostics.record(.sync, .warning, "environment-mismatch")
+            return
+        }
         lastSyncAttempt = Date()
         syncStatus = .syncing
         syncTask = Task { [weak self] in
@@ -114,6 +122,7 @@ extension AppStore {
             do {
                 let recovering = SyncEngine.isReplaced(SyncEngine.localObjects(self.doc), self.syncState) || self.syncState.recovering != nil
                 try await SyncEngine.cycle(self, remote: remote)
+                self.diagnostics.record(.sync, .info, recovering ? "pass-recovered" : "pass-ok")
                 if recovering { self.message = "✓ portfolios restored from iCloud · \(self.doc.livePortfolios.count) portfolios · \(self.doc.transactions.count) transactions" }
                 self.syncStatus = self.syncState.conflicts.isEmpty ? .synced : .conflict(self.syncState.conflicts.count)
             } catch {
@@ -126,6 +135,7 @@ extension AppStore {
     }
 
     private func syncFailed(_ error: Error) {
+        diagnostics.record(.sync, error is CancellationError ? .info : .warning, error is CancellationError ? "pass-cancelled" : "pass-failed", error: error)
         // Sync was turned off (or the pass superseded) mid-pass: nothing was written, nothing failed.
         if error is CancellationError { syncStatus = syncEnabled ? .offline : .localOnly; return }
         let (status, turnsOff) = SyncStatus.after(error)
@@ -165,10 +175,8 @@ extension AppStore {
     func confirmEnableSync(_ choice: SyncEngine.Choice) {
         guard let remote = syncRemote, syncTask == nil else { return }
         if choice == .useCloud {
-            // This Mac's ledger is replaced: keep a copy next to it first.
-            let name = "portfolio.before-icloud-\(Int(Date().timeIntervalSince1970)).json"
-            do { try doc.encoded().write(to: files.directory.appendingPathComponent(name), options: .atomic) }
-            catch { syncSheet = .unavailable("could not back up this Mac's portfolios first · nothing was changed"); return }
+            // This Mac's ledger is replaced: a verified recovery snapshot first (Settings → DATA RECOVERY).
+            guard safetySnapshot(.beforeICloud) else { syncSheet = .unavailable("could not back up this Mac's portfolios first · nothing was changed"); return }
         }
         syncSheet = .working(choice == .useCloud ? "downloading from iCloud…" : "syncing with iCloud…")
         syncStatus = .syncing
@@ -177,11 +185,13 @@ extension AppStore {
         syncTask = Task {
             do {
                 try await SyncEngine.enable(self, remote: remote, choice: choice, deviceName: name)
+                syncState.environment = syncRemoteEnvironment
                 syncStatus = syncState.conflicts.isEmpty ? .synced : .conflict(syncState.conflicts.count)
                 syncSheet = syncState.conflicts.isEmpty ? nil : .conflicts
                 message = "✓ iCloud sync on · \(doc.portfolios.count) portfolios · \(doc.transactions.count) transactions"
             } catch {
                 if syncEnabled {
+                    syncState.environment = syncRemoteEnvironment
                     // Turned on, but the first sync didn't finish: changes stay queued and retry.
                     syncFailed(error)
                     syncSheet = nil

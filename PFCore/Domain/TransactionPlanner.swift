@@ -23,6 +23,13 @@ public struct TxDraft: Equatable {
     public var candidateQuotes: [AssetID: Quote] = [:]
     public var pick = 0                 // chosen search result (↑↓ in the sheet)
     public var searching = false
+    /// Close price on a past date, loaded by the host for a backdated BUY/SELL with a blank
+    /// price. Used only while `historicalKey` matches the draft's asset and date.
+    public var historicalPrice: Decimal?
+    public var historicalKey: String?
+    public var loadingHistorical = false
+
+    public static func historicalKey(_ asset: AssetID, _ ymd: String) -> String { asset + "|" + ymd }
 }
 
 /// The validated result of a draft: what would be written, and what changes. Nothing is saved
@@ -70,12 +77,49 @@ public enum TransactionPlanner {
         let amount = NumberInput.parse(d.amount, style: f.style)
         let marketPrice = a.flatMap { quotes[$0.id]?.price ?? d.candidateQuotes[$0.id]?.price }
         let rawPrice = d.price.trimmingCharacters(in: .whitespaces)
-        let price: Decimal? = rawPrice.isEmpty ? marketPrice : (rawPrice == "0" ? 0 : NumberInput.parse(d.price, style: f.style))
         let fee: Decimal? = d.fee.trimmingCharacters(in: .whitespaces).isEmpty || d.fee == "0" ? 0 : NumberInput.parse(d.fee, style: f.style)
         let date = DateFmt.parseYMD(d.date)
-        guard let a, let amount, let price else { return p }
+        let backdated = date.map { DateFmt.ymd($0) != DateFmt.ymd(now) } ?? false
+        // A blank price is filled only from a price for the right moment, and always said so:
+        // never today's price for a past date, never a market price as a transfer's cost basis.
+        var auto: (price: Decimal, note: String)?
+        var link: Transaction?
+        if rawPrice.isEmpty, let a {
+            switch d.type {
+            case .buy, .sell:
+                if !backdated {
+                    if let m = marketPrice { auto = (m, "market now") }
+                } else if d.historicalKey == TxDraft.historicalKey(a.id, d.date), let h = d.historicalPrice {
+                    auto = (h, "close \(d.date)")
+                } else {
+                    p.pricePlaceholder = d.loadingHistorical ? "loading \(d.date) price…" : "no price for \(d.date) · enter price"
+                }
+            case .transferIn:
+                if let amount, let date, let pid = d.portfolioID,
+                   let (out, avg) = linkedTransferOut(a.id, quantity: amount, date: date, into: pid, doc: doc, excluding: d.editing) {
+                    link = out
+                    auto = (avg, "avg entry of the transfer out from \(doc.portfolio(out.portfolioID)?.name ?? "another portfolio")")
+                } else {
+                    p.pricePlaceholder = "cost per unit · 0 = no cost basis"
+                }
+            case .transferOut:
+                auto = (0, "")   // cost leaves at the average entry; the price is not used for the cost basis
+            }
+            if let auto, d.type == .transferIn { p.pricePlaceholder = "linked " + f.priceDigits(auto.price.double) }
+            else if let auto, backdated, d.type != .transferOut { p.pricePlaceholder = "\(d.date) close " + f.priceDigits(auto.price.double) }
+        }
+        let price: Decimal? = rawPrice.isEmpty ? auto?.price : (rawPrice == "0" ? 0 : NumberInput.parse(d.price, style: f.style))
+        guard let a, let amount else { return p }
         guard let pid = d.portfolioID, let dest = doc.portfolio(pid), !dest.isArchived else {
             p.rows = [.init(k: "error", v: "choose a portfolio", tone: .negative)]; return p
+        }
+        guard let price else {
+            let why: String
+            switch d.type {
+            case .transferIn: why = "enter cost per unit (0 = no cost basis)"
+            default: why = rawPrice.isEmpty ? (backdated ? (d.loadingHistorical ? "loading the \(d.date) price…" : "no price found for \(d.date) · enter it") : "no market price · enter price") : "invalid price"
+            }
+            p.rows = [.init(k: "error", v: why, tone: .negative)]; return p
         }
         p.line = "\(d.type.short) \(f.amount(amount)) \(a.symbol) @ \(f.price(price))"
         guard let fee else { p.rows = [.init(k: "error", v: "invalid fee", tone: .negative)]; return p }
@@ -123,11 +167,32 @@ public enum TransactionPlanner {
         case .transferOut:
             p.rows = [.init(k: "position", v: pos, tone: .secondary), .init(k: "cost basis removed", v: f.money(before.costBasis - after.costBasis), tone: .primary)]
         }
+        if let auto, rawPrice.isEmpty, !auto.note.isEmpty {
+            p.rows.insert(.init(k: d.type == .transferIn ? "cost/unit" : "price", v: f.price(price) + " · auto · " + auto.note, tone: .accent), at: 0)
+        }
+        if link != nil { p.rows.insert(.init(k: "linked", v: "matches a transfer out · same amount", tone: .secondary), at: 0) }
         p.rows.insert(.init(k: "portfolio", v: dest.glyph + " " + dest.name, tone: .secondary), at: 0)
         if d.editing != nil { p.rows.insert(.init(k: "edit", v: "replaces the original transaction", tone: .accent), at: 0) }
         p.ok = true
         p.tx = t
         return p
+    }
+}
+
+extension TransactionPlanner {
+    /// A TRANSFER OUT of the same asset and amount from another portfolio within two days: the
+    /// other half of a move between portfolios. Its cost basis carries over at the source's
+    /// average entry at that moment.
+    public static func linkedTransferOut(_ asset: AssetID, quantity: Decimal, date: Date, into pid: UUID,
+                                         doc: PortfolioDocument, excluding: UUID? = nil) -> (Transaction, Decimal)? {
+        let out = doc.transactions.filter {
+            $0.type == .transferOut && $0.assetID == asset && $0.quantity == quantity && $0.portfolioID != pid && $0.id != excluding
+                && abs($0.timestamp.timeIntervalSince(date)) <= 2 * 86400
+        }.min { abs($0.timestamp.timeIntervalSince(date)) < abs($1.timestamp.timeIntervalSince(date)) }
+        guard let out else { return nil }
+        let before = doc.transactions.filter { $0.portfolioID == out.portfolioID && $0.id != out.id && $0.timestamp <= out.timestamp }
+        guard let avg = PortfolioEngine.positions(before)[asset]?.averageEntry else { return nil }
+        return (out, avg)
     }
 }
 
