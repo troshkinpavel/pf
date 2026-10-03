@@ -130,12 +130,12 @@ struct SummaryTests {
         let a = Dictionary(uniqueKeysWithValues: MockMarketDataProvider.assets.map { ($0.id, $0) })
         let s = PortfolioEngine.summarize(transactions: DemoPortfolio.transactions(), assets: a, quotes: q)
         let f = Fmt()
-        #expect(f.money(s.totalValue) == "$48,286.22")
-        #expect(f.signed(s.unrealized) == "+$15,977.52")
-        #expect(f.money(s.costBasis) == "$32,308.71")
-        #expect(s.driver?.valuation.asset.symbol == "TEL")
-        #expect(f.num(s.driver!.share, 1) == "72.4")
-        #expect(f.pct(s.change24hPct) == "+3.51%")
+        #expect(f.money(s.totalValue) == "$48,147.77")
+        #expect(f.signed(s.unrealized) == "+$10,696.22")
+        #expect(f.money(s.costBasis) == "$37,451.56")
+        #expect(s.driver?.valuation.asset.symbol == "SOL")
+        #expect(f.num(s.driver!.share, 1) == "60.0")
+        #expect(f.pct(s.change24hPct) == "+2.40%")
     }
 }
 

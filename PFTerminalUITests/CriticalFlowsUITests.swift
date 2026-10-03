@@ -26,15 +26,15 @@ final class CriticalFlowsUITests: XCTestCase {
         input.click()
         // Paste instead of typing: synthesized letter keys depend on the host's input layout.
         NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString("buy tel 500000 @ .001805", forType: .string)
+        NSPasteboard.general.setString("buy sol 3 @ 150", forType: .string)
         app.menuBars.menuBarItems["Edit"].click()
         app.menuItems["Paste"].click()
         input.typeKey(.return, modifierFlags: [])
         // A preview opens; nothing is committed until confirmed.
-        XCTAssertTrue(app.staticTexts["BUY 500,000 TEL @ $0.001805"].waitForExistence(timeout: 3))
-        XCTAssertTrue(app.staticTexts["3,435,000 → 3,935,000 TEL"].exists)
+        XCTAssertTrue(app.staticTexts["BUY 3 SOL @ $150.00"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["97 → 100 SOL"].exists)
         app.buttons["[ confirm transaction ↵ ]"].click()
-        XCTAssertTrue(app.staticTexts["3,935,000 TEL"].waitForExistence(timeout: 3), "asset detail shows the new holding")
+        XCTAssertTrue(app.staticTexts["100 SOL"].waitForExistence(timeout: 3), "asset detail shows the new holding")
     }
 
     func testQuickShareFromMenu() {
@@ -60,8 +60,8 @@ final class CriticalFlowsUITests: XCTestCase {
         func el(_ text: String) -> XCUIElement {
             app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@ OR value CONTAINS %@", text, text)).firstMatch
         }
-        el("pick fields").click()
-        for f in ["[ ] portfolio name", "[ ] asset allocation", "[ ] average entries", "[ ] position values"] {
+        el("custom").click()
+        for f in ["portfolio name", "allocation", "positions · entries"] {
             let t = el(f)
             if t.waitForExistence(timeout: 2) { t.click() }
         }

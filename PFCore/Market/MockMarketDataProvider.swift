@@ -18,17 +18,17 @@ public struct MockMarketDataProvider: MarketDataProvider {
     public static let specs: [String: Spec] = [
         "bitcoin": .init(price: 91420, supply: 19.93e6, ath: 126_080, vol: 38.2e9, ch: [.h1: 0.12, .h24: 2.41, .d7: -0.84, .d30: 5.62, .y1: 38.9], noise: 1),
         "telcoin-2": .init(price: 0.00431, supply: 91.4e9, ath: 0.0636, vol: 14.8e6, ch: [.h1: 0.64, .h24: 8.72, .d7: 18.21, .d30: 41.3, .y1: 62.4], noise: 1.6),
+        "solana": .init(price: 151.2, supply: 540e6, ath: 293, vol: 3.1e9, ch: [.h1: 0.31, .h24: 4.85, .d7: 9.6, .d30: 14.2, .y1: 21.8], noise: 1.3),
         "zcash": .init(price: 182.4, supply: 16.3e6, ath: 5941.8, vol: 612e6, ch: [.h1: -0.21, .h24: -1.32, .d7: -6.4, .d30: 12.8, .y1: 84.2], noise: 1.3),
         "ethereum": .init(price: 3840, supply: 120.7e6, ath: 4953, vol: 21.4e9, ch: [.h1: 0.08, .h24: 1.87, .d7: 3.1, .d30: -2.2, .y1: 44.1], noise: 1.1),
         // Watchlist demo (0.7): not held, priced for the watch screens.
-        // Not SOL: tests rely on the mock market having no SOL price.
         "avalanche-2": .init(price: 28.6, supply: 407e6, ath: 146, vol: 520e6, ch: [.h1: 0.2, .h24: -2.1, .d7: -6.3, .d30: 4.4, .y1: 9.8], noise: 1.2),
         "chainlink": .init(price: 13.42, supply: 678e6, ath: 52.7, vol: 410e6, ch: [.h1: -0.1, .h24: -3.4, .d7: -9.8, .d30: -12.6, .y1: 18.2], noise: 1.2),
         "render-token": .init(price: 4.12, supply: 518e6, ath: 13.5, vol: 96e6, ch: [.h1: 0.3, .h24: 1.2, .d7: 4.7, .d30: -8.4, .y1: -31.0], noise: 1.4),
         "helium": .init(price: 3.06, supply: 180e6, ath: 55.2, vol: 11e6, ch: [.h1: 0.0, .h24: 0.6, .d7: -2.2, .d30: 7.1, .y1: -12.4], noise: 1.3),
     ]
 
-    public static let assets: [Asset] = ["bitcoin", "telcoin-2", "zcash", "ethereum"].compactMap { id in AssetCatalog.known.first { $0.coingeckoID == id } }
+    public static let assets: [Asset] = ["bitcoin", "solana", "zcash", "ethereum"].compactMap { id in AssetCatalog.known.first { $0.coingeckoID == id } }
 
     public func supports(_ asset: Asset) -> Bool { asset.coingeckoID.map { Self.specs[$0] != nil } ?? false }
 
@@ -81,9 +81,9 @@ public enum DemoPortfolio {
     public static func transactions(portfolio: UUID = Transaction.unassigned) -> [Transaction] {
         let rows: [(String, Double, Double, String)] = [
             ("bitcoin", 0.12, 58400, "2024-09-06"), ("ethereum", 1.2, 3020, "2025-02-01"),
-            ("telcoin", 1_200_000, 0.00241, "2025-11-04"), ("zcash", 30, 128.5, "2025-12-19"),
-            ("bitcoin", 0.0813, 77740, "2026-01-22"), ("telcoin", 1_735_000, 0.00151, "2026-02-18"),
-            ("zcash", 14.52, 195.03, "2026-04-07"), ("telcoin", 500_000, 0.00175, "2026-06-09"),
+            ("solana", 40, 98.5, "2025-11-04"), ("zcash", 30, 128.5, "2025-12-19"),
+            ("bitcoin", 0.0813, 77740, "2026-01-22"), ("solana", 35, 142.3, "2026-02-18"),
+            ("zcash", 14.52, 195.03, "2026-04-07"), ("solana", 22, 118.6, "2026-06-09"),
             ("ethereum", 0.612, 3730, "2026-07-15"),
         ]
         return rows.map { cg, q, p, d in

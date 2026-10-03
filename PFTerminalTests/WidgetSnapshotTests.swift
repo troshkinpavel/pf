@@ -19,10 +19,10 @@ struct WidgetSnapshotTests {
 
     @Test func fullSnapshotCarriesPrototypeFigures() async throws {
         let s = try await make(.full)
-        #expect(s.fmt.money(s.portfolioValue) == "$48,286.22")
-        #expect(s.fmt.pct(s.dailyChangePercent) == "+3.51%")
-        #expect(s.gainers.first?.symbol == "TEL")
-        #expect(s.impact.first?.id == "cg:telcoin")          // canonical ids, not tickers
+        #expect(s.fmt.money(s.portfolioValue) == "$48,147.77")
+        #expect(s.fmt.pct(s.dailyChangePercent) == "+2.40%")
+        #expect(s.gainers.first?.symbol == "SOL")
+        #expect(s.impact.first?.id == "cg:solana")          // canonical ids, not tickers
         #expect(s.positions.first?.symbol == "BTC")
         #expect(s.performance.count == WidgetSnapshotBuilder.chartPoints)
         #expect(s.performance.allSatisfy { (0...1).contains($0.normalizedValue) })

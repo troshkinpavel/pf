@@ -375,3 +375,48 @@ struct BenchmarkTests {
         #expect(Benchmark.Range.m6.start(now: t0, firstTransaction: nil) == t0.addingTimeInterval(-182 * 86400))
     }
 }
+
+
+struct ShareCardTests {
+    private let r = Attribution.Result(start: t0.addingTimeInterval(-7 * 86400), end: t0, startValue: 10_000, endValue: 11_000,
+        assets: [Attribution.Asset(id: tel.id, contribution: 800, priceChange: 9, weightStart: 40, weightEnd: 45, flow: 0, bought: false, sold: false, realized: 0),
+                 Attribution.Asset(id: btc.id, contribution: -200, priceChange: -3, weightStart: 60, weightEnd: 55, flow: 0, bought: false, sold: false, realized: 0)],
+        moneyIn: 400, moneyOut: 0, buys: 1, sells: 0, realized: 0, missing: [])
+
+    private func changes(_ c: ShareConfig) -> ShareCardModel {
+        ShareCardBuilder.buildChanges(config: c, period: .d7, result: r, twr: 6.0, symbol: { $0 == tel.id ? "TEL" : "BTC" }, now: t0, fmt: Fmt(style: .comma, currency: "USD"), contextName: "MAIN")
+    }
+
+    @Test func publicChangesCardHasNoDollarsOrName() {
+        var c = ShareConfig(); c.card = .changes
+        let m = changes(c)
+        #expect(!m.allText.joined().contains("$") && !m.allText.joined().contains("MAIN"), "pp and % only")
+        #expect(m.bars?.map(\.value) == ["+8.0pp", "−2.0pp"] && m.pct?.contains("6.0") == true && c.level == .safe)
+        #expect(m.note == "1 trade excluded from performance")
+        c.privacy = .value
+        let v = changes(c)
+        #expect(v.value != nil && v.bars?.first?.extra.contains("$") == true && c.level == .semi, "value visible adds total and $ impact")
+    }
+
+    @Test func customNeverCarriesOtherCardsFields() {
+        var c = ShareConfig(); c.card = .benchmark; c.privacy = .custom; c.custom = [.pct, .posv, .avg, .contrib]
+        #expect(c.fields == [.pct] && c.level == .safe)
+    }
+
+    @Test func benchmarkCardHeadlineAndRows() {
+        var c = ShareConfig(); c.card = .benchmark; c.benchVs = "ETH"
+        let b = Benchmark.Result(range: .y1, start: t0, portfolio: .init(returnPct: 20, path: [], missing: nil),
+                                 btc: .init(returnPct: 30, path: [], missing: nil), eth: .init(returnPct: 10, path: [], missing: nil))
+        let m = ShareCardBuilder.buildBenchmark(config: c, result: b, value: 5000, now: t0, fmt: Fmt(style: .comma, currency: "USD"))
+        #expect(m.pct == "+10.0pp" && m.sub?.hasPrefix("vs ETH") == true && m.bars?.count == 3 && m.value == nil)
+        #expect(!m.allText.joined().contains("$"))
+    }
+
+    @Test func settingsSavedBefore07StillDecode() throws {
+        let old = #"{"period":"7D","privacy":"value","custom":["pct"],"moverCount":4,"moverType":"impact","format":"landscape","theme":"phosphor","brand":false}"#
+        let c = try JSONDecoder().decode(ShareConfig.self, from: Data(old.utf8))
+        #expect(c.period == .d7 && c.privacy == .value && c.format == .landscape && !c.brand && c.card == .performance)
+        let back = try JSONDecoder().decode(ShareConfig.self, from: JSONEncoder().encode(c))
+        #expect(back == c)
+    }
+}

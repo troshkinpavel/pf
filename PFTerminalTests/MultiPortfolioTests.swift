@@ -314,7 +314,7 @@ struct TransactionPricePrefillTests {
 
     @Test func noMarketPriceKeepsFieldEmptyAndSaysSo() async throws {
         let s = await store()
-        s.openTx(TxDraft(asset: "SOL", amount: "1"))                    // the mock market has no SOL
+        s.openTx(TxDraft(asset: "DOT", amount: "1"))                    // the mock market has no DOT
         await s.searchTask?.value
         let p = s.preview(try #require(s.tx))
         #expect(p.pricePlaceholder == "no market price · enter price")

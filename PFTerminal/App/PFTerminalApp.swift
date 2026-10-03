@@ -30,6 +30,7 @@ struct PFTerminalApp: App {
         #if DEBUG
         // `--theme light|midnight|graphite|system`: snapshots and manual checks of each theme.
         if let i = args.firstIndex(of: "--theme"), i + 1 < args.count, let t = AppTheme(rawValue: args[i + 1]) { s.settings.theme = t }
+        if let i = args.firstIndex(of: "--density"), i + 1 < args.count { s.settings.density = args[i + 1] }
         #endif
         _store = State(initialValue: s)
         AppDelegate.store = s
@@ -88,6 +89,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         UNUserNotificationCenter.current().delegate = self
         #if DEBUG
         if let s = AppDelegate.store { DebugSnapshots.runIfRequested(s) }
+        // `--intel-demo`: sample watchlist, alerts and scenarios (use with --ui-testing --demo).
+        if let s = AppDelegate.store, ProcessInfo.processInfo.arguments.contains("--intel-demo") {
+            // After the first prices: scenario targets are built from them.
+            Task {
+                for _ in 0..<50 where s.summary.positions.contains(where: { $0.price == nil }) || s.quotes.isEmpty {
+                    try? await Task.sleep(nanoseconds: 200_000_000)
+                }
+                DebugSnapshots.seedIntelDemo(s)
+            }
+        }
         CloudKitSelfTest.runIfRequested()
         CloudKitSelfTest.listZoneIfRequested()
         SyncE2E.runIfRequested()

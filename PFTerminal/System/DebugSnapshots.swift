@@ -20,17 +20,17 @@ enum DebugSnapshots {
                 NSApp.activate(ignoringOtherApps: true)            // key window: coloured traffic lights
                 store.mainWindow?.makeKeyAndOrderFront(nil)
             }
-            let tel = "cg:telcoin"
+            let tel = "cg:solana"   // the demo's third asset (was TEL)
             let baseSteps: [(String, () -> Void)] = [
                 ("03-overview", { store.go(.overview) }),
                 ("03b-overview-pnl-1y", { store.overviewMode = .pnl; store.setOverviewRange(.y1) }),
                 ("04-asset", { store.overviewMode = .value; store.setOverviewRange(.w1); store.openAsset(store.doc.assets.contains { $0.id == tel } ? tel : store.summary.positions.first?.asset.id ?? tel) }),
                 ("05-target", { if let v = store.summary.positions.first { store.openTarget(v.asset.id) } }),
                 ("05b-target-typed", { store.openTarget(tel, ""); type("25x", into: store.mainWindow) }),
-                ("06-add-transaction", { store.go(.overview); store.openTx(TxDraft(asset: "TEL", amount: "500000", price: "0.001805")) }),
+                ("06-add-transaction", { store.go(.overview); store.openTx(TxDraft(asset: "SOL", amount: "3", price: "150")) }),
                 ("07-palette", { store.tx = nil; store.openPalette() }),
-                ("07b-palette-buy", { store.openPalette("buy tel 500000 @ .001805") }),
-                ("07c-palette-typed", { store.openPalette(); type("buy tel 5", into: store.mainWindow) }),
+                ("07b-palette-buy", { store.openPalette("buy sol 3 @ 150") }),
+                ("07c-palette-typed", { store.openPalette(); type("buy sol 5", into: store.mainWindow) }),
                 ("08-movers", { store.go(.movers) }),
                 ("09-analytics", { store.go(.analytics) }),
                 ("10-settings", { store.go(.settings) }),
@@ -67,7 +67,7 @@ enum DebugSnapshots {
                     ("43b-watch-add", { store.openWatchAdd("LINK") }),
                     ("43c-convert", { store.watchDraft = nil; if let w = store.watchRows.first?.item { store.convertWatch(w) } }),
                     ("44-alerts", { store.tx = nil; store.go(.alerts) }),
-                    ("44b-alert-setup", { store.openAlertSetup(subject: .asset(tel)); store.alertSetup?.line = "alert tel above 0.005" }),
+                    ("44b-alert-setup", { store.openAlertSetup(subject: .asset(tel)); store.alertSetup?.line = "alert sol above 160" }),
                     ("44c-alert-review", { store.advanceAlertSetup() }),
                     ("44d-alert-empty-cmd", { store.alertSetup = AlertSetup() }),
                     ("45-scenarios", { store.alertSetup = nil; store.go(.scenarios) }),
@@ -78,11 +78,14 @@ enum DebugSnapshots {
                     ("49-keys", { store.leaderActive = false; store.keysOverlay = true }),
                     ("50-overview", { store.keysOverlay = false; store.go(.overview) }),
                     ("51-asset", { store.openAsset(tel) }),
-                    ("52-palette-symbol", { store.openPalette("tel") }),
-                    ("53-palette-alert", { store.openPalette("alert tel above .005") }),
+                    ("52-palette-symbol", { store.openPalette("sol") }),
+                    ("53-palette-alert", { store.openPalette("alert sol above 160") }),
                     ("54-palette-watch", { store.openPalette("watch sol 135 210") }),
                     ("55-empty-watch", { store.palette = nil; store.updateIntel { $0 = IntelDocument() }; store.go(.watch) }),
                     ("55b-empty-alerts", { store.go(.alerts) }),
+                    ("56-share-changes", { store.share.card = .changes; store.share.period = .d7; store.go(.share); store.prepareShare() }),
+                    ("56b-share-bench", { store.share.card = .benchmark; store.share.benchRange = "1Y"; store.prepareShare() }),
+                    ("56c-share-perf", { store.share.card = .performance; store.share.period = .h24 }),
                     ("55c-empty-scenarios", { store.go(.scenarios) }),
                 ]
             }
@@ -107,6 +110,34 @@ enum DebugSnapshots {
                 capture(store.mainWindow, to: dir.appendingPathComponent(name + ".png"))
             }
             store.quickShare = false
+            // 0.7 effects, full size, and a mid-animation frame.
+            for e in ShareEffect.allCases {
+                var c = store.share; c.card = .performance; c.effect = e; c.format = .square; c.theme = .terminal
+                if let d = ShareRenderer.png(store.shareModel(c)) { emit("card07-effect-\(e.rawValue)", d) }
+            }
+            for t in [0.22, 0.6, 1.12, 1.5, 2.62, 2.9] {
+                var c = store.share; c.card = .performance; c.period = .h24; c.effect = .glitch
+                let r = ImageRenderer(content: ShareCardView(m: store.shareModel(c), progress: ShareCardView.motionProgress(at: t), time: t)); r.scale = 0.5
+                if let cg = r.cgImage, let d = NSBitmapImageRep(cgImage: cg).representation(using: .png, properties: [:]) { emit("glitch-\(Int(t * 100))", d) }
+            }
+            for st in ShareMotionStyle.allCases {
+                for (card, fx) in [(ShareCardKind.performance, ShareEffect.glow), (.changes, .none)] {
+                    for pr in [0.25, 0.55, 0.78] {
+                        var c = store.share; c.card = card; c.period = card == .changes ? .d7 : .h24; c.effect = fx; c.motionStyle = st
+                        let r = ImageRenderer(content: ShareCardView(m: store.shareModel(c), progress: pr)); r.scale = 0.5
+                        if let cg = r.cgImage, let d = NSBitmapImageRep(cgImage: cg).representation(using: .png, properties: [:]) {
+                            emit("motion-\(st.rawValue)-\(card.rawValue)-\(Int(pr * 100))", d)
+                        }
+                    }
+                }
+            }
+            // 0.7 cards, full size.
+            for k in [ShareCardKind.changes, .benchmark] {
+                var c = store.share; c.card = k; c.period = .d7; c.format = .square; c.theme = .terminal
+                if let d = ShareRenderer.png(store.shareModel(c)) { emit("card07-\(k.rawValue)", d) }
+                c.format = .landscape
+                if let d = ShareRenderer.png(store.shareModel(c)) { emit("card07-\(k.rawValue)-landscape", d) }
+            }
             for f in ShareFormat.mac {
                 for t in ShareTheme.allCases {
                     var c = store.share
@@ -184,8 +215,8 @@ enum DebugSnapshots {
                 if fired { a.state = .fired; a.firedAt = now.addingTimeInterval(-3600 * 3); a.unseen = true }
                 d.alerts.append(a)
             }
-            if let tel = held.first(where: { $0.symbol == "TEL" }) {
-                rule(.priceAbove, .asset(tel.id), 0.004, fired: true)
+            if let tel = held.first(where: { $0.symbol == "SOL" }) {
+                rule(.priceAbove, .asset(tel.id), 140, fired: true)
                 rule(.weightAbove, .asset(tel.id), 35, .cross)
             }
             rule(.drawdown, .portfolio(store.context.storageKey), 20, .cross)
@@ -194,7 +225,7 @@ enum DebugSnapshots {
             if let btc = held.first(where: { $0.symbol == "BTC" }) { rule(.priceBelow, .asset(btc.id), 80_000) }
             rule(.valueAbove, .portfolio(store.context.storageKey), 60_000)
             if let avax = reg("AVAX") { rule(.priceAbove, .asset(avax.id), 34, paused: true) }
-            d.alertLog = [AlertEvent(at: now.addingTimeInterval(-3600 * 3), rule: d.alerts[0].id, number: 1, message: "TEL price ≥ $0.0040", delivery: "banner · unseen")]
+            d.alertLog = [AlertEvent(at: now.addingTimeInterval(-3600 * 3), rule: d.alerts[0].id, number: 1, message: "SOL price ≥ $140.00", delivery: "banner · unseen")]
             let prices = Dictionary(uniqueKeysWithValues: store.summary.positions.compactMap { v in v.price.map { (v.asset.id, $0) } })
             Scenarios.createPresets(in: &d, prices: prices, now: now)
             for (key, mult) in [("c", 1.3), ("b", 2.5), ("u", 6.0)] {

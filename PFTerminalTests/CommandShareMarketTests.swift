@@ -68,13 +68,13 @@ struct SharePrivacyTests {
         #expect(m.alloc == nil)
         #expect(m.movers!.allSatisfy { $0.extra.isEmpty })
         #expect(!m.allText.contains { $0.contains("$") }, "no currency amount may reach the bitmap")
-        #expect(m.pct == "▲ +3.51%")
+        #expect(m.pct == "▲ +2.40%")
     }
 
     @Test func valueVisibleAddsOnlyTotal() async throws {
         var c = ShareConfig(); c.privacy = .value
         let m = try await model(c)
-        #expect(m.value == "$48,286.22")
+        #expect(m.value == "$48,147.77")
         #expect(m.pnl == nil)
         #expect(m.movers!.allSatisfy { $0.extra.isEmpty })
         #expect(c.level == .semi)
@@ -191,7 +191,7 @@ struct BackupTests {
                                     assets: MockMarketDataProvider.assets, transactions: DemoPortfolio.transactions(portfolio: main))
         let back = try PortfolioDocument.load(try doc.encoded())
         #expect(back.transactions == doc.transactions)
-        #expect(String(data: try doc.encoded(), encoding: .utf8)!.contains("\"0.00241\""))
+        #expect(String(data: try doc.encoded(), encoding: .utf8)!.contains("\"195.03\""))
     }
 
     @Test func rejectsInvalidBackups() {

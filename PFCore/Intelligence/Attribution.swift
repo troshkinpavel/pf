@@ -33,6 +33,10 @@ public enum Attribution {
     }
 
     public struct Asset: Equatable, Sendable {
+        public init(id: AssetID, contribution: Decimal, priceChange: Double?, weightStart: Double, weightEnd: Double, flow: Decimal, bought: Bool, sold: Bool, realized: Decimal) {
+            self.id = id; self.contribution = contribution; self.priceChange = priceChange; self.weightStart = weightStart; self.weightEnd = weightEnd
+            self.flow = flow; self.bought = bought; self.sold = sold; self.realized = realized
+        }
         public let id: AssetID
         public let contribution: Decimal
         public let priceChange: Double?
@@ -46,6 +50,10 @@ public enum Attribution {
     }
 
     public struct Result: Equatable, Sendable {
+        public init(start: Date, end: Date, startValue: Decimal, endValue: Decimal, assets: [Asset], moneyIn: Decimal, moneyOut: Decimal, buys: Int, sells: Int, realized: Decimal, missing: [AssetID]) {
+            self.start = start; self.end = end; self.startValue = startValue; self.endValue = endValue; self.assets = assets
+            self.moneyIn = moneyIn; self.moneyOut = moneyOut; self.buys = buys; self.sells = sells; self.realized = realized; self.missing = missing
+        }
         public let start: Date
         public let end: Date
         public let startValue: Decimal

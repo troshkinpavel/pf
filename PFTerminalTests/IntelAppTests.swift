@@ -1,4 +1,7 @@
 import PFCore
+import PFCoreUI
+import AVFoundation
+import ImageIO
 import Foundation
 import Testing
 @testable import PFTerminal
@@ -84,7 +87,7 @@ struct IntelAppTests {
         for k in ["keep in Dock when closed", "preferred source", "live feeds", "refresh interval", "currency", "coingecko api key",
                   "display", "portfolio", "popover rows", "theme", "density", "charts", "number format", "app lock", "share default",
                   "show portfolio value", "report", "icloud sync", "export", "import (replace)", "import into portfolio", "restore",
-                  "dark variant", "day starts", "launch at login", "notification", "menu bar badge", "sound", "quiet hours"] {
+                  "dark variant", "day starts", "launch at login", "notification", "menu bar popover", "sound", "quiet hours"] {
             #expect(keys.contains(k), "missing setting: \(k)")
         }
         // Merged duplicates: storage / cloud sync live once.
@@ -167,12 +170,9 @@ struct IntelAppTests {
         #expect(r.kind == .priceAbove && r.threshold == 85000 && s.alertSetup == nil)
         // Price is 90 000: armed then fired by the evaluation that follows arming.
         #expect(s.intel.alerts[0].state == .fired && s.intel.alerts[0].unseen && s.intel.alertLog.count == 1)
-        #expect(s.trayText().contains("⚑1"), "menu bar badge until seen")
-        s.settings.alertBadge = false
-        #expect(!s.trayText().contains("⚑"))
-        s.settings.alertBadge = true
+        #expect(!s.trayText().contains("⚑") && s.unseenAlerts == 1, "the title never carries a count; the popover shows the alert")
         s.go(.alerts)
-        #expect(s.unseenAlerts == 0 && !s.trayText().contains("⚑"))
+        #expect(s.unseenAlerts == 0)
         s.evaluateAlerts()
         #expect(s.intel.alertLog.count == 1, "once: no second fire while the condition holds")
         s.rearm(r.id); s.evaluateAlerts()
@@ -272,5 +272,34 @@ struct IntelAppTests {
         let s = try JSONDecoder().decode(AppSettings.self, from: Data(old.utf8))
         #expect(s.refreshSeconds == 120 && s.currency == "EUR" && s.alertThreshold == 5)
         #expect(s.darkVariant == .dark && s.dayStartHour == 0 && s.alertBanner && s.alertBadge && !s.alertSound && s.quietHours == "off")
+    }
+
+    // MARK: share motion (design §16)
+
+    @Test func animatedCardExportsMP4AndGIF() async throws {
+        let s = store()
+        var c = s.share; c.effect = .crt; c.motion = .animated
+        let m = s.shareModel(c)
+        let mp4 = try await ShareMotionExporter.export(m, format: .mp4)
+        let asset = AVURLAsset(url: mp4)
+        let d = try await asset.load(.duration).seconds
+        #expect(abs(d - 3) < 0.15, "3 s")
+        let track = try #require(try await asset.loadTracks(withMediaType: .video).first)
+        #expect(try await track.load(.naturalSize) == CGSize(width: 1080, height: 1080))
+        let gif = try await ShareMotionExporter.export(m, format: .gif)
+        let src = try #require(CGImageSourceCreateWithURL(gif as CFURL, nil))
+        #expect(CGImageSourceGetCount(src) == 45, "15 fps × 3 s")
+        let props = CGImageSourceCopyPropertiesAtIndex(src, 0, nil) as? [CFString: Any]
+        #expect(props?[kCGImagePropertyPixelWidth] as? Int == 540, "gif at half size")
+    }
+
+    @Test func countUpKeepsEachNumberFormat() {
+        #expect(ShareCardView.countUp("▲ +3.51%", 0.5) == "▲ +1.76%")
+        #expect(ShareCardView.countUp("$48,286.22", 0.5) == "$24,143.11")
+        #expect(ShareCardView.countUp("$48,286", 0.5) == "$24,143")
+        #expect(ShareCardView.countUp("−56.9pp", 0) == "−0.0pp")
+        #expect(ShareCardView.countUp("$0.004", 0.5) == "$0.002")
+        #expect(ShareCardView.countUp("1.234,56 €", 0.5) == "617,28 €")
+        #expect(ShareCardView.countUp("$48,286.22", 1) == "$48,286.22" && ShareCardView.countUp("today", 0.3) == "today")
     }
 }

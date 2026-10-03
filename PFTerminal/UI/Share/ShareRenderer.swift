@@ -53,6 +53,11 @@ enum ShareRenderer {
         guard let data = png(m) else { return }
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("pf-portfolio-card.png")
         guard (try? data.write(to: url, options: .atomic)) != nil else { return }
+        presentPicker(url: url, from: view, chosen: chosen)
+    }
+
+    /// Any rendered file (png, mp4, gif) through the macOS share picker.
+    static func presentPicker(url: URL, from view: NSView, chosen: @escaping (String) -> Void) {
         let picker = NSSharingServicePicker(items: [url])
         let d = PickerDelegate(chosen)
         pickerDelegate = d

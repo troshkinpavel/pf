@@ -7,18 +7,43 @@ public enum SharePrivacy: String, Codable, CaseIterable, Sendable {
 
 public enum ShareField: String, Codable, CaseIterable, Sendable {
     case name, value, pct, pnl, chart, movers, alloc, posv, avg
+    /// 0.7 cards: contributions in pp of the portfolio, the flows note, allocation drift, $ impact.
+    case contrib, flows, drift, impact
 
     public var label: String {
         switch self {
         case .name: "portfolio name"; case .value: "portfolio value"; case .pct: "percentage change"; case .pnl: "absolute P&L"
         case .chart: "performance chart"; case .movers: "top movers"; case .alloc: "asset allocation"
         case .posv: "position values"; case .avg: "average entries"
+        case .contrib: "contributors"; case .flows: "flows note"; case .drift: "allocation drift"; case .impact: "$ impact"
         }
     }
     /// Reveals holdings-level data.
     public var isSensitive: Bool { [.pnl, .posv, .avg].contains(self) }
     /// Reveals portfolio size or composition but not holdings.
-    public var isSemiSensitive: Bool { [.value, .alloc, .name].contains(self) }
+    public var isSemiSensitive: Bool { [.value, .alloc, .name, .drift, .impact].contains(self) }
+}
+
+/// Which card (design §16): the 0.6 performance card, what changed, vs benchmark.
+public enum ShareCardKind: String, Codable, CaseIterable, Sendable {
+    case performance, changes, benchmark
+    public var label: String { switch self { case .performance: "performance"; case .changes: "what changed"; case .benchmark: "vs benchmark" } }
+    /// Content options this card offers.
+    public var options: [ShareField] {
+        switch self {
+        case .performance: [.name, .value, .pct, .pnl, .chart, .movers, .alloc, .posv, .avg]
+        case .changes: [.pct, .contrib, .flows, .drift, .name, .value, .impact]
+        case .benchmark: [.pct, .name, .value]
+        }
+    }
+    /// What "public" shows: percentages and pp only.
+    public var publicFields: Set<ShareField> {
+        switch self { case .performance: [.pct, .chart, .movers]; case .changes: [.pct, .contrib, .flows]; case .benchmark: [.pct] }
+    }
+    /// "value visible" adds the total value (and $ impact on what changed).
+    public var valueFields: Set<ShareField> {
+        switch self { case .performance: [.value, .pct, .chart, .movers]; case .changes: [.value, .pct, .contrib, .flows, .impact]; case .benchmark: [.value, .pct] }
+    }
 }
 
 public enum ShareFormat: String, Codable, CaseIterable, Sendable {
@@ -37,7 +62,28 @@ public enum ShareTheme: String, Codable, CaseIterable, Sendable { case terminal,
 
 public enum MoverType: String, Codable, CaseIterable, Sendable { case gainers, impact }
 
+/// Card surface effect (design §16). Drawn over the card; never changes its content.
+public enum ShareEffect: String, Codable, CaseIterable, Sendable { case none, scanlines, glow, dither, glitch, crt }
+/// Still PNG, or a 3 s animation (chart draws in, bars grow) exported as MP4 or GIF.
+public enum ShareMotion: String, Codable, CaseIterable, Sendable { case still, animated }
+public enum ShareMotionFormat: String, Codable, CaseIterable, Sendable { case mp4, gif }
+/// How an animated card builds up: numbers count up and rows slide in · terminal typing ·
+/// a CRT scan line revealing the card.
+public enum ShareMotionStyle: String, Codable, CaseIterable, Sendable {
+    case countUp, typewriter, scan
+    public var label: String { switch self { case .countUp: "count up"; case .typewriter: "typewriter"; case .scan: "scan" } }
+}
+
 public struct ShareConfig: Codable, Equatable, Sendable {
+    /// 0.7: card kind and the benchmark card's range and headline benchmark.
+    public var card: ShareCardKind = .performance
+    public var benchRange: String = "1Y"
+    public var benchVs: String = "BTC"
+    public var effect: ShareEffect = .none
+    public var motion: ShareMotion = .still
+    public var motionFormat: ShareMotionFormat = .mp4
+    public var motionStyle: ShareMotionStyle = .countUp
+
     public init(period: ChartRange = .h24, privacy: SharePrivacy = .public, custom: Set<ShareField> = [.pct, .chart, .movers], moverCount: Int = 3, moverType: MoverType = .gainers, format: ShareFormat = .square, theme: ShareTheme = .terminal, brand: Bool = true, source: String? = nil) { self.period = period; self.privacy = privacy; self.custom = custom; self.moverCount = moverCount; self.moverType = moverType; self.format = format; self.theme = theme; self.brand = brand; self.source = source }
     public static let periods: [ChartRange] = [.h24, .d7, .d30, .ytd, .all]
 
@@ -52,13 +98,38 @@ public struct ShareConfig: Codable, Equatable, Sendable {
     /// Portfolio to render: a portfolio UUID string or "all"; nil follows the active context.
     public var source: String?
 
-    /// Fields permitted by the privacy level. Sensitive fields exist only in `custom`, opt-in.
+    /// Fields permitted by the privacy level, for this card. Sensitive fields exist only in
+    /// `custom`, opt-in; a custom set never carries fields the card doesn't offer.
     public var fields: Set<ShareField> {
         switch privacy {
-        case .public: [.pct, .chart, .movers]
-        case .value: [.value, .pct, .chart, .movers]
-        case .custom: custom
+        case .public: card.publicFields
+        case .value: card.valueFields
+        case .custom: custom.intersection(card.options)
         }
+    }
+
+    enum CodingKeys: String, CodingKey { case period, privacy, custom, moverCount, moverType, format, theme, brand, source, card, benchRange, benchVs, effect, motion, motionFormat, motionStyle }
+
+    /// Tolerant: settings saved before a field existed keep everything else.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        let d = ShareConfig()
+        period = (try? c.decode(ChartRange.self, forKey: .period)) ?? d.period
+        privacy = (try? c.decode(SharePrivacy.self, forKey: .privacy)) ?? d.privacy
+        custom = (try? c.decode(Set<ShareField>.self, forKey: .custom)) ?? d.custom
+        moverCount = (try? c.decode(Int.self, forKey: .moverCount)) ?? d.moverCount
+        moverType = (try? c.decode(MoverType.self, forKey: .moverType)) ?? d.moverType
+        format = (try? c.decode(ShareFormat.self, forKey: .format)) ?? d.format
+        theme = (try? c.decode(ShareTheme.self, forKey: .theme)) ?? d.theme
+        brand = (try? c.decode(Bool.self, forKey: .brand)) ?? d.brand
+        source = try? c.decode(String.self, forKey: .source)
+        card = (try? c.decode(ShareCardKind.self, forKey: .card)) ?? d.card
+        benchRange = (try? c.decode(String.self, forKey: .benchRange)) ?? d.benchRange
+        benchVs = (try? c.decode(String.self, forKey: .benchVs)) ?? d.benchVs
+        effect = (try? c.decode(ShareEffect.self, forKey: .effect)) ?? d.effect
+        motion = (try? c.decode(ShareMotion.self, forKey: .motion)) ?? d.motion
+        motionFormat = (try? c.decode(ShareMotionFormat.self, forKey: .motionFormat)) ?? d.motionFormat
+        motionStyle = (try? c.decode(ShareMotionStyle.self, forKey: .motionStyle)) ?? d.motionStyle
     }
 
     public enum Level: Sendable { case safe, semi, sensitive }
@@ -72,7 +143,7 @@ public struct ShareConfig: Codable, Equatable, Sendable {
     /// Settings safe to remember for quick share: never persist a sensitive custom set as the default.
     public var safeForReuse: ShareConfig {
         var c = self
-        if c.level == .sensitive { c.privacy = .public; c.custom = [.pct, .chart, .movers] }
+        if c.level == .sensitive { c.privacy = .public; c.custom = c.card.publicFields }
         return c
     }
 
@@ -83,13 +154,29 @@ public struct ShareConfig: Codable, Equatable, Sendable {
         if let t = o.theme { theme = t }
     }
 
-    public var summary: String { "\(period.rawValue) · \(privacy.label) · \(format.rawValue) · \(theme.rawValue)" }
+    public var summary: String {
+        (card == .performance ? "" : card.label + " · ") + "\(card == .benchmark ? benchRange : period.rawValue) · \(privacy.label) · \(format.rawValue) · \(theme.rawValue)"
+    }
 }
 
 /// Everything the card may draw. Built by `ShareCardBuilder`, which only ever copies
 /// permitted fields in: hidden data is absent from the model, not merely not drawn.
 public struct ShareCardModel: Equatable, Sendable {
-    public init(format: ShareFormat, theme: ShareTheme, title: String, date: String, value: String? = nil, pct: String? = nil, pctSign: Int, pnl: String? = nil, pnlSign: Int, sub: String? = nil, chart: [String]? = nil, moversTitle: String, moversSub: String, movers: [MoverRow]? = nil, alloc: [AllocRow]? = nil, brand: Bool) { self.format = format; self.theme = theme; self.title = title; self.date = date; self.value = value; self.pct = pct; self.pctSign = pctSign; self.pnl = pnl; self.pnlSign = pnlSign; self.sub = sub; self.chart = chart; self.moversTitle = moversTitle; self.moversSub = moversSub; self.movers = movers; self.alloc = alloc; self.brand = brand }
+    public init(format: ShareFormat, theme: ShareTheme, title: String, date: String, value: String? = nil, pct: String? = nil, pctSign: Int, pnl: String? = nil, pnlSign: Int, sub: String? = nil, chart: [String]? = nil, moversTitle: String, moversSub: String, movers: [MoverRow]? = nil, alloc: [AllocRow]? = nil, brand: Bool,
+                barsTitle: String = "", barsSub: String = "", bars: [BarRow]? = nil, allocTitle: String = "ALLOCATION", note: String? = nil, effect: ShareEffect = .none, motionStyle: ShareMotionStyle = .countUp) { self.effect = effect; self.motionStyle = motionStyle; self.format = format; self.theme = theme; self.title = title; self.date = date; self.value = value; self.pct = pct; self.pctSign = pctSign; self.pnl = pnl; self.pnlSign = pnlSign; self.sub = sub; self.chart = chart; self.moversTitle = moversTitle; self.moversSub = moversSub; self.movers = movers; self.alloc = alloc; self.brand = brand; self.barsTitle = barsTitle; self.barsSub = barsSub; self.bars = bars; self.allocTitle = allocTitle; self.note = note }
+    /// A labelled bar (contributions in pp, portfolio vs benchmarks).
+    public struct BarRow: Equatable, Sendable {
+        public enum Tint: Sendable, Equatable { case sign, accent, dim }
+        public let symbol: String
+        public let fraction: Double      // 0…1 of the longest bar
+        public let value: String
+        public let extra: String
+        public let sign: Int
+        public let tint: Tint
+        public init(symbol: String, fraction: Double, value: String, extra: String = "", sign: Int, tint: Tint = .sign) {
+            self.symbol = symbol; self.fraction = fraction; self.value = value; self.extra = extra; self.sign = sign; self.tint = tint
+        }
+    }
     public struct MoverRow: Equatable, Sendable {
         public let rank, symbol, bar, main, extra: String; public let sign: Int
         public init(rank: String, symbol: String, bar: String, main: String, extra: String, sign: Int) {
@@ -98,7 +185,9 @@ public struct ShareCardModel: Equatable, Sendable {
     }
     public struct AllocRow: Equatable, Sendable {
         public let symbol, bar, pct: String
-        public init(symbol: String, bar: String, pct: String) { self.symbol = symbol; self.bar = bar; self.pct = pct }
+        /// 0…1: drawn as a bar across the row (0.7); nil keeps the text `bar`.
+        public let fraction: Double?
+        public init(symbol: String, bar: String, pct: String, fraction: Double? = nil) { self.symbol = symbol; self.bar = bar; self.pct = pct; self.fraction = fraction }
     }
 
     public let format: ShareFormat
@@ -117,6 +206,13 @@ public struct ShareCardModel: Equatable, Sendable {
     public let movers: [MoverRow]?
     public let alloc: [AllocRow]?
     public let brand: Bool
+    public let barsTitle: String
+    public let barsSub: String
+    public let bars: [BarRow]?
+    public let allocTitle: String
+    public let note: String?
+    public let effect: ShareEffect
+    public let motionStyle: ShareMotionStyle
 
     /// Every string that ends up in the bitmap (for privacy tests).
     public var allText: [String] {
@@ -125,6 +221,8 @@ public struct ShareCardModel: Equatable, Sendable {
         t += chart ?? []
         t += (movers ?? []).flatMap { [$0.rank, $0.symbol, $0.bar, $0.main, $0.extra] }
         t += (alloc ?? []).flatMap { [$0.symbol, $0.bar, $0.pct] }
+        t += [barsTitle, barsSub, allocTitle] + (note.map { [$0] } ?? [])
+        t += (bars ?? []).flatMap { [$0.symbol, $0.value, $0.extra] }
         return t
     }
 }
@@ -175,7 +273,7 @@ public enum ShareCardBuilder {
         var alloc: [ShareCardModel.AllocRow]? = nil
         if f.contains(.alloc) {
             alloc = summary.positions.compactMap { v in
-                v.allocation.map { .init(symbol: v.asset.symbol, bar: AsciiChart.bar($0 / 100, width: 16), pct: fmt.num($0, 1) + "%") }
+                v.allocation.map { .init(symbol: v.asset.symbol, bar: AsciiChart.bar($0 / 100, width: 16), pct: fmt.num($0, 1) + "%", fraction: $0 / 100) }
             }
         }
 
@@ -192,7 +290,73 @@ public enum ShareCardBuilder {
             chart: chart,
             moversTitle: (imp ? "BIGGEST IMPACT" : "TOP GAINERS") + " / " + config.period.rawValue,
             moversSub: imp ? "share of move" : (moverRows?.isEmpty == false ? "your return" : "none this period"),
-            movers: moverRows, alloc: alloc, brand: config.brand)
+            movers: moverRows, alloc: alloc, brand: config.brand, effect: config.effect, motionStyle: config.motionStyle)
+    }
+
+    // MARK: 0.7 cards (design §16) — public-safe by construction: pp of portfolio, never $
+    // unless "value visible" / custom adds it.
+
+    public static func changesPeriodLabel(_ p: Attribution.Period) -> String { p == .today ? "TODAY" : p.label }
+
+    public static func buildChanges(config: ShareConfig, period: Attribution.Period, result r: Attribution.Result?, twr: Double?,
+                                    symbol: (AssetID) -> String, now: Date, fmt: Fmt, contextName: String = "PORTFOLIO") -> ShareCardModel {
+        let f = config.fields
+        let sign: (Double) -> Int = { $0 > 0 ? 1 : $0 < 0 ? -1 : 0 }
+        let perf = twr ?? r?.performancePct
+        var bars: [ShareCardModel.BarRow]? = nil
+        if f.contains(.contrib), let r, r.startValue > 0 {
+            let top = Array(r.byImpact.prefix(config.moverCount))
+            let pps = top.map { ($0.contribution / r.startValue).double * 100 }
+            let mx = pps.map(abs).max() ?? 1
+            bars = zip(top, pps).map { a, pp in
+                .init(symbol: symbol(a.id), fraction: mx > 0 ? abs(pp) / mx : 0, value: (pp < 0 ? "−" : "+") + fmt.num(abs(pp), 1) + "pp",
+                      extra: f.contains(.impact) ? fmt.signed(a.contribution, 0) : "", sign: sign(pp))
+            }
+        }
+        var alloc: [ShareCardModel.AllocRow]? = nil
+        if f.contains(.drift), let r {
+            alloc = r.assets.filter { abs($0.weightDelta) >= 0.05 }.sorted { abs($0.weightDelta) > abs($1.weightDelta) }.prefix(config.moverCount).map {
+                .init(symbol: symbol($0.id), bar: fmt.num($0.weightStart, 1) + " → " + fmt.num($0.weightEnd, 1), pct: ($0.weightDelta < 0 ? "−" : "+") + fmt.num(abs($0.weightDelta), 1) + "pp")
+            }
+        }
+        let note: String? = f.contains(.flows) ? r.map { r in
+            let n = r.buys + r.sells
+            return n == 0 ? "no money in or out · all of it is market move" : "\(n) trade\(n == 1 ? "" : "s") excluded from performance"
+        } : nil
+        return ShareCardModel(
+            format: config.format, theme: config.theme,
+            title: (f.contains(.name) ? contextName + " · " : "") + "WHAT CHANGED / " + changesPeriodLabel(period),
+            date: DateFmt.card(now),
+            value: f.contains(.value) ? r.map { fmt.money($0.endValue) } : nil,
+            pct: f.contains(.pct) ? perf.map { ($0 >= 0 ? "▲ " : "▼ ") + fmt.pct($0) } ?? "—" : nil,
+            pctSign: sign(perf ?? 0), pnlSign: 0,
+            sub: "twr · deposits excluded",
+            moversTitle: "", moversSub: "", brand: config.brand,
+            barsTitle: "CONTRIBUTION", barsSub: "pp of portfolio", bars: bars, allocTitle: "ALLOC DRIFT", note: note, effect: config.effect, motionStyle: config.motionStyle)
+    }
+
+    public static func buildBenchmark(config: ShareConfig, result b: Benchmark.Result, value: Decimal? = nil, now: Date, fmt: Fmt, contextName: String = "PORTFOLIO") -> ShareCardModel {
+        let f = config.fields
+        let sign: (Double) -> Int = { $0 > 0 ? 1 : $0 < 0 ? -1 : 0 }
+        let vsETH = config.benchVs == "ETH"
+        let headline = vsETH ? b.vsETH : b.vsBTC
+        let name = f.contains(.name) ? contextName : "PORTFOLIO"
+        let rows: [(String, Double?, ShareCardModel.BarRow.Tint)] = [(f.contains(.name) ? contextName : "MAIN", b.portfolio.returnPct, .sign),
+                                                                       ("BTC", b.btc.returnPct, .accent), ("ETH", b.eth.returnPct, .dim)]
+        let mx = rows.compactMap { $0.1.map(abs) }.max() ?? 1
+        return ShareCardModel(
+            format: config.format, theme: config.theme,
+            title: name + " vs BTC · ETH / " + b.range.rawValue,
+            date: DateFmt.card(now),
+            value: f.contains(.value) ? value.map { fmt.money($0) } : nil,
+            pct: f.contains(.pct) ? headline.map { ($0 < 0 ? "−" : "+") + fmt.num(abs($0), 1) + "pp" } ?? "—" : nil,
+            pctSign: sign(headline ?? 0), pnlSign: 0,
+            sub: "vs " + (vsETH ? "ETH" : "BTC") + " · twr, deposits excluded",
+            moversTitle: "", moversSub: "", brand: config.brand,
+            barsTitle: "", barsSub: "",
+            bars: f.contains(.pct) ? rows.map { s, v, t in
+                .init(symbol: s, fraction: v.map { mx > 0 ? abs($0) / mx : 0 } ?? 0, value: v.map { fmt.pct($0, 1) } ?? "—", sign: sign(v ?? 0), tint: t)
+            } : nil, effect: config.effect, motionStyle: config.motionStyle)
     }
 
     /// Privacy check lists shown next to the preview.

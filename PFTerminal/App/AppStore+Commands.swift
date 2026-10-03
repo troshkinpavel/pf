@@ -188,7 +188,7 @@ extension AppStore {
             default: return false
             }
         }
-        if cmd && shift && k == "s" { quickShare = true; palette = nil; tx = nil; return true }
+        if cmd && shift && k == "s" { shareCardForScreen(); quickShare = true; palette = nil; tx = nil; return true }
         let shareCtx = palette == nil && tx == nil && (quickShare || screen == .share)
         if cmd && !shift && k == "c" && shareCtx && !inInput { copyImage(); return true }
         if cmd && !shift && k == "s" && shareCtx { saveImage(); return true }
@@ -404,6 +404,51 @@ extension AppStore {
 
     func shareRange(_ p: ChartRange) -> ChartRange { p == .h24 ? .h24 : p }
 
+    /// What a card never carries, whatever the settings.
+    static let neverShown = ["tx history", "wallets", "notes", "exchanges", "cost basis", "amounts"]
+
+    struct ShareRow { let label: String; let fields: [ShareField]; let on: Bool; let status: String }
+
+    /// "Who sees what" (design §16): each item, whether it's on the card, and why not.
+    func shareRows(_ c: ShareConfig) -> [ShareRow] {
+        let groups: [(String, [ShareField])] = switch c.card {
+        case .changes: [("% change · twr", [.pct]), ("contributors · pp", [.contrib]), ("\"deposits excluded\"", [.flows]), ("alloc drift · pp", [.drift]),
+                        ("portfolio name", [.name]), ("value · $ impact", [.value, .impact]), ("amounts · cost · entries", [])]
+        case .benchmark: [("% · pp vs BTC · ETH", [.pct]), ("portfolio name", [.name]), ("value", [.value]), ("amounts · cost · entries", [])]
+        case .performance: [("% change", [.pct]), (c.period.rawValue.lowercased() + " chart", [.chart]), ("movers", [.movers]), ("allocation", [.alloc]),
+                            ("portfolio name", [.name]), ("value", [.value]), ("$ p&l", [.pnl]), ("positions · entries", [.posv, .avg])]
+        }
+        let f = c.fields
+        return groups.map { label, fields in
+            let on = !fields.isEmpty && fields.allSatisfy(f.contains)
+            let needsValue = !on && c.privacy == .public && fields.contains(where: { c.card.valueFields.contains($0) })
+            return ShareRow(label: label, fields: fields, on: on, status: on ? "visible" : needsValue ? "needs value visible" : "hidden")
+        }
+    }
+
+    /// Toggles a group (e.g. value + $ impact) into a custom selection.
+    func toggleFields(_ fs: [ShareField]) {
+        var c = share.fields
+        if fs.allSatisfy(c.contains) { fs.forEach { c.remove($0) } } else { fs.forEach { c.insert($0) } }
+        share.custom = c
+        share.privacy = .custom
+    }
+
+    /// "no $ · no names" next to the verdict.
+    func shareSummaryNote(_ c: ShareConfig) -> String {
+        let f = c.fields
+        let money = !f.isDisjoint(with: [.value, .pnl, .impact, .posv, .avg])
+        return [money ? nil : "no $", f.contains(.name) ? nil : "no names"].compactMap { $0 }.joined(separator: " · ")
+    }
+
+    /// A caution that doesn't change the level (e.g. few assets).
+    func shareNote(_ c: ShareConfig) -> String? {
+        // pp per asset + its % change can give away the mix of a very small portfolio.
+        guard c.card == .changes, c.fields.contains(.contrib) else { return nil }
+        let n = (shareContext(c) == context ? summary : summary(for: shareContext(c))).positions.count
+        return n <= 2 ? "few assets · pp and % per asset can reveal the mix" : nil
+    }
+
     /// Share source: an explicit live portfolio or ALL, else the active context.
     func shareContext(_ c: ShareConfig) -> PortfolioContext {
         guard let src = c.source, let ctx = PortfolioContext(storageKey: src) else { return context }
@@ -411,8 +456,23 @@ extension AppStore {
         return ctx
     }
 
+    /// What Changed works over today / 7d / 30d: the card's period maps onto those.
+    static func changesPeriod(_ r: ChartRange) -> Attribution.Period { r == .d7 || r == .w1 ? .d7 : r == .d30 || r == .m1 ? .d30 : .today }
+
     func shareModel(_ c: ShareConfig) -> ShareCardModel {
-        let r = c.period, ctx = shareContext(c)
+        let ctx = shareContext(c)
+        switch c.card {
+        case .changes:
+            let p = Self.changesPeriod(c.period)
+            return ShareCardBuilder.buildChanges(config: c, period: p, result: attribution(p, in: ctx), twr: ctx == context ? periodTWR(p) : nil,
+                                                 symbol: { self.asset($0)?.symbol ?? $0 }, now: now, fmt: Fmt.current, contextName: doc.displayName(ctx))
+        case .benchmark:
+            let range = Benchmark.Range(rawValue: c.benchRange) ?? .y1
+            let sum = ctx == context ? summary : summary(for: ctx)
+            return ShareCardBuilder.buildBenchmark(config: c, result: benchmark(range), value: sum.totalValue, now: now, fmt: Fmt.current, contextName: doc.displayName(ctx))
+        case .performance: break
+        }
+        let r = c.period
         let sum = ctx == context ? summary : summary(for: ctx)
         let txs = doc.transactions(ctx)
         let s = Dictionary(sum.positions.compactMap { v in assetSeries(v.asset.id, r).map { (v.asset.id, $0) } }, uniquingKeysWith: { a, _ in a })
@@ -423,9 +483,49 @@ extension AppStore {
                                       movers: mv, now: now, fmt: Fmt.current, contextName: doc.displayName(ctx))
     }
 
-    func prepareShare() { let c = shareContext(share); loadHistory(assetsHeld(during: share.period, in: c), share.period) }
+    func prepareShare() {
+        let c = shareContext(share)
+        switch share.card {
+        case .changes: let h = Self.changesPeriod(share.period).historyRange; loadHistory(assetsHeld(during: h, in: c), h)
+        case .benchmark: benchmarkRange = Benchmark.Range(rawValue: share.benchRange) ?? .y1; loadBenchmarkHistory()
+        case .performance: loadHistory(assetsHeld(during: share.period, in: c), share.period)
+        }
+    }
+
+    /// Picks a card and keeps the period valid for it (What Changed has no YTD / ALL).
+    func setShareCard(_ k: ShareCardKind) {
+        share.card = k
+        if k == .changes, ![.h24, .d7, .d30].contains(share.period) { share.period = .d7 }
+        prepareShare()
+    }
+
+    /// ⌘⇧S in context (design §16): What Changed and Benchmark open their own card.
+    func shareCardForScreen() {
+        switch screen {
+        case .changes: share.card = .changes; share.period = [.today: ChartRange.h24, .d7: .d7, .d30: .d30][wcPeriod] ?? .d7
+        case .benchmark: share.card = .benchmark; share.benchRange = benchmarkRange.rawValue
+        default: share.card = .performance
+        }
+    }
+
+    /// Animated card: render + encode, then hand the file on (copy / save / share).
+    private func withMotionFile(_ then: @escaping (URL) -> Void) {
+        let f = share.motionFormat, m = shareModel(share)
+        showFlash("rendering \(f.rawValue)…", "rendering a 3 s \(f.rawValue) · on this Mac")
+        Task {
+            do { then(try await ShareMotionExporter.export(m, format: f)) }
+            catch { showFlash("✗ could not render the animation", "✗ could not render the \(f.rawValue) · \(error)") }
+        }
+    }
 
     func copyImage() {
+        if share.motion == .animated {
+            withMotionFile { [weak self] url in
+                ShareMotionExporter.copy(url)
+                self?.showFlash("✓ \(url.pathExtension) copied", "✓ animated card copied as a file · paste it into a message or Finder")
+            }
+            return
+        }
         guard let img = ShareRenderer.image(shareModel(share)) else { return }
         ShareRenderer.copy(img)
         let s = share.format.size
@@ -434,6 +534,14 @@ extension AppStore {
     }
 
     func saveImage() {
+        if share.motion == .animated {
+            let f = share.motionFormat
+            withMotionFile { [weak self] url in
+                guard let self, let dst = ShareMotionExporter.save(url, suggestedName: "pf-\(self.share.card.rawValue)-\(DateFmt.ymd(Date())).\(f.rawValue)", format: f) else { return }
+                self.showFlash("✓ animated card exported", "✓ animated card exported · " + dst.path.replacingOccurrences(of: NSHomeDirectory(), with: "~"))
+            }
+            return
+        }
         let model = shareModel(share)
         let name = "pf-\(share.period.rawValue.lowercased())-\(DateFmt.ymd(Date())).png"
         ShareRenderer.save(model, suggestedName: name) { [weak self] url in
@@ -444,6 +552,14 @@ extension AppStore {
 
     func shareVia(anchor: NSView?) {
         guard let anchor else { return }
+        if share.motion == .animated {
+            withMotionFile { [weak self] url in
+                ShareRenderer.presentPicker(url: url, from: anchor) { service in
+                    self?.showFlash("✓ shared via \(service)", "✓ animated card shared via \(service) · macOS share sheet")
+                }
+            }
+            return
+        }
         ShareRenderer.presentPicker(shareModel(share), from: anchor) { [weak self] service in
             self?.showFlash("✓ shared via \(service)", "✓ portfolio card shared via \(service) · macOS share sheet")
         }
@@ -511,12 +627,9 @@ extension AppStore {
     /// Menu bar follows the active context unless pinned to ALL in Settings.
     var menuBarContext: PortfolioContext { settings.menuBarContext == "all" ? .all : context }
 
-    /// Menu bar title, with "⚑n" while fired alerts are unseen (Settings › alerts › badge).
-    func trayText(_ f: MenuBarFormat? = nil) -> String {
-        let base = trayBase(f)
-        guard !locked, settings.alertBadge, unseenAlerts > 0 else { return base }
-        return base + "  ⚑\(unseenAlerts)"
-    }
+    /// Menu bar title. Alerts never add to it (a count overflowed the title); the popover
+    /// shows the newest unseen one instead.
+    func trayText(_ f: MenuBarFormat? = nil) -> String { trayBase(f) }
 
     private func trayBase(_ f: MenuBarFormat?) -> String {
         let fm = Fmt.current, s = menuBarContext == context ? summary : summary(for: menuBarContext)
