@@ -30,7 +30,7 @@
 </p>
 
 <p align="center">
-  <img src=".github/assets/hero.png" width="1100" alt="PF Terminal: portfolio overview with net value, P&L, 24h driver, stepped performance chart and positions table">
+  <img src=".github/assets/hero.png" width="1100" alt="PF Terminal: portfolio overview with net value, total P&L and return, today's movers, stepped performance chart and positions table">
 </p>
 
 PF Terminal tracks crypto portfolios from a ledger of transactions. It shows positions, cost basis, realized and unrealized P&L, performance and 24h movement. The interface is a native macOS window that you can drive entirely from the keyboard. PF Terminal does not execute trades and does not hold funds.
@@ -152,7 +152,7 @@ Shortcuts are bound to physical key positions, so they also work with non-Latin 
 ## Analytics
 
 <p align="center">
-  <img src=".github/assets/analytics.png" width="860" alt="Analytics: P&L performance, allocation, contribution to P&L, cost basis to value, drawdown from peak">
+  <img src=".github/assets/analytics.png" width="860" alt="Analytics: value, contributions, unrealized and realized P&L, total return and TWR, P&L performance with drawdown, allocation, positions P&L table">
 </p>
 
 - **Performance charts** switch between **value** and **P&L** (value minus net money invested). P&L shows the drawdown periods that deposits would otherwise hide.
