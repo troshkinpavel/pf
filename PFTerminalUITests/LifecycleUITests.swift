@@ -81,8 +81,9 @@ final class LifecycleUITests: XCTestCase {
 
     func testKeepInDockPreferenceAndVersionAndUpdateCheck() {
         let app = launch()
-        app.menuBars.menuBarItems["Go"].click()
-        app.menuItems["Settings"].click()
+        // 0.7: Settings left the Go menu (tabs are 1–4); it stays in the app menu, ⌘,.
+        app.menuBars.menuBarItems["PF Terminal"].click()
+        app.menuItems["Settings…"].click()
 
         // Version comes from the running bundle's metadata.
         let info = running?.bundleURL.flatMap { Bundle(url: $0)?.infoDictionary }
