@@ -41,12 +41,7 @@ struct ChangesView: View {
     private func symbol(_ id: AssetID) -> String { store.asset(id)?.symbol ?? id }
 
     private func header(_ p: Attribution.Period) -> some View {
-        HStack(alignment: .firstTextBaseline) {
-            HStack(alignment: .firstTextBaseline, spacing: 14) {
-                TT("WHAT CHANGED", 15, Theme.t1, weight: .semibold, tracking: 0.6)
-                TT(since(p), 12, Theme.t3)
-            }
-            Spacer()
+        ScreenHeader(title: "WHAT CHANGED", sub: since(p)) {
             HStack(spacing: 14) {
                 Tabs(items: Attribution.Period.allCases.map { TabItem(id: $0.rawValue, label: $0.rawValue) }, selected: p.rawValue, hPad: 10, vPad: 3) {
                     store.wcPeriod = Attribution.Period(rawValue: $0)!; store.wcSel = 0; store.loadAttributionHistory()
@@ -54,7 +49,6 @@ struct ChangesView: View {
                 TT("← → range · m movers", 11, Theme.t4)
             }
         }
-        .padding(.bottom, 14).overlay(alignment: .bottom) { Hairline() }
     }
 
     private func since(_ p: Attribution.Period) -> String {
@@ -152,7 +146,7 @@ struct ChangesView: View {
         let cols: [Columns.Col] = [.fixed(22), .fixed(70), .fixed(120), .fixed(76), .fr(1)]
         return VStack(spacing: 0) {
             Columns(cols) { Color.clear; HeadCell("ASSET", align: .leading); HeadCell("START → NOW"); HeadCell("Δ"); HeadCell("CAUSE", align: .leading).padding(.leading, 18) }
-                .frame(height: 26).padding(.trailing, 14).overlay(alignment: .bottom) { Hairline() }
+                .frame(height: 26).padding(.leading, 4).padding(.trailing, 14).overlay(alignment: .bottom) { Hairline() }
             ForEach(Array(rows.enumerated()), id: \.offset) { i, a in
                 Columns(cols) {
                     Color.clear
@@ -161,7 +155,7 @@ struct ChangesView: View {
                     Cell(pp(a.weightDelta), abs(a.weightDelta) >= 2 ? Theme.t1 : Theme.t3)
                     TT(Attribution.cause(a, result: r, fmt: f), 12, Theme.t3).padding(.leading, 18).frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .frame(height: store.settings.rowHeight).padding(.trailing, 14)
+                .frame(height: store.settings.rowHeight).padding(.leading, 4).padding(.trailing, 14)
                 .overlay(alignment: .bottom) { if i < rows.count - 1 { Rectangle().fill(Theme.rowBorder).frame(height: 1) } }
             }
         }
@@ -224,7 +218,7 @@ struct ChangesView: View {
                 TT("range       " + store.wcPeriod.label.lowercased() + " · since " + DateFmt.ymd(start) + " " + DateFmt.hm(start), 12, Theme.t3)
                 if !missing.isEmpty { TT("missing     " + missing.joined(separator: " · ") + (r.map { "  (\($0.assets.count - missing.count) of \($0.assets.count) priced)" } ?? ""), 12, Theme.t3) }
                 HStack(spacing: 6) {
-                    BracketButton("open movers  m", color: Theme.acc) { store.toggleChangesMode() }
+                    BracketButton("open movers m", color: Theme.acc) { store.toggleChangesMode() }
                     BracketButton("load history") { store.loadAttributionHistory() }
                     if store.wcPeriod != .d30 { BracketButton("try 30d") { store.wcPeriod = .d30; store.loadAttributionHistory() } }
                 }

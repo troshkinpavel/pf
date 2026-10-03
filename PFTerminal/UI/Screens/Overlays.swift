@@ -24,7 +24,7 @@ struct CommandPaletteView: View {
             VStack(spacing: 0) {
                 ForEach(Array(items.enumerated()), id: \.element.id) { i, it in
                     if let g = it.group, g != items[safe: i - 1]?.group {
-                        TT(g, 10.5, Theme.t3, tracking: 0.84).padding(.leading, 28).padding(.top, i == 0 ? 2 : 8).padding(.bottom, 2)
+                        CapsLabel(g).padding(.leading, 28).padding(.top, i == 0 ? 2 : 8).padding(.bottom, 2)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     Button(action: it.run) {
@@ -246,7 +246,7 @@ struct OnboardingView: View {
     }
 
     private func option(_ key: String, _ label: String, _ detail: String, accent: Bool = false, _ a: @escaping () -> Void) -> some View {
-        TermButton(action: a, hoverBg: Theme.selected) {
+        TermButton(action: a, hoverBg: Theme.hover) {
             Columns([.fixed(36), .fixed(250), .fr(1)]) {
                 Kbd(key)
                 TT("[ \(label) ]", 12, accent ? Theme.acc : Theme.text)

@@ -49,7 +49,7 @@ struct BenchmarkPanel: View {
                             row(["", name, "BTC", "ETH", "vs BTC", "vs ETH"], header: true)
                             ForEach(Benchmark.Range.allCases, id: \.self) { x in
                                 let b = store.benchmark(x)
-                                TermButton(action: { store.setBenchmarkRange(x) }, hoverBg: Theme.selected) {
+                                TermButton(action: { store.setBenchmarkRange(x) }, hoverBg: Theme.hover) {
                                     HStack(spacing: 0) {
                                         TT(x == store.benchmarkRange ? "›" : " ", 12, Theme.acc).frame(width: 12)
                                         TT(x.rawValue, 12, Theme.t1).frame(width: 40, alignment: .leading)
@@ -120,7 +120,7 @@ struct AnalyticsModeTabs: View {
         HStack(spacing: 4) {
             RangeTab(label: "overview", on: !benchmark) { if benchmark { store.toggleBenchmark() } }
             RangeTab(label: "benchmark", on: benchmark) { if !benchmark { store.toggleBenchmark() } }
-            TT("b", 11, Theme.t4).padding(.leading, 6)
+            Kbd("b").padding(.leading, 6)   // the key that toggles, as a key chip
         }
     }
 }
@@ -130,7 +130,7 @@ struct RangeTab: View {
     let on: Bool
     let action: () -> Void
     var body: some View {
-        TermButton(action: action, hoverBg: Theme.selected) {
+        TermButton(action: action, hoverBg: Theme.hover) {
             TT(label, 12, on ? Theme.t1 : Theme.t3)
                 .padding(.horizontal, 10).frame(height: 24)
                 .background(on ? Theme.selected : .clear)

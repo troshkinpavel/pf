@@ -17,35 +17,21 @@ struct AssetDetailView: View {
         let f = Fmt.current, q = v.quote, peg = store.pegCheck(v.asset.id)
         return ScrollView(.vertical) {
             VStack(alignment: .leading, spacing: 18) {
-                // Design §04: name · pair, then the symbol with the market line beside it.
-                HStack(alignment: .bottom) {
-                    VStack(alignment: .leading, spacing: 6) {
-                        TT(v.asset.name.uppercased() + " · " + v.asset.symbol + "/" + store.settings.currency, 12, Theme.t2, tracking: 0.48)
-                        HStack(alignment: .firstTextBaseline, spacing: 28) {
-                            TT(v.asset.symbol, 22, Theme.t1, weight: .semibold).fixedSize()
-                            if let peg { TT("STABLECOIN · \(peg.peg.currency) PEG", 11, Theme.t3, tracking: 0.44).fixedSize() }
-                            marketLine(v)
-                        }
-                    }
-                    Spacer(minLength: 16)
-                    HStack(spacing: 6) {
-                        action("alert", "a") { store.openAlertSetup(subject: .asset(v.asset.id)) }
-                        if peg == nil { action("target", "t") { store.openTarget(v.asset.id) } }
-                        action("add transaction", "⌘N") { store.openTx(TxDraft(asset: v.asset.symbol)) }
-                    }
-                    Spacer()
-                    VStack(alignment: .trailing, spacing: 6) {
-                        TT(f.price(v.price), 24, Theme.t1, weight: .medium)
-                        if let peg { TT(Self.pegLabel(peg.status), 12, Self.pegColor(peg.status)) }
-                        else { HStack(spacing: 0) { TT(f.pct(v.change24h) + " ", 12, Theme.signColor(v.change24h)); TT("24h", 12, Theme.t3) } }
-                    }
+                // Design §04 (updated): one row, like every screen title.
+                ScreenHeader(title: v.asset.symbol, sub: v.asset.name + " · " + v.asset.symbol + "/" + store.settings.currency,
+                             detail: AnyView(HStack(alignment: .firstTextBaseline, spacing: 8) {
+                                 TT(f.price(v.price), 15, Theme.t1, weight: .medium).fixedSize()
+                                 if let peg { TT(Self.pegLabel(peg.status), 12, Self.pegColor(peg.status)).fixedSize() }
+                                 else { HStack(spacing: 0) { TT(f.pct(v.change24h) + " ", 12, Theme.signColor(v.change24h)); TT("24h", 12, Theme.t3) }.fixedSize() }
+                             })) {
+                    BracketButton("alert a") { store.openAlertSetup(subject: .asset(v.asset.id)) }
+                    if peg == nil { BracketButton("target t") { store.openTarget(v.asset.id) } }
+                    BracketButton("+ transaction ⌘N", color: Theme.acc) { store.openTx(TxDraft(asset: v.asset.symbol)) }
                 }
-                .padding(.bottom, 14)
-                .overlay(alignment: .bottom) { Hairline() }
 
                 HStack(alignment: .top, spacing: 18) {
                     VStack(spacing: 18) {
-                        if let peg { pegStatus(peg) } else { chart(v) }   // a price chart of $1.00 says nothing
+                        if let peg { VStack(alignment: .leading, spacing: 10) { marketLine(v); pegStatus(peg) } } else { chart(v) }   // a price chart of $1.00 says nothing
                         transactions(v)
                     }
                     .frame(maxWidth: .infinity)
@@ -76,10 +62,10 @@ struct AssetDetailView: View {
         let st = store.sourceState(v.asset.id)
         let bad: Bool = { switch st?.status { case .stale?, .noPrice?, nil: true; default: false } }()
         return HStack(spacing: 10) {
-            TT(parts.isEmpty ? "no market data yet" : parts.joined(separator: " · "), 11.5, Theme.t3).lineLimit(1).truncationMode(.tail)
-            if let q, (q.volume24h ?? 0) < lowLiquidityVolume { TT("! low liquidity", 11.5, Theme.neg).fixedSize() }
+            TT(parts.isEmpty ? "no market data yet" : parts.joined(separator: " · "), 11, Theme.t3).lineLimit(1).truncationMode(.tail)
+            if let q, (q.volume24h ?? 0) < lowLiquidityVolume { TT("! low liquidity", 11, Theme.neg).fixedSize() }
             TermButton(action: { store.openSourcePicker(v.asset.id) }) {
-                TT("· " + (st?.status.label.lowercased() ?? "—") + (st?.preferred != nil ? " · pinned" : "") + " ‹›", 11.5, bad ? Theme.neg : Theme.t4).fixedSize()
+                TT("· " + (st?.status.label.lowercased() ?? "—") + (st?.preferred != nil ? " · pinned" : "") + " ‹›", 11, bad ? Theme.neg : Theme.t4).fixedSize()
             }
             .help("price source · change")
             .accessibilityIdentifier("price-source")
@@ -88,7 +74,7 @@ struct AssetDetailView: View {
 
     private func positionPanel(_ v: PositionValuation) -> some View {
         let f = Fmt.current, p = v.position
-        return Panel(title: "POSITION · P&L", padding: .init(top: 14, leading: 14, bottom: 10, trailing: 14)) {
+        return Panel(title: "POSITION · P&L") {
             VStack(spacing: 7) {
                 KV(k: "amount", v: f.amount(p.quantity) + " " + v.asset.symbol)
                 KV(k: "cost · avg " + f.price(p.averageEntry), v: f.money(p.costBasis))
@@ -105,9 +91,9 @@ struct AssetDetailView: View {
     private func impactPanel(_ v: PositionValuation) -> some View {
         let f = Fmt.current
         let cols: [Columns.Col] = [.fixed(54), .fr(1), .fr(1), .fr(1), .fixed(44)]
-        return Panel(title: "PORTFOLIO IMPACT", padding: .init(top: 14, leading: 14, bottom: 10, trailing: 14)) {
+        return Panel(title: "PORTFOLIO IMPACT") {
             VStack(spacing: 6) {
-                Columns(cols) { Color.clear; HeadCell("PRICE"); HeadCell("$"); HeadCell("PF"); HeadCell("RANK") }
+                Columns(cols) { Color.clear; HeadCell("PRICE"); HeadCell("$"); HeadCell("PF"); HeadCell("RANK") }.frame(height: 16)
                 ForEach(store.assetImpact(v.asset.id), id: \.label) { r in
                     Columns(cols) {
                         TT(r.label, 12, Theme.t3)
@@ -126,28 +112,34 @@ struct AssetDetailView: View {
         let f = Fmt.current
         let w = v.allocation ?? 0, t = store.targetWeight(v.asset.id)
         let dd = store.positionDrawdown(v)
-        return Panel(title: "ALLOCATION · DRAWDOWN", padding: .init(top: 14, leading: 14, bottom: 10, trailing: 14)) {
+        return Panel(title: "ALLOCATION · DRAWDOWN") {
             VStack(spacing: 7) {
-                KV(k: "weight now / target", v: f.num(w, 1) + "%" + (t.map { " / " + f.num($0, 1) + "%" } ?? " / —"), c: Theme.t1)
+                KV(k: t == nil ? "weight now" : "weight now / target", v: f.num(w, 1) + "%" + (t.map { " / " + f.num($0, 1) + "%" } ?? ""), c: Theme.t1)
                 // ┃ marks the target; the overweight part is amber.
-                let width = 30, cut = t.map { min(width, Int(($0 / 100 * Double(width)).rounded())) }
-                let fill = min(width, Int((w / 100 * Double(width)).rounded()))
-                HStack(spacing: 0) {
-                    if let cut {
-                        TT(String(repeating: "█", count: min(fill, cut)), 12, Theme.bar)
-                        TT(String(repeating: "░", count: max(0, cut - fill)), 12, Theme.track)
-                        TT("┃", 12, Theme.t1)
-                        TT(String(repeating: "█", count: max(0, fill - cut)), 12, Theme.acc)
-                        TT(String(repeating: "░", count: max(0, width - max(fill, cut))), 12, Theme.track)
-                    } else {
-                        TT(AsciiChart.bar(w / 100, width: width), 12, Theme.bar)
+                // As wide as the card; the target mark ┃ scales with it.
+                GeometryReader { g in
+                    let width = max(10, Int(g.size.width / Theme.cell(12)) - 1)
+                    let cut = t.map { min(width, Int(($0 / 100 * Double(width)).rounded())) }
+                    let fill = min(width, Int((w / 100 * Double(width)).rounded()))
+                    HStack(spacing: 0) {
+                        if let cut {
+                            TT(String(repeating: "█", count: min(fill, cut)), 12, Theme.bar)
+                            TT(String(repeating: "░", count: max(0, cut - fill)), 12, Theme.track)
+                            TT("┃", 12, Theme.t1)
+                            TT(String(repeating: "█", count: max(0, fill - cut)), 12, Theme.acc)
+                            TT(String(repeating: "░", count: max(0, width - max(fill, cut))), 12, Theme.track)
+                        } else {
+                            TT(AsciiChart.bar(w / 100, width: width), 12, Theme.bar)
+                        }
                     }
-                    Spacer(minLength: 0)
+                    .fixedSize()
                 }
+                .frame(height: 14).clipped()
                 if let t, w > t, let val = v.value {
                     KV(k: "over target", v: "+" + f.num(w - t, 1) + "pp · trim ≈ " + f.money(val * Decimal.of((w - t) / w), 0), c: Theme.acc)
                 } else if t == nil {
-                    KV(k: "target weight", v: "set in Base scenario · g s", c: Theme.t4)
+                    TT("no target · type 30% for \(v.asset.symbol) in Scenarios › Base (g s)", 11, Theme.t4)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 if let dd {
                     divider
@@ -169,7 +161,7 @@ struct AssetDetailView: View {
         let scen = store.orderedScenarios.filter { $0.targets[id] != nil }.prefix(4)
         let rules = store.intel.alerts.filter { $0.subject == .asset(id) }
         if watch != nil || !scen.isEmpty || !rules.isEmpty {
-            Panel(title: "CONTEXT", padding: .init(top: 14, leading: 14, bottom: 10, trailing: 14)) {
+            Panel(title: "CONTEXT") {
                 VStack(spacing: 7) {
                     if let w = watch {
                         let firstBuy = v.position.transactions.first { $0.type == .buy }
@@ -188,14 +180,6 @@ struct AssetDetailView: View {
                 }
             }
             .accessibilityIdentifier("asset-context")
-        }
-    }
-
-    private func action(_ label: String, _ key: String, _ a: @escaping () -> Void) -> some View {
-        TermButton(action: a, hoverBg: Theme.selected) {
-            HStack(spacing: 8) { TT(label, 12, Theme.text); TT(key, 12, Theme.t3) }
-                .padding(.horizontal, 10).padding(.vertical, 4)
-                .overlay(Rectangle().strokeBorder(Theme.kbdBorder, lineWidth: 1))
         }
     }
 
@@ -220,7 +204,7 @@ struct AssetDetailView: View {
     private func pegStatus(_ c: PegCheck) -> some View {
         let f = Fmt.current
         let band = f.num((Stablecoins.tolerance * 100).double, 1)
-        return Panel(title: "PEG STATUS", padding: .init(top: 14, leading: 14, bottom: 10, trailing: 14)) {
+        return Panel(title: "PEG STATUS") {
             VStack(spacing: 0) {
                 KV(k: "status", v: Self.pegLabel(c.status), c: Self.pegColor(c.status))
                 KV(k: "market", v: c.market.map { f.money($0, 4) } ?? "—")
@@ -263,6 +247,7 @@ struct AssetDetailView: View {
         let off = levels.dropFirst(avg > 0 ? 1 : 0).filter { !vals.isEmpty && ($0.value < lo || $0.value > hi) }
         let avgOff = vals.isEmpty || avg <= 0 ? "" : avg > hi ? " ↑" : avg < lo ? " ↓" : ""
         return Panel(title: "PRICE · \(v.asset.symbol)/\(store.settings.currency) · \(r.rawValue)") {
+          VStack(alignment: .leading, spacing: 10) {
             TerminalChart(values: vals, rows: 19, style: store.settings.chartStyle, spanMinutes: span, endTime: Date(),
                           emptyText: store.loadingHistory.contains(store.seriesKey(v.asset.id, r)) ? "loading history…" : "missing historical data for \(v.asset.symbol)",
                           axis: { f.priceDigits($0) }, value: { f.price($0) },
@@ -277,6 +262,12 @@ struct AssetDetailView: View {
                     Tabs(AppStore.assetRanges.map(\.rawValue), selected: r.rawValue) { store.setAssetRange(ChartRange(rawValue: $0)!) }
                 }
             }
+            // Footer (design §04): mcap · vol · rank · ath · source.
+            marketLine(v)
+                .padding(.top, 10)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .overlay(alignment: .top) { Rectangle().fill(Theme.innerBorder).frame(height: 1) }
+          }
         }
     }
 
@@ -291,12 +282,12 @@ struct AssetDetailView: View {
                     HeadCell("DATE", align: .leading); HeadCell("SIDE", align: .leading); HeadCell("AMOUNT"); HeadCell("PRICE")
                     HeadCell("COST"); HeadCell("VALUE NOW"); HeadCell("PNL")
                 }
-                .frame(height: 24).padding(.trailing, 14)
+                .frame(height: 26).padding(.leading, 4).padding(.trailing, 14)
                 .overlay(alignment: .bottom) { Hairline() }
                 ForEach(Array(txs.enumerated()), id: \.element.id) { i, t in
                     let now = v.price.map { $0 * t.quantity }
                     let cost = t.quantity * t.price + (t.type.increases ? t.fee : -t.fee)
-                    TableRow(selected: i == store.txSel, height: 24, onSelect: { store.txSel = i }, onOpen: { store.editTx(t) }) {
+                    TableRow(selected: i == store.txSel, height: store.settings.rowHeight, onSelect: { store.txSel = i }, onOpen: { store.editTx(t) }) {
                         Columns(Self.txCols) {
                             RowMark(on: i == store.txSel)
                             TT(DateFmt.ymd(t.timestamp), 12, Theme.t2)
@@ -307,7 +298,7 @@ struct AssetDetailView: View {
                             Cell(t.type.increases ? f.money(now) : "—")
                             Cell(t.type == .buy ? f.signed(now.map { $0 - cost }) : "—", Theme.signColor(now.map { $0 - cost }))
                         }
-                        .padding(.trailing, 14)
+                        .padding(.leading, 4).padding(.trailing, 14)
                     }
                     .contextMenu {
                         Button("Edit…") { store.editTx(t) }
@@ -320,8 +311,8 @@ struct AssetDetailView: View {
                     }
                 }
                 HStack(spacing: 0) {
-                    TT("avg entry = Σ cost / Σ amount = \(f.money(v.position.costBasis)) / \(f.amount(v.position.quantity)) = ", 11.5, Theme.t3)
-                    TT(f.price(v.position.averageEntry), 11.5, Theme.t1)
+                    TT("avg entry = Σ cost / Σ amount = \(f.money(v.position.costBasis)) / \(f.amount(v.position.quantity)) = ", 11, Theme.t3)
+                    TT(f.price(v.position.averageEntry), 11, Theme.t1)
                     Spacer()
                     TT("e edit · ⌫ delete", 11, Theme.t4)
                 }

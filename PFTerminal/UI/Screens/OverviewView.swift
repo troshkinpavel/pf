@@ -20,6 +20,8 @@ struct OverviewView: View {
             .padding(.top, 7)
         }
         .scrollIndicators(.never)
+        // TWR · ALL needs the full history, not just the chart's range.
+        .onAppear { store.loadHistory(store.assetsHeld(during: .all), .all) }
     }
 }
 
@@ -37,7 +39,8 @@ private struct MetricStrip: View {
                     TT(total.value, 28, Theme.t1, weight: .medium, tracking: -0.28).minimumScaleFactor(0.6)
                     if let note = total.note { TT("· " + note, 11, Theme.neg) }
                 }
-                HStack(spacing: 14) { TT(f.signed(s.change24h) + " today", 12, dc); TT(f.pct(s.change24hPct), 12, dc) }
+                // Rolling 24h (as the menu bar, widgets and the 24H column); "today" is the WHAT MOVED band.
+                HStack(spacing: 14) { TT(f.signed(s.change24h) + " 24h", 12, dc); TT(f.pct(s.change24hPct), 12, dc) }
             }
             cell {
                 CapsLabel("TOTAL PNL")
@@ -70,8 +73,9 @@ private struct MetricStrip: View {
         .overlay(Rectangle().strokeBorder(Theme.border, lineWidth: 1))
     }
 
+    /// Label at the top, sub-line at the bottom, value between: the card's content fills its height (design §02).
     private func cell<C: View>(first: Bool = false, @ViewBuilder _ c: () -> C) -> some View {
-        VStack(alignment: .leading, spacing: 6) { c() }
+        SpreadV(minSpacing: 6) { c() }
             .padding(.horizontal, 16).padding(.vertical, 12)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .overlay(alignment: .leading) { if !first { Rectangle().fill(Theme.border).frame(width: 1) } }
@@ -86,28 +90,66 @@ private struct MetricStrip: View {
     }
 }
 
+/// Vertical stack whose children spread over the available height: first at the top, last at the
+/// bottom, never closer than `minSpacing`.
+struct SpreadV: Layout {
+    var minSpacing: CGFloat = 6
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let sizes = subviews.map { $0.sizeThatFits(ProposedViewSize(width: proposal.width, height: nil)) }
+        let minH = sizes.reduce(0) { $0 + $1.height } + CGFloat(max(0, sizes.count - 1)) * minSpacing
+        let h = proposal.height.map { $0.isFinite ? max($0, minH) : minH } ?? minH
+        return CGSize(width: proposal.width ?? sizes.map(\.width).max() ?? 0, height: h)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let sizes = subviews.map { $0.sizeThatFits(ProposedViewSize(width: bounds.width, height: nil)) }
+        let total = sizes.reduce(0) { $0 + $1.height }
+        let gap = subviews.count > 1 ? max(minSpacing, (bounds.height - total) / CGFloat(subviews.count - 1)) : 0
+        var y = bounds.minY
+        for (v, s) in zip(subviews, sizes) {
+            v.place(at: CGPoint(x: bounds.minX, y: y), anchor: .topLeading, proposal: ProposedViewSize(width: bounds.width, height: s.height))
+            y += s.height + gap
+        }
+    }
+}
+
 /// TODAY · WHAT MOVED (design §02): market move and flows kept apart, the top three by $ impact,
 /// the entry to What Changed (d). Same numbers as What Changed › today.
 private struct WhatMovedBand: View {
     @Environment(AppStore.self) private var store
 
     var body: some View {
+        // One row, never truncated: the fullest variant that fits (least important parts drop first).
+        ViewThatFits(in: .horizontal) {
+            ForEach(0..<4) { level in row(level) }
+        }
+        .padding(.horizontal, 16).frame(height: 38)
+        .overlay(Rectangle().strokeBorder(Theme.border, lineWidth: 1))
+        .contentShape(Rectangle())
+        .onTapGesture { store.changesUsesMovers = false; store.go(.changes) }
+        .accessibilityIdentifier("what-moved")
+    }
+
+    /// 0 everything · 1 short flows label · 2 top 2 · 3 top 1.
+    private func row(_ level: Int) -> some View {
         let f = Fmt.current
         let r = store.attribution(.today)
-        HStack(spacing: 28) {
-            HStack(spacing: 10) {
-                TT("TODAY · WHAT MOVED", 10.5, Theme.t2, tracking: 0.84)
-                TT("deposits excluded", 11, Theme.t4)
-            }
+        return HStack(spacing: 0) {
+          HStack(spacing: 18) {
+            TT("TODAY · WHAT MOVED", 10.5, Theme.t2, tracking: 0.84)
             if let r, r.complete, !r.assets.isEmpty {
+                divider
                 HStack(spacing: 8) { TT("market move", 12, Theme.t3); TT(f.signed(r.marketMove, 0), 12, Theme.signColor(r.marketMove)) }
+                divider
                 HStack(spacing: 8) {
-                    TT("flows · not performance", 12, Theme.t3)
+                    TT(level < 1 ? "flows · not performance" : "flows", 12, Theme.t3)
                     TT(r.flows == 0 ? f.money(Decimal(0), 0) : f.signed(r.flows, 0), 12, Theme.t2)
                     if r.buys + r.sells > 0 { TT("\(r.buys + r.sells) trade\(r.buys + r.sells == 1 ? "" : "s")", 11, Theme.t4) }
                 }
-                let top = Array(r.byImpact.prefix(3))
+                let top = Array(r.byImpact.prefix(level >= 3 ? 1 : level == 2 ? 2 : 3))
                 let mx = top.map { abs($0.contribution.double) }.max() ?? 1
+                divider
                 HStack(spacing: 18) {
                     ForEach(top, id: \.id) { a in
                         HStack(spacing: 6) {
@@ -120,15 +162,16 @@ private struct WhatMovedBand: View {
             } else {
                 TT(r == nil ? "no transactions yet" : "needs start-of-day prices", 12, Theme.t4)
             }
-            Spacer(minLength: 8)
-            HStack(spacing: 6) { TT("details →", 12, Theme.t3); TT("d", 12, Theme.acc) }
+          }
+          .fixedSize()   // never truncated: ViewThatFits measures this at full size
+          Spacer(minLength: 16)
+          divider.padding(.trailing, 18)
+          HStack(spacing: 6) { TT("details", 11, Theme.t2); Kbd("d") }.fixedSize()   // like the title bar shortcuts
         }
-        .padding(.horizontal, 16).frame(height: 38)
-        .overlay(Rectangle().strokeBorder(Theme.border, lineWidth: 1))
-        .contentShape(Rectangle())
-        .onTapGesture { store.changesUsesMovers = false; store.go(.changes) }
-        .accessibilityIdentifier("what-moved")
     }
+
+    /// Full-height separator between the band's parts (design §02).
+    private var divider: some View { Rectangle().fill(Theme.innerBorder).frame(width: 1, height: 38) }
 }
 
 private struct PerformancePanel: View {

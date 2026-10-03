@@ -9,23 +9,19 @@ struct ScenariosView: View {
     @FocusState private var editFocused: Bool
     @FocusState private var renameFocused: Bool
 
-    static let cols: [Columns.Col] = [.fixed(22), .fixed(70), .fixed(110), .fixed(100), .fixed(120), .fixed(84), .fixed(104), .fixed(110), .fixed(104), .fixed(64), .fr(1)]
+    static let cols: [Columns.Col] = [.fixed(22), .fixed(70), .fixed(110), .fixed(110), .fixed(170), .fixed(80), .fixed(100), .fixed(106), .fixed(100), .fixed(60), .fr(1)]
 
     var body: some View {
         let list = store.orderedScenarios
         VStack(alignment: .leading, spacing: 18) {
-            HStack(alignment: .firstTextBaseline, spacing: 14) {
-                TT("SCENARIOS", 15, Theme.t1, weight: .semibold, tracking: 0.6)
-                TT("your targets, not forecasts · saved on this Mac", 12, Theme.t3)
-                Spacer()
+            ScreenHeader(title: "SCENARIOS", sub: "your targets, not forecasts · saved on this Mac") {
                 if !list.isEmpty {
-                    BracketButton("+ new  n", color: Theme.acc) { store.newScenario() }
+                    BracketButton("+ new n", color: Theme.acc) { store.newScenario() }
                     BracketButton("duplicate ⌘D") { store.duplicateScenario() }
                     BracketButton("rename r") { store.scenarioRename = store.currentScenario?.name }
                     BracketButton(store.scenarioConfirmDelete != nil ? "⌫ again" : "delete ⌫", color: store.scenarioConfirmDelete != nil ? Theme.neg : Theme.t2) { store.requestDeleteScenario() }
                 }
             }
-            .padding(.bottom, 12).overlay(alignment: .bottom) { Hairline() }
             if list.isEmpty || store.scenarioHoldings.isEmpty {
                 empty(noHoldings: store.scenarioHoldings.isEmpty)
             } else if let cur = store.currentScenario {
@@ -40,7 +36,7 @@ struct ScenariosView: View {
                 .scrollIndicators(.never)
             }
         }
-        .padding(.top, 14)
+        .padding(.top, 2)
     }
 
     // MARK: switcher
@@ -57,7 +53,7 @@ struct ScenariosView: View {
             .frame(width: 200, alignment: .leading)
             ForEach(list.prefix(5)) { sc in
                 let p = store.projection(sc), on = sc.id == cur.id
-                TermButton(action: { store.selectScenario(sc.id) }, hoverBg: Theme.selected) {
+                TermButton(action: { store.selectScenario(sc.id) }, hoverBg: Theme.hover) {
                     VStack(alignment: .leading, spacing: 5) {
                         if on, let name = store.scenarioRename {
                             TextField("NAME", text: Binding(get: { name }, set: { store.scenarioRename = $0.uppercased() }))
@@ -128,7 +124,11 @@ struct ScenariosView: View {
                             Cell(r.isStable ? "—" : f.signed(r.upside, 0), Theme.signColor(r.upside))
                             Cell(r.share.map { f.num($0 * 100, 0) + "%" } ?? "—", Theme.t2)
                             let w = gain > 0 && !r.isStable ? max(0, (r.upside / gain).double) : 0
-                            Text(AsciiChart.bar(w, width: 28)).font(Theme.mono(12)).foregroundStyle(Theme.bar).lineLimit(1).padding(.leading, 14)
+                            GeometryReader { g in
+                                Text(AsciiChart.bar(w, width: max(6, Int(g.size.width / Theme.cell(12)))))
+                                    .font(Theme.mono(12)).foregroundStyle(Theme.bar).lineLimit(1).fixedSize()
+                            }
+                            .frame(height: 14).clipped().padding(.leading, 14)
                         }
                         .padding(.leading, 4).padding(.trailing, 14)
                     }
@@ -187,7 +187,7 @@ struct ScenariosView: View {
                 if !noHoldings {
                     HStack(spacing: 6) {
                         BracketButton("create c · b · u", color: Theme.acc) { store.createPresetScenarios() }
-                        BracketButton("+ empty scenario  n") { store.newScenario() }
+                        BracketButton("+ empty scenario n") { store.newScenario() }
                     }
                 }
             }

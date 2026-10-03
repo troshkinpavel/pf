@@ -189,18 +189,10 @@ struct PortfoliosView: View {
 
         ScrollView(.vertical) {
             VStack(alignment: .leading, spacing: 18) {
-                HStack(alignment: .center) {
-                    HStack(alignment: .firstTextBaseline, spacing: 14) {
-                        TT("PORTFOLIOS", 15, Theme.t1, weight: .semibold, tracking: 0.6)
-                        TT("local contexts · switch with ⌘P or [ ]", 12, Theme.t3)
-                    }
-                    Spacer()
-                    TermButton(action: { store.openNewPortfolio() }, hoverBg: Theme.tabBg) {
-                        TT("[ + new portfolio  n ]", 12, Theme.acc).padding(.horizontal, 6).padding(.vertical, 4)
-                    }
-                    .accessibilityIdentifier("manage-new")
+                ScreenHeader(title: "PORTFOLIOS", sub: "local contexts · switch with ⌘P or [ ]") {
+                    BracketButton("+ new portfolio n", color: Theme.acc) { store.openNewPortfolio() }
+                        .accessibilityIdentifier("manage-new")
                 }
-                .padding(.bottom, 14).overlay(alignment: .bottom) { Hairline() }
 
                 Panel(title: "", padding: .init(top: 12, leading: 0, bottom: 4, trailing: 0)) {
                     VStack(spacing: 0) {
@@ -216,7 +208,7 @@ struct PortfoliosView: View {
                         ForEach(Array(list.enumerated()), id: \.element.id) { i, p in
                             let s = store.summary(for: .portfolio(p.id))
                             let on = i == store.manage.sel
-                            TableRow(selected: on, height: 30, onSelect: { store.manage.sel = i },
+                            TableRow(selected: on, height: store.settings.rowHeight, onSelect: { store.manage.sel = i },
                                      onOpen: { if !p.isArchived { store.setContext(.portfolio(p.id)); store.go(.overview) } },
                                      divider: i < list.count - 1) {
                                 Columns(Self.cols) {
@@ -279,12 +271,9 @@ struct EmptyPortfolioView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
-            HStack(alignment: .firstTextBaseline) {
-                TT(store.contextGlyph + " " + store.contextName, 15, Theme.t1, weight: .semibold, tracking: 0.6)
-                Spacer()
+            ScreenHeader(title: store.contextGlyph + " " + store.contextName) {
                 TT("0 positions · \(store.contextTransactions.count) transactions · [ ] to switch", 12, Theme.t3)
             }
-            .padding(.bottom, 14).overlay(alignment: .bottom) { Hairline() }
 
             Panel(title: "EMPTY PORTFOLIO", padding: .init(top: 24, leading: 22, bottom: 20, trailing: 22)) {
                 VStack(alignment: .leading, spacing: 14) {

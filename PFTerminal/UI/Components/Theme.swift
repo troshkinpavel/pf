@@ -39,8 +39,8 @@ struct TT: View {
 /// 10.5 caps label, +.08em tracking.
 struct CapsLabel: View {
     let s: String
-    var color: Color = Theme.t3
-    init(_ s: String, color: Color = Theme.t3) { self.s = s; self.color = color }
+    var color: Color = Theme.t2   // one grey for every caps label, as panel titles
+    init(_ s: String, color: Color = Theme.t2) { self.s = s; self.color = color }
     var body: some View { TT(s, 10.5, color, tracking: 0.84) }
 }
 
@@ -107,6 +107,35 @@ struct Tabs: View {
     }
 }
 
+/// Screen title row (What Changed, Watchlist, Alerts, Scenarios): fixed height, controls centred,
+/// so the title sits at the same place on every screen whatever the controls are.
+struct ScreenHeader<Trailing: View>: View {
+    let title: String
+    var sub: String = ""
+    /// Off where the caller draws the bottom rule itself (Settings: full-width rule).
+    var rule = true
+    /// After the subtitle on the baseline (Asset Detail: price and 24h change).
+    var detail: AnyView? = nil
+    @ViewBuilder var trailing: Trailing
+    var body: some View {
+        HStack(spacing: 14) {
+            HStack(alignment: .firstTextBaseline, spacing: 14) {
+                TT(title, 15, Theme.t1, weight: .semibold, tracking: 0.6).fixedSize()
+                TT(sub, 12, Theme.t3).lineLimit(1)
+                if let detail { detail.padding(.leading, 14) }
+            }
+            Spacer(minLength: 8)
+            trailing
+        }
+        .frame(height: 28)
+        .padding(.bottom, 14).overlay(alignment: .bottom) { if rule { Hairline() } }
+    }
+}
+
+extension ScreenHeader where Trailing == EmptyView {
+    init(title: String, sub: String = "", rule: Bool = true) { self.init(title: title, sub: sub, rule: rule) { EmptyView() } }
+}
+
 /// Keyboard shortcut chip.
 struct Kbd: View {
     let k: String
@@ -145,7 +174,7 @@ struct BracketButton: View {
     let action: () -> Void
     init(_ label: String, color: Color = Theme.text, action: @escaping () -> Void) { self.label = label; self.color = color; self.action = action }
     var body: some View {
-        TermButton(action: action, hoverBg: Theme.tabBg) {
+        TermButton(action: action, hoverBg: Theme.hover) {
             TT("[ \(label) ]", 12, color).padding(.horizontal, 6).padding(.vertical, 4)
         }
     }

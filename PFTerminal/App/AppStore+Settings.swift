@@ -66,7 +66,7 @@ extension AppStore {
             if case .failed = updateState { return SettingRow(k: "updates", v: updateStatusLabel, kind: .bad) { _ in self.checkForUpdates() } }
             return SettingRow(k: "updates", v: updateStatusLabel, kind: .link) { _ in self.checkForUpdates() }
         }()
-        let general = SettingSection(id: "general", title: "general", status: installedVersion.display, sub: "PF Terminal \(installedVersion.display) · no account", groups: [
+        let general = SettingSection(id: "general", title: "general", status: String(installedVersion.display.prefix { $0 != " " }), sub: "PF Terminal \(installedVersion.display) · no account", groups: [
             SettingGroup(h: "APP", rows: [
                 ro("version", "PF Terminal " + installedVersion.display),
                 update,
@@ -85,7 +85,10 @@ extension AppStore {
         let appearance = SettingSection(id: "appearance", title: "appearance", status: s.theme.rawValue, sub: "applies immediately", groups: [
             SettingGroup(h: "LOOK", rows: [
                 cyc("theme", themeLabel, AppTheme.allCases, s.theme) { self.settings.theme = $0 },
-                cyc("dark variant", s.darkVariant.rawValue, [AppTheme.dark, .midnight, .graphite], s.darkVariant, hint: "used by system when dark") { self.settings.darkVariant = $0 },
+                // Only does something with theme = system: disabled (shown, dimmed, inert) otherwise.
+                s.theme == .system
+                    ? cyc("dark variant", s.darkVariant.rawValue, [AppTheme.dark, .midnight, .graphite], s.darkVariant, hint: "used by system when dark") { self.settings.darkVariant = $0 }
+                    : SettingRow(k: "dark variant", v: s.darkVariant.rawValue, kind: .muted, hint: "only with theme system"),
                 cyc("density", s.density, ["compact", "comfortable"], s.density) { self.settings.density = $0 },
                 cyc("charts", s.chartStyle.rawValue, AsciiChart.Style.allCases, s.chartStyle) { self.settings.chartStyle = $0 },
             ]),
@@ -217,7 +220,7 @@ extension AppStore {
         let alerts = SettingSection(id: "alerts", title: "alerts", status: "\(n) rule\(n == 1 ? "" : "s")", sub: "rules live in Alerts (g a) · delivery here", groups: [
             SettingGroup(h: "DELIVERY", rows: [
                 cyc("notification", s.alertBanner ? "macOS banner" : "off", [false, true], s.alertBanner) { self.settings.alertBanner = $0 },
-                cyc("menu bar badge", s.alertBadge ? "until seen" : "off", [false, true], s.alertBadge) { self.settings.alertBadge = $0 },
+                cyc("menu bar popover", s.alertBadge ? "newest alert until seen" : "off", [false, true], s.alertBadge) { self.settings.alertBadge = $0 },
                 cyc("sound", s.alertSound ? "on" : "off", [false, true], s.alertSound) { self.settings.alertSound = $0 },
                 cyc("quiet hours", s.quietHours == "off" ? "off" : s.quietHours + " · queue", AppSettings.quietHourOptions, s.quietHours) { self.settings.quietHours = $0 },
             ]),

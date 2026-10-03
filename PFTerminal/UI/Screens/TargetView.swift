@@ -19,20 +19,14 @@ struct TargetView: View {
                                         portfolioTotal: store.summary.totalValue, circulatingSupply: v.quote?.circulatingSupply, ath: v.quote?.ath)
             }
             ScrollView(.vertical) {
-                VStack(alignment: .leading, spacing: 20) {
-                    HStack {
-                        HStack(alignment: .firstTextBaseline, spacing: 14) {
-                            TT("TARGET PRICE", 15, Theme.t1, weight: .semibold, tracking: 0.6)
-                            TT("quick calculator · not a prediction · ⌘S saves to the Base scenario", 12, Theme.t3)
-                        }
-                        Spacer()
+                VStack(alignment: .leading, spacing: 18) {
+                    ScreenHeader(title: "TARGET PRICE", sub: "quick calculator · not a prediction · ⌘S saves to the Base scenario") {
                         BracketButton("save to scenario ⌘S", color: Theme.acc) { store.saveTargetToScenario() }
                             .accessibilityIdentifier("target-save-scenario")
                         Tabs(items: store.summary.positions.map { TabItem(id: $0.asset.id, label: $0.asset.symbol) }, selected: v.asset.id, hPad: 10, vPad: 3) { id in
                             store.openTarget(id)
                         }
                     }
-                    .padding(.bottom, 14).overlay(alignment: .bottom) { Hairline() }
 
                     HStack(alignment: .top, spacing: 18) {
                         Panel(title: "\(v.asset.symbol) · INPUT", padding: .init(top: 20, leading: 20, bottom: 18, trailing: 20), fill: true) {
@@ -61,7 +55,7 @@ struct TargetView: View {
                                 HStack(spacing: 6) {
                                     ForEach(presets, id: \.self) { p in
                                         let on = tv.map { abs(($0 - p).double) < 1e-12 * max(1, p.double) } ?? false
-                                        TermButton(action: { store.targetInput = "\(p)" }, hoverBg: Theme.tabBg) {
+                                        TermButton(action: { store.targetInput = "\(p)" }, hoverBg: Theme.hover) {
                                             TT("[ \(f.level(p)) ]", 12, on ? Theme.acc : Theme.t2).fixedSize().padding(.horizontal, 8).padding(.vertical, 4)
                                                 .background(on ? Theme.tabBg : .clear)
                                         }
@@ -117,12 +111,12 @@ struct TargetView: View {
                                 HeadCell("TARGET", align: .leading); HeadCell("Δ PRICE"); HeadCell("POSITION"); HeadCell("PROFIT")
                                 HeadCell("MULTIPLE"); HeadCell("IMPLIED MCAP"); HeadCell("PORTFOLIO")
                             }
-                            .frame(height: 24).padding(.leading, 4).padding(.trailing, 14)
+                            .frame(height: 26).padding(.leading, 4).padding(.trailing, 14)
                             .overlay(alignment: .bottom) { Hairline() }
                             ForEach(Array(([px] + presets).enumerated()), id: \.offset) { i, t in
                                 let s = eval(t)
                                 let on = tv.map { abs(($0 - t).double) < 1e-12 * max(1, t.double) } ?? false
-                                TableRow(selected: on, height: 26, onSelect: { store.targetInput = "\(t)" }, divider: i < presets.count) {
+                                TableRow(selected: on, height: store.settings.rowHeight, onSelect: { store.targetInput = "\(t)" }, divider: i < presets.count) {
                                     Columns(Self.cols) {
                                         RowMark(on: on)
                                         TT(i == 0 ? f.price(t) + " now" : f.level(t), 12, Theme.t1)

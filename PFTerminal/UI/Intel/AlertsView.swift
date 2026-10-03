@@ -13,28 +13,27 @@ struct AlertsView: View {
         let fired = rows.filter { !$0.rule.paused && $0.rule.state == .fired }.count
         let paused = rows.filter(\.rule.paused).count
         let armed = rows.count - fired - paused
-        VStack(alignment: .leading, spacing: 18) {
-            HStack(alignment: .firstTextBaseline, spacing: 14) {
-                TT("ALERTS", 15, Theme.t1, weight: .semibold, tracking: 0.6)
-                TT("evaluated on this Mac every \(store.settings.intervalLabel) · last " + (store.lastSuccess.map(DateFmt.hms) ?? "—") + " · nothing leaves the device", 12, Theme.t3)
-                Spacer()
-                BracketButton("+ new alert  n", color: Theme.acc) { store.openAlertSetup() }
-                    .accessibilityIdentifier("alert-new")
-            }
-            .padding(.bottom, 12).overlay(alignment: .bottom) { Hairline() }
-            if rows.isEmpty {
-                empty
-            } else {
-                table(rows, title: "RULES · \(fired) fired · \(armed) armed · \(paused) paused")
-                Columns([.fr(1.6), .fr(1)], spacing: 18) {
-                    log
-                    delivery
+        ScrollView(.vertical) {
+            VStack(alignment: .leading, spacing: 18) {
+                ScreenHeader(title: "ALERTS", sub: "evaluated on this Mac every \(store.settings.intervalLabel) · last " + (store.lastSuccess.map(DateFmt.hms) ?? "—") + " · nothing leaves the device") {
+                    BracketButton("+ new alert n", color: Theme.acc) { store.openAlertSetup() }
+                        .accessibilityIdentifier("alert-new")
                 }
-                .fixedSize(horizontal: false, vertical: true)
+                if rows.isEmpty {
+                    empty
+                } else {
+                    table(rows, title: "RULES · \(fired) fired · \(armed) armed · \(paused) paused")
+                    Columns([.fr(1.6), .fr(1)], spacing: 18) {
+                        log
+                        delivery
+                    }
+                    .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 0)
             }
-            Spacer(minLength: 0)
+            .padding(.top, 2)
         }
-        .padding(.top, 14)
+        .scrollIndicators(.never)
     }
 
     private func table(_ rows: [(rule: AlertRule, now: String, distance: Double?)], title: String) -> some View {
@@ -82,9 +81,9 @@ struct AlertsView: View {
                 if events.isEmpty { TT("nothing fired in the last 30 days", 12, Theme.t4) }
                 ForEach(Array(events)) { e in
                     HStack(spacing: 12) {
-                        TT(DateFmt.ymd(e.at) + " " + DateFmt.hm(e.at), 11.5, Theme.t4)
-                        TT("#\(e.number)", 11.5, Theme.t3).frame(width: 34, alignment: .leading)
-                        TT(e.message, 11.5, Theme.t2).lineLimit(1)
+                        TT(DateFmt.ymd(e.at) + " " + DateFmt.hm(e.at), 11, Theme.t4)
+                        TT("#\(e.number)", 11, Theme.t3).frame(width: 34, alignment: .leading)
+                        TT(e.message, 11, Theme.t2).lineLimit(1)
                         Spacer(minLength: 8)
                         TT(e.delivery, 11, e.delivery.hasPrefix("queued") ? Theme.warning : Theme.t4)
                     }
@@ -98,7 +97,7 @@ struct AlertsView: View {
         return Panel(title: "DELIVERY", fill: true) {
             VStack(alignment: .leading, spacing: 6) {
                 kv("notification", s.alertBanner ? "macOS banner" + (s.alertSound ? " · sound" : "") : "off")
-                kv("menu bar", s.alertBadge ? "⚑ badge until seen" : "off")
+                kv("menu bar", s.alertBadge ? "popover · newest until seen" : "off")
                 kv("runs when", "app or menu bar item open")
                 kv("quiet hours", s.quietHours == "off" ? "off" : s.quietHours + " · queue")
                 kv("rules", "on this Mac · not synced")
@@ -113,7 +112,7 @@ struct AlertsView: View {
                 Text("Rules watch prices, position P&L, portfolio value, weight, 24h moves, stablecoin pegs, scenario targets and drawdown. They run on this Mac after every price refresh; stale prices never fire anything.")
                     .font(Theme.mono(12)).foregroundStyle(Theme.text).lineSpacing(4).fixedSize(horizontal: false, vertical: true)
                 TT("try   alert btc below 80000 · alert any move 15 · alert main drawdown 30", 12, Theme.t3)
-                BracketButton("+ new alert  n", color: Theme.acc) { store.openAlertSetup() }
+                BracketButton("+ new alert n", color: Theme.acc) { store.openAlertSetup() }
             }
             .frame(maxWidth: 680, alignment: .leading)
         }

@@ -10,24 +10,23 @@ struct WatchView: View {
 
     var body: some View {
         let rows = store.watchRows
-        VStack(alignment: .leading, spacing: 18) {
-            HStack(alignment: .firstTextBaseline, spacing: 14) {
-                TT("WATCHLIST", 15, Theme.t1, weight: .semibold, tracking: 0.6)
-                TT("\(rows.count) asset\(rows.count == 1 ? "" : "s") · not held · shared across portfolios · on this Mac", 12, Theme.t3)
-                Spacer()
-                BracketButton("+ watch asset  n", color: Theme.acc) { store.openWatchAdd() }
-                    .accessibilityIdentifier("watch-add")
+        ScrollView(.vertical) {
+            VStack(alignment: .leading, spacing: 18) {
+                ScreenHeader(title: "WATCHLIST", sub: "\(rows.count) asset\(rows.count == 1 ? "" : "s") · not held · shared across portfolios · on this Mac") {
+                    BracketButton("+ watch asset n", color: Theme.acc) { store.openWatchAdd() }
+                        .accessibilityIdentifier("watch-add")
+                }
+                if rows.isEmpty {
+                    empty
+                } else {
+                    table(rows)
+                    if let r = rows[safe: min(store.watchSel, rows.count - 1)] { selected(r) }
+                }
+                Spacer(minLength: 0)
             }
-            .padding(.bottom, 12).overlay(alignment: .bottom) { Hairline() }
-            if rows.isEmpty {
-                empty
-            } else {
-                table(rows)
-                if let r = rows[safe: min(store.watchSel, rows.count - 1)] { selected(r) }
-            }
-            Spacer(minLength: 0)
+            .padding(.top, 2)
         }
-        .padding(.top, 14)
+        .scrollIndicators(.never)
     }
 
     private func table(_ rows: [Watchlist.Row]) -> some View {
@@ -105,7 +104,7 @@ struct WatchView: View {
                     .font(Theme.mono(12)).foregroundStyle(Theme.text).lineSpacing(4).fixedSize(horizontal: false, vertical: true)
                 TT("try   ⌘K watch tao entry 320 target 520", 12, Theme.t3)
                 HStack(spacing: 6) {
-                    BracketButton("+ watch asset  n", color: Theme.acc) { store.openWatchAdd() }
+                    BracketButton("+ watch asset n", color: Theme.acc) { store.openWatchAdd() }
                 }
             }
             .frame(maxWidth: 680, alignment: .leading)
@@ -122,10 +121,11 @@ struct WatchView: View {
     }
 
     private func action(_ label: String, _ key: String, _ c: Color = Theme.t2, _ run: @escaping () -> Void) -> some View {
-        TermButton(action: run, hoverBg: Theme.selected) {
+        TermButton(action: run, hoverBg: Theme.hover) {
             HStack { TT(label, 12, c); Spacer(); TT(key, 11, Theme.t4) }
                 .padding(.horizontal, 6).frame(height: 26)
         }
+        .padding(.horizontal, -6)   // text on the card's padding line; the hover fill reaches past it
     }
 }
 
@@ -217,7 +217,7 @@ struct ConvertCarryOver: View {
         return TermButton(action: {
             store.converting?.carry[keyPath: kp].toggle()
             if kp == \WatchConversion.CarryOver.note { store.tx?.note = on ? "" : (c.item.note ?? "") }
-        }, hoverBg: Theme.selected) {
+        }, hoverBg: Theme.hover) {
             HStack(spacing: 8) {
                 TT(on ? "[x]" : "[ ]", 12, on ? Theme.acc : Theme.t4)
                 TT(label, 12, on ? Theme.t2 : Theme.t4).lineLimit(1)

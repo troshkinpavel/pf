@@ -50,7 +50,7 @@ struct MenuBarPopover: View {
                 VStack(alignment: .leading, spacing: 4) {
                     TT(s.totalLabel(f), 24, Theme.t1, weight: .medium).minimumScaleFactor(0.5).lineLimit(1)
                     HStack {
-                        HStack(spacing: 0) { TT(f.signed(s.change24h) + " ", 12, Theme.signColor(s.change24h)); TT("today", 12, Theme.t3) }
+                        HStack(spacing: 0) { TT(f.signed(s.change24h) + " ", 12, Theme.signColor(s.change24h)); TT("24h", 12, Theme.t3) }
                         Spacer(); TT(f.pct(s.change24hPct), 12, Theme.signColor(s.change24h))
                     }
                     HStack {
@@ -58,13 +58,19 @@ struct MenuBarPopover: View {
                         Spacer(); TT(f.pct(s.totalReturnPct, 1), 12, Theme.signColor(s.totalPnL))
                     }
                 }
+                // Positions with their $ impact on the day (design: menu bar 0.7).
                 VStack(spacing: 0) {
+                    Columns(Self.cols) {
+                        Color.clear; HeadCell("VALUE"); HeadCell("24H"); HeadCell("IMPACT"); Color.clear
+                    }
+                    .frame(height: 22)
                     ForEach(s.positions.prefix(store.settings.popoverRows)) { v in
-                        TermButton(action: { open(); store.openAsset(v.asset.id) }, hoverBg: Theme.tabBg) {
-                            Columns([.fixed(44), .fixed(70), .fixed(64), .fr(1)]) {
+                        TermButton(action: { open(); store.openAsset(v.asset.id) }, hoverBg: Theme.hover) {
+                            Columns(Self.cols) {
                                 TT(v.asset.symbol, 12, Theme.t1)
                                 Cell(f.compact(v.value), Theme.t2)
                                 Cell(f.pct(v.change24h), Theme.signColor(v.change24h))
+                                Cell(v.contribution24h.map { f.signed($0, 0) } ?? "—", Theme.signColor(v.contribution24h))
                                 Cell(spark(v), Theme.signColor(v.change24h)).opacity(0.7)
                             }
                             .frame(height: 24)
@@ -72,20 +78,21 @@ struct MenuBarPopover: View {
                     }
                 }
                 .padding(.top, 8).overlay(alignment: .top) { Hairline() }
-                VStack(alignment: .leading, spacing: 3) {
-                    rank("best", s.best24)
-                    rank("worst", s.worst24)
-                }
-                .padding(.top, 8).frame(maxWidth: .infinity, alignment: .leading).overlay(alignment: .top) { Hairline() }
+                summaryLines(s)
+                    .padding(.top, 8).frame(maxWidth: .infinity, alignment: .leading).overlay(alignment: .top) { Hairline() }
             }
-            HStack {
-                BracketButton("open portfolio", color: Theme.acc) { open() }
+            HStack(spacing: 4) {
+                BracketButton("open ↵", color: Theme.acc) { open() }
+                BracketButton("details d", color: Theme.acc) { open(); store.changesUsesMovers = false; store.go(.changes) }
                 Spacer()
-                BracketButton("refresh") { Task { await store.refresh(auto: false) } }
+                TermButton(action: { Task { await store.refresh(auto: false) } }) {
+                    HStack(spacing: 6) { TT("⟳", 12, Theme.t2); TT("⌘R", 11, Theme.t2) }
+                }
+                .help("refresh prices")
             }
             .padding(.top, 8).overlay(alignment: .top) { Hairline() }
             HStack {
-                TT("⌘K commands", 10.5, Theme.t4); Spacer(); TT("⌘, settings", 10.5, Theme.t4); Spacer()
+                TT("⌘, settings", 10.5, Theme.t4); Spacer()
                 TermButton(action: { NSApp.terminate(nil) }) { TT("⌘Q quit", 10.5, Theme.t4) }
             }
         }
@@ -108,9 +115,40 @@ struct MenuBarPopover: View {
         return AsciiChart.sparkline(AsciiChart.resample(vals, to: 10))
     }
 
-    private func rank(_ k: String, _ r: Ranked?) -> some View {
-        Columns([.fixed(52), .fixed(44), .fr(1)]) {
-            TT(k, 11.5, Theme.t3); TT(r?.symbol ?? "—", 11.5, Theme.text); TT(r.map { Fmt.current.pct($0.value) } ?? "—", 11.5, Theme.signColor(r?.value))
+    static let cols: [Columns.Col] = [.fixed(52), .fixed(64), .fixed(64), .fixed(64), .fr(1)]
+
+    /// moved · flows · the newest unseen alert (the menu bar title never carries a count).
+    private func summaryLines(_ s: PortfolioSummary) -> some View {
+        let f = Fmt.current
+        let moved = s.positions.filter { ($0.contribution24h ?? 0) != 0 }.sorted { abs($0.contribution24h!.double) > abs($1.contribution24h!.double) }.prefix(3)
+        let r = store.attribution(.today)
+        let alert = store.settings.alertBadge
+            ? store.intel.alerts.filter { $0.unseen && $0.state == .fired && !$0.paused }.max { ($0.firedAt ?? .distantPast) < ($1.firedAt ?? .distantPast) } : nil
+        return VStack(alignment: .leading, spacing: 5) {
+            HStack(spacing: 0) {
+                TT("moved", 11, Theme.t3).frame(width: 52, alignment: .leading)
+                Spacer(minLength: 6)
+                ForEach(Array(moved.enumerated()), id: \.offset) { i, v in
+                    if i > 0 { TT(" · ", 11, Theme.t4) }
+                    TT(v.asset.symbol + " ", 11, Theme.t1); TT(f.signed(v.contribution24h, 0), 11, Theme.signColor(v.contribution24h))
+                }
+                if moved.isEmpty { TT("—", 11, Theme.t4) }
+            }
+            HStack(spacing: 0) {
+                TT("flows", 11, Theme.t3).frame(width: 52, alignment: .leading)
+                Spacer(minLength: 6)
+                TT(r.map { $0.flows == 0 ? "none today · twr = market move" : f.signed($0.flows, 0) + " · \($0.buys + $0.sells) trade\($0.buys + $0.sells == 1 ? "" : "s") · excluded" } ?? "—", 11, Theme.t2)
+            }
+            if let a = alert {
+                TermButton(action: { open(); store.go(.alerts) }) {
+                    HStack(spacing: 0) {
+                        TT("⚑ " + store.alertSubjectLabel(a.subject) + " " + AlertEngine.condition(a, fmt: f).replacingOccurrences(of: "price ", with: ""), 11, Theme.acc).lineLimit(1)
+                        Spacer(minLength: 6)
+                        TT((a.firedAt.map(DateFmt.hm) ?? "") + (a.subject.assetID.map { store.watchContext($0)?.isActive == true ? " · watch" : "" } ?? ""), 11, Theme.t3)
+                    }
+                }
+                .accessibilityIdentifier("menubar-alert")
+            }
         }
     }
 

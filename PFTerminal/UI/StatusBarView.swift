@@ -63,7 +63,7 @@ struct HealthPopover: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack { TT("HEALTH", 11, Theme.t1, tracking: 0.66); Spacer(); TT("click ⑤ · esc", 11, Theme.t4) }
+            HStack { TT("HEALTH", 11, Theme.t1, tracking: 0.66); Spacer(); HStack(spacing: 6) { TT("close", 11, Theme.t2); Kbd("esc") } }
                 .padding(.horizontal, 14).frame(height: 30)
                 .overlay(alignment: .bottom) { Hairline() }
             VStack(alignment: .leading, spacing: 6) {
@@ -78,9 +78,12 @@ struct HealthPopover: View {
             .padding(14)
             HStack(spacing: 6) {
                 BracketButton("refresh now ⌘R", color: Theme.acc) { store.healthPopover = false; Task { await store.refresh(auto: false) } }
+                Spacer(minLength: 8)
                 BracketButton("data + sync →") { store.healthPopover = false; store.settingsSection = "sync"; store.go(.settings) }
             }
-            .padding(.horizontal, 8).padding(.bottom, 10)
+            .padding(.horizontal, 8).padding(.vertical, 8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .overlay(alignment: .top) { Hairline() }
         }
         .frame(width: 470)
         .background(Theme.raised)

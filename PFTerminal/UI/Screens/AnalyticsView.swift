@@ -89,8 +89,12 @@ struct AnalyticsView: View {
                                 VStack(spacing: 3) {
                                     HStack { TT(v.asset.symbol, 12, Theme.t1); Spacer(); TT(f.money(v.value, 0), 12, Theme.t2) }
                                     HStack(spacing: 8) {
-                                        Text(AsciiChart.bar((v.allocation ?? 0) / 100, width: 32)).font(Theme.mono(12)).foregroundStyle(Theme.bar).lineLimit(1)
-                                            .frame(maxWidth: .infinity, alignment: .leading).clipped()
+                                        // As long as the card is wide (a fixed length left a gap in wide windows).
+                                        GeometryReader { g in
+                                            Text(AsciiChart.bar((v.allocation ?? 0) / 100, width: max(8, Int(g.size.width / Theme.cell(12)))))
+                                                .font(Theme.mono(12)).foregroundStyle(Theme.bar).lineLimit(1).fixedSize()
+                                        }
+                                        .frame(height: 14).clipped()
                                         TT(v.allocation.map { f.num($0, 1) + "%" } ?? "—", 12, Theme.text)
                                     }
                                 }

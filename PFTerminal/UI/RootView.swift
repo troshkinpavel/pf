@@ -34,7 +34,9 @@ struct RootView: View {
                         }
                     }
                 }
-                .padding(.horizontal, 22).padding(.vertical, 20)
+                // Settings draws edge to edge (sidebar + divider, design §13).
+                .padding(.horizontal, store.screen == .settings && store.hasPortfolio ? 0 : 22)
+                .padding(.vertical, store.screen == .settings && store.hasPortfolio ? 0 : 20)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
 
                 if store.quickShare { Scrim { store.quickShare = false } content: { QuickShareView() } }
@@ -170,7 +172,10 @@ struct TitleBar: View {
         case .alerts: c.append(("alerts", {}))
         case .scenarios: c.append(("scenarios", {})); if let s = store.currentScenario { c.append((s.name.lowercased(), {})) }
         case .analytics: c.append(("analytics", {}))
-        case .settings: c.append(("settings", {}))
+        case .settings:
+            c.append(("settings", {}))
+            let q = store.settingsFilter.trimmingCharacters(in: .whitespaces)
+            c.append((q.isEmpty ? store.settingsSections.first { $0.id == store.settingsSection }?.title ?? "" : "\"\(q)\"", {}))
         case .share: c.append(("share", {}))
         case .portfolios: c.append(("portfolios", {}))
         }

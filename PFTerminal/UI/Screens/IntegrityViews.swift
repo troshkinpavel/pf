@@ -16,7 +16,7 @@ struct RestoreSheet: View {
                 } else {
                     VStack(spacing: 0) {
                         ForEach(Array(list.prefix(12).enumerated()), id: \.element.id) { i, s in
-                            TermButton(action: { store.restore?.sel = i; store.loadRestorePreview() }, hoverBg: Theme.selected) {
+                            TermButton(action: { store.restore?.sel = i; store.loadRestorePreview() }, hoverBg: Theme.hover) {
                                 Columns([.fixed(22), .fixed(150), .fixed(170), .fr(1)]) {
                                     RowMark(on: i == r.sel)
                                     TT(DateFmt.ymd(s.createdAt) + " " + DateFmt.hm(s.createdAt), 12, i == r.sel ? Theme.t1 : Theme.t2)
