@@ -97,7 +97,7 @@ public struct SnapshotStore {
             var n = 2
             while fm.fileExists(atPath: url.path) { url = directory.appendingPathComponent("pf-\(f.string(from: now))-\(reason.rawValue)-\(n).json"); n += 1 }
             try Self.encoder.encode(snap).write(to: url, options: [.atomic, .completeFileProtection])
-        } catch { throw SnapshotError.writeFailed(String(describing: type(of: error))) }
+        } catch { throw SnapshotError.writeFailed(ProtectedData.isUnavailable(error) ? ProtectedData.reason : String(describing: type(of: error))) }
         // Compared as encoded (the file format keeps whole seconds), byte for byte via the hash.
         guard let back = try? read(url), back.contentHash == snap.contentHash, Self.contentHash(back.document) == snap.contentHash else {
             try? fm.removeItem(at: url)

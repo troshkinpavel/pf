@@ -97,7 +97,8 @@ extension AppStore {
     /// After a local save: queue the change in sync-state.json right away (so it survives being
     /// offline or a restart, and "newer" means edit time), then debounce the actual sync.
     func scheduleSync() {
-        guard syncEnabled, !syncApplying else { return }
+        // Never diff an unloaded or unsaved ledger against the sync state: that would read as deletions.
+        guard syncEnabled, !syncApplying, syncCanPersist else { return }
         SyncEngine.detectLocalChanges(doc, &syncState, now: Date())
         syncDebounce?.cancel()
         syncDebounce = Task { [weak self] in
@@ -110,6 +111,7 @@ extension AppStore {
     func syncNow(reason: SyncTrigger) {
         guard syncEnabled, syncTask == nil else { return }
         guard let remote = syncRemote else { syncStatus = .iCloudUnavailable; return }
+        guard syncCanPersist else { syncStatus = .error("waiting for unlock"); return }
         guard syncEnvironmentMatches else {
             syncStatus = .error("paused · sync state belongs to CloudKit \(syncState.environment ?? SyncState.assumedEnvironment)")
             diagnostics.record(.sync, .warning, "environment-mismatch")
@@ -125,12 +127,16 @@ extension AppStore {
                 self.diagnostics.record(.sync, .info, recovering ? "pass-recovered" : "pass-ok")
                 if recovering { self.message = "✓ portfolios restored from iCloud · \(self.doc.livePortfolios.count) portfolios · \(self.doc.transactions.count) transactions" }
                 self.syncStatus = self.syncState.conflicts.isEmpty ? .synced : .conflict(self.syncState.conflicts.count)
+            } catch is SyncDeferredError {
+                // The ledger write failed mid-pass (locked): nothing committed, token unchanged.
+                self.syncStatus = .error("waiting for unlock")
+                self.enterProtectedWait("sync-deferred")
             } catch {
                 self.syncFailed(error)
             }
             self.syncTask = nil
             // Edits made after the last push of this cycle: go again. (Failed records wait for the timer.)
-            if self.syncEnabled, SyncEngine.detectLocalChanges(self.doc, &self.syncState, now: Date()) > 0 { self.scheduleSync() }
+            if self.syncEnabled, self.syncCanPersist, SyncEngine.detectLocalChanges(self.doc, &self.syncState, now: Date()) > 0 { self.scheduleSync() }
         }
     }
 

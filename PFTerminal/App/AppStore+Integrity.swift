@@ -54,12 +54,14 @@ extension AppStore {
     }
 
     func rollingSnapshotNow(reason: SnapshotStore.Reason = .auto) {
-        guard hasPortfolio, !doc.isDemo(.all) else { return }
+        guard hasPortfolio, !doc.isDemo(.all), !protectedDataWaiting else { return }
         do {
             if try snapshots.snapshotIfChanged(doc, reason: reason, appVersion: installedVersion.display) != nil {
                 diagnostics.record(.backup, .info, "rolling-snapshot")
                 reloadSnapshots()
             }
+        } catch SnapshotError.writeFailed(ProtectedData.reason) {
+            enterProtectedWait("snapshot-deferred")      // retried after unlock
         } catch {
             diagnostics.record(.backup, .error, "rolling-snapshot-failed", error: error)
         }

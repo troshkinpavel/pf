@@ -12,7 +12,8 @@ struct RootView: View {
             TitleBar()
             ZStack(alignment: .top) {
                 Group {
-                    if !store.hasPortfolio { OnboardingView() }
+                    if store.ledgerLoadDeferred { ProtectedDataWaitView() }
+                    else if !store.hasPortfolio { OnboardingView() }
                     else if store.summary.isEmpty && store.summary.closed.isEmpty && [.overview, .asset, .target, .movers, .analytics, .changes, .benchmark].contains(store.screen) {
                         EmptyPortfolioView()
                     } else {

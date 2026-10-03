@@ -109,6 +109,13 @@ final class AppStore {
     var alertSetup: AlertSetup?
     var alertConfirmDelete: UUID?
     var scenarioEdit: String?
+    /// Protected data unavailable (locked Mac): the ledger couldn't be read at launch, or a save
+    /// is waiting. Nothing replaces, quarantines or syncs the ledger until it clears.
+    var protectedDataWaiting = false
+    @ObservationIgnored var ledgerLoadDeferred = false
+    @ObservationIgnored var pendingLedgerSave = false
+    @ObservationIgnored var ledgerFault: (() -> Error?)?
+    @ObservationIgnored var protectedRetryAt = Date.distantPast
     @ObservationIgnored var intelRetry = false
     var scenarioRename: String?
     var scenarioConfirmDelete: UUID?
@@ -201,6 +208,9 @@ final class AppStore {
         var defaults: UserDefaults = .standard
         /// nil: CloudKit when the build is entitled. Tests and the DEBUG sync check inject their own.
         var syncRemote: SyncRemoteStore?
+        /// Tests: an error every ledger read / write fails with while it returns one
+        /// (simulates the locked Mac, where "complete" protection refuses access).
+        var ledgerFault: (() -> Error?)?
     }
 
     init(_ o: Options = Options()) {
@@ -234,6 +244,7 @@ final class AppStore {
         Fmt.current = Fmt(style: s.numbers, currency: s.currency)
         applyTheme()
 
+        ledgerFault = o.ledgerFault
         if o.seedDemo { loadDemo(save: !o.inMemory) }
         else { loadFromDisk() }
         switch migration {
@@ -288,6 +299,7 @@ final class AppStore {
         connectStream()
         if settings.appLock { locked = true }
         startLockObservers()
+        startProtectedDataObservers()
         startAppearanceObserver()
         diagnostics.record(.app, .info, "launch")
         rollingSnapshotNow()        // first snapshot after an upgrade, or after edits made by another version
@@ -307,6 +319,7 @@ final class AppStore {
 
     private func tick() {
         now = Date()
+        if protectedDataWaiting, now >= protectedRetryAt { resumeProtectedData() }
         guard !asleep, online, !inFlight else { return }
         if now.timeIntervalSince(lastAttempt) >= effectiveInterval { Task { await refresh(auto: true) } }
         if syncState.mode == .iCloud, now.timeIntervalSince(lastSyncAttempt) >= 300 { syncNow(reason: .timer) }
@@ -489,8 +502,9 @@ final class AppStore {
 
     // MARK: - persistence
 
-    private func loadFromDisk() {
+    func loadFromDisk() {
         do {
+            if let e = ledgerFault?() { throw e }
             if let d = try files.load() {
                 doc = d
                 hasPortfolio = true
@@ -501,6 +515,11 @@ final class AppStore {
                     cache.assignLegacySnapshots(to: doc.portfolios[0].id.uuidString)
                 }
             }
+        } catch where ProtectedData.isUnavailable(error) {
+            // Locked Mac: the file is fine, just not readable yet. Never set aside, never replaced.
+            ledgerLoadDeferred = true
+            enterProtectedWait("ledger-load-deferred")
+            return
         } catch {
             files.quarantine()
             message = "✗ portfolio.json was unreadable and has been set aside · \(error)"
@@ -519,8 +538,18 @@ final class AppStore {
     }
 
     func save() {
-        do { try files.save(doc); hasPortfolio = true }
-        catch {
+        // A ledger that was never read (locked at launch) is never written over.
+        guard !ledgerLoadDeferred else { enterProtectedWait("save-refused-unloaded"); return }
+        do {
+            if let e = ledgerFault?() { throw e }
+            try files.save(doc); hasPortfolio = true
+            pendingLedgerSave = false
+        } catch where ProtectedData.isUnavailable(error) {
+            // Kept in memory and written on unlock; no sync or snapshot until then.
+            pendingLedgerSave = true
+            enterProtectedWait("save-deferred")
+            return
+        } catch {
             message = "✗ could not save portfolio · \(error.localizedDescription)"
             diagnostics.record(.ledger, .error, "save-failed", error: error)
         }
@@ -529,6 +558,7 @@ final class AppStore {
     }
 
     func createEmpty() {
+        guard !ledgerLoadDeferred else { return }   // never replaces a ledger that isn't readable yet
         doc = .fresh()
         context = .portfolio(doc.portfolios[0].id)
         persistContext()
@@ -540,6 +570,7 @@ final class AppStore {
     }
 
     func loadDemo(save doSave: Bool = true) {
+        guard !ledgerLoadDeferred else { return }
         let main = PortfolioInfo(id: UUID(), name: "MAIN", glyph: PortfolioGlyphs.main, createdAt: DateFmt.parseYMD("2024-09-06")!, isDemo: true)
         doc = PortfolioDocument(portfolios: [main], assets: MockMarketDataProvider.assets, transactions: DemoPortfolio.transactions(portfolio: main.id))
         context = .portfolio(main.id)

@@ -179,7 +179,7 @@ extension AppStore {
         let isEsc = code == 53, isReturn = code == 36 || code == 76
         let isUp = code == 126, isDown = code == 125, isLeft = code == 123, isRight = code == 124
 
-        if !hasPortfolio {
+        if !hasPortfolio && !ledgerLoadDeferred {
             guard !cmd, !inInput else { return false }
             switch k {
             case "1": createEmpty(); return true
@@ -468,6 +468,7 @@ extension AppStore {
     }
 
     func importBackup() {
+        guard !ledgerLoadDeferred else { message = "protected data unavailable — waiting for unlock"; return }
         let panel = NSOpenPanel()
         panel.allowedContentTypes = [.json]
         panel.allowsMultipleSelection = false

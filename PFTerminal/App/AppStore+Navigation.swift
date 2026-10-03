@@ -115,6 +115,7 @@ extension AppStore {
             return ("g-  " + Self.leaderKeys.map { "\($0.key) \($0.label)" }.joined(separator: " · ") + " · esc", .accent)
         }
         if locked { return ("⌁ locked · amounts hidden · ⌘L unlock", .hint) }
+        if protectedDataWaiting { return ("protected data unavailable — waiting for unlock", .accent) }
         if now.timeIntervalSince(messageAt) < Self.messageLifetime(message), !message.isEmpty, message != "ready" {
             let tone: SlotTone = message.hasPrefix("✓") ? .success : message.hasPrefix("✗") ? .failure : message.hasPrefix("⚑") ? .accent : .event
             return (message, tone)
@@ -153,6 +154,7 @@ extension AppStore {
 
     /// One glyph for prices + feeds + sync; words only when something is wrong.
     var health: Health {
+        if protectedDataWaiting { return Health(level: .degraded, glyph: "▲", text: "waiting for unlock") }
         let pending = syncEnabled ? syncState.pendingCount : 0
         let pricesAge = Freshness.oldestQuoteAge(held: marketDrivenHeld, quotes: quotes, now: now).map { Int($0 / 60) }
         if !online {
@@ -210,7 +212,7 @@ extension AppStore {
             (f.isLive, "prices", "\(marketDrivenHeld.count) assets · upd " + (lastSuccess.map(DateFmt.hms) ?? "—") + " · next \(nextRefreshIn)s"),
             (degradedFeeds == nil, "feeds", feeds),
             (!syncEnabled || syncStatus == .synced || syncStatus == .syncing, "icloud", icloud),
-            (ledgerErrors.isEmpty, "ledger", ledgerErrors.isEmpty ? "\(doc.transactions.count) tx valid · \(doc.livePortfolios.count) portfolio\(doc.livePortfolios.count == 1 ? "" : "s")" : "\(ledgerErrors.count) problem\(ledgerErrors.count == 1 ? "" : "s")"),
+            (ledgerErrors.isEmpty && !protectedDataWaiting, "ledger", protectedDataWaiting ? "protected data unavailable — waiting for unlock" : ledgerErrors.isEmpty ? "\(doc.transactions.count) tx valid · \(doc.livePortfolios.count) portfolio\(doc.livePortfolios.count == 1 ? "" : "s")" : "\(ledgerErrors.count) problem\(ledgerErrors.count == 1 ? "" : "s")"),
             (snapshotList.first.map { now.timeIntervalSince($0.createdAt) < 7 * 86400 } ?? false, "recovery", "snapshot " + snap),
         ]
     }

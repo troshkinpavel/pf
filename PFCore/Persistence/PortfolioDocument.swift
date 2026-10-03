@@ -220,3 +220,24 @@ public struct PortfolioStore {
 
     public var byteSize: Int { (try? FileManager.default.attributesOfItem(atPath: fileURL.path)[.size] as? Int) ?? 0 }
 }
+
+/// Files saved with "complete" protection (the ledger, recovery snapshots) can be neither read
+/// nor created while the Mac is locked; the system answers with a permission error. That is a
+/// wait, never a sign of a missing or corrupt file.
+public enum ProtectedData {
+    public static func isUnavailable(_ error: Error) -> Bool {
+        let e = error as NSError
+        if e.domain == NSCocoaErrorDomain, [NSFileReadNoPermissionError, NSFileWriteNoPermissionError].contains(e.code) { return true }
+        if e.domain == NSPOSIXErrorDomain, [Int(EPERM), Int(EACCES)].contains(e.code) { return true }
+        if let u = e.userInfo[NSUnderlyingErrorKey] as? Error { return isUnavailable(u) }
+        return false
+    }
+
+    public static let reason = "protected data unavailable"
+
+    /// The error macOS gives for a protected file while locked (tests and previews).
+    public static var lockedError: Error {
+        NSError(domain: NSCocoaErrorDomain, code: NSFileWriteNoPermissionError,
+                userInfo: [NSUnderlyingErrorKey: NSError(domain: NSPOSIXErrorDomain, code: Int(EPERM))])
+    }
+}

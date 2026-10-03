@@ -200,6 +200,23 @@ struct TransactionSheet: View {
     }
 }
 
+/// Launched while the Mac was locked: the ledger exists but can't be read yet. No onboarding,
+/// nothing that could create a replacement ledger; it loads by itself after unlock.
+struct ProtectedDataWaitView: View {
+    @Environment(AppStore.self) private var store
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            TT("PROTECTED DATA UNAVAILABLE", 12, Theme.t2, tracking: 1.2)
+            TT("waiting for unlock · your ledger is encrypted while the Mac is locked and loads as soon as it is unlocked", 12, Theme.t3)
+            TT("nothing is created, replaced or synced until then", 11, Theme.t4)
+            BracketButton("try again", color: Theme.acc) { store.resumeProtectedData() }
+        }
+        .padding(40)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+        .accessibilityIdentifier("protected-data-wait")
+    }
+}
+
 struct OnboardingView: View {
     @Environment(AppStore.self) private var store
 

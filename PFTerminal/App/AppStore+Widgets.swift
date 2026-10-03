@@ -23,7 +23,7 @@ extension AppStore {
     /// Build and write one snapshot per context (the active one, every live portfolio, ALL),
     /// plus the picker index; then reload widgets. Skipped when nothing visible changed.
     func writeWidgetSnapshot() {
-        guard publishWidgets else { return }
+        guard publishWidgets, !ledgerLoadDeferred else { return }   // an unread ledger is never published as empty
         guard let dir = WidgetSnapshotStore.containerURL else {
             widgetStatus = "App Group unavailable (unsigned build)"
             return

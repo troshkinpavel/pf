@@ -7,6 +7,20 @@ import Foundation
 @MainActor public protocol SyncHost: AnyObject {
     var syncDocument: PortfolioDocument { get set }
     var syncState: SyncState { get set }
+    /// False while the host can't durably write its ledger (protected data unavailable while the
+    /// Mac is locked, a failed save waiting to be retried). A pass then stops before anything,
+    /// including the change token, moves past what is safely on disk.
+    var syncCanPersist: Bool { get }
+}
+
+extension SyncHost {
+    public var syncCanPersist: Bool { true }
+}
+
+/// A pass stopped because the host can't persist right now. Nothing was committed; the same
+/// remote changes are fetched again on the next pass.
+public struct SyncDeferredError: Error, Equatable {
+    public init() {}
 }
 
 /// Record-level sync: every portfolio, transaction and asset is its own record keyed by its
@@ -307,6 +321,7 @@ public enum SyncEngine {
     @MainActor
     private static func runCycle(_ host: SyncHost, remote: SyncRemoteStore, now: @escaping () -> Date) async throws {
         try stillActive(host)
+        guard host.syncCanPersist else { throw SyncDeferredError() }
         // Replaced document noticed before the fetch, so the fetch is the full one.
         detectLocalChanges(host.syncDocument, &host.syncState, now: now())
         try await checkAccount(host, remote)
@@ -321,7 +336,7 @@ public enum SyncEngine {
         normalize(&doc, st, now: now())
         detectLocalChanges(doc, &st, now: now())
         st.token = fetched.token
-        commit(host, doc, st)
+        try commit(host, doc, st)
 
         for _ in 0..<3 {
             let sent = pendingRecords(host.syncDocument, host.syncState)
@@ -333,7 +348,7 @@ public enum SyncEngine {
             applySaveOutcomes(sent: sent, outcomes, &doc, &st, now: now())
             normalize(&doc, st, now: now())
             detectLocalChanges(doc, &st, now: now())
-            commit(host, doc, st)
+            try commit(host, doc, st)
             if !outcomes.contains(where: { if case .conflict = $0 { true } else { false } }) { break }
         }
         host.syncState.lastSync = now()
@@ -359,8 +374,17 @@ public enum SyncEngine {
     }
 
     @MainActor
-    private static func commit(_ host: SyncHost, _ doc: PortfolioDocument, _ st: SyncState) {
-        if doc != host.syncDocument { host.syncDocument = doc }
+    private static func commit(_ host: SyncHost, _ doc: PortfolioDocument, _ st: SyncState) throws {
+        if doc != host.syncDocument {
+            let before = host.syncDocument
+            host.syncDocument = doc
+            // The ledger write failed (e.g. locked Mac): put the on-disk version back and keep the
+            // old bookkeeping, so the token never moves past data that isn't persisted.
+            guard host.syncCanPersist else {
+                host.syncDocument = before
+                throw SyncDeferredError()
+            }
+        }
         host.syncState = st
     }
 
@@ -447,6 +471,7 @@ public enum SyncEngine {
     @MainActor
     public static func enable(_ host: SyncHost, remote: SyncRemoteStore, choice: Choice, deviceName: String,
                        now: @escaping () -> Date = Date.init) async throws {
+        guard host.syncCanPersist else { throw SyncDeferredError() }
         var st = SyncState()
         st.mode = .iCloud
         st.deviceID = host.syncState.deviceID
@@ -460,8 +485,11 @@ public enum SyncEngine {
             normalize(&d, st, now: now())
             guard !d.portfolios.isEmpty else { throw SyncStoreError.unavailable("iCloud has no portfolios") }
             st.token = all.token
-            host.syncState = st
+            // Document first, then the state carrying the token: never a token ahead of the disk.
+            let before = host.syncDocument
             host.syncDocument = d
+            guard host.syncCanPersist else { host.syncDocument = before; throw SyncDeferredError() }
+            host.syncState = st
         } else {
             host.syncState = st
         }
