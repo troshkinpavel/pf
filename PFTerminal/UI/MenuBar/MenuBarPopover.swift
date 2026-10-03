@@ -26,6 +26,13 @@ struct MenuBarPopover: View {
         .background(Theme.popover)
     }
 
+    private var portfolioTabs: some View {
+        Tabs(items: store.doc.livePortfolios.map { TabItem(id: $0.id.uuidString, label: $0.name.lowercased()) } + [TabItem(id: "all", label: "all")],
+             selected: store.context.storageKey, hPad: 6, vPad: 1) { key in
+            if let c = PortfolioContext(storageKey: key) { store.setContext(c) }
+        }
+    }
+
     @ViewBuilder private var content: some View {
         let s = store.summary, f = Fmt.current, fr = store.freshness
         VStack(alignment: .leading, spacing: 12) {
@@ -38,9 +45,10 @@ struct MenuBarPopover: View {
                 }
             }
             if store.hasPortfolio && store.doc.livePortfolios.count > 1 {
-                Tabs(items: store.doc.livePortfolios.map { TabItem(id: $0.id.uuidString, label: $0.name.lowercased()) } + [TabItem(id: "all", label: "all")],
-                     selected: store.context.storageKey, hPad: 6, vPad: 1) { key in
-                    if let c = PortfolioContext(storageKey: key) { store.setContext(c) }
+                // Many portfolios: the row scrolls instead of widening the popover.
+                ViewThatFits(in: .horizontal) {
+                    portfolioTabs
+                    ScrollView(.horizontal, showsIndicators: false) { portfolioTabs }
                 }
                 .padding(.top, -4)
             }
@@ -112,7 +120,7 @@ struct MenuBarPopover: View {
         guard let pts = store.assetSeries(v.asset.id, .h24)?.points, pts.count > 2 else { return "" }
         var vals = pts.map(\.price)
         if let p = v.price { vals.append(p.double) }
-        return AsciiChart.sparkline(AsciiChart.resample(vals, to: 10))
+        return AsciiChart.sparkline(AsciiChart.resample(vals, to: 8))   // 8 cells fit the 64pt column
     }
 
     static let cols: [Columns.Col] = [.fixed(52), .fixed(64), .fixed(64), .fixed(64), .fr(1)]

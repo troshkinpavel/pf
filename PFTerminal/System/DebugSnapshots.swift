@@ -152,6 +152,13 @@ enum DebugSnapshots {
             c.privacy = .custom; c.custom = Set(ShareField.allCases); c.moverType = .impact
             if let d = ShareRenderer.png(store.shareModel(c)) { try? d.write(to: dir.appendingPathComponent("card-custom-all.png")) }
             renderWidgets(store, dir: dir)
+            // Menu bar popover (README), on the demo portfolio with three books (throwaway data).
+            for p in store.doc.portfolios.dropFirst(3) { try? store.doc.setArchived(p.id, true) }
+            store.setContext(.portfolio(store.doc.portfolios[0].id))
+            try? await Task.sleep(nanoseconds: 1_000_000_000)
+            let pop = ImageRenderer(content: MenuBarPopover().environment(store).clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous)))
+            pop.scale = 2
+            if let cg = pop.cgImage, let d = NSBitmapImageRep(cgImage: cg).representation(using: .png, properties: [:]) { emit("menubar", d) }
             print("snapshots:", dir.path)
             NSApp.terminate(nil)
         }
