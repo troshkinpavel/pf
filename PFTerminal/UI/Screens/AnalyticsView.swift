@@ -43,6 +43,10 @@ struct AnalyticsView: View {
                 .overlay(Rectangle().strokeBorder(Theme.border, lineWidth: 1))
                 .accessibilityIdentifier("performance-stats")
 
+                if benchmark {
+                    BenchmarkPanel()
+                } else {
+                AnalyticsModeTabs(benchmark: false)
                 // Performance with its drawdown underneath, beside a full-height allocation.
                 Columns([.fr(2), .fr(1)], spacing: 18) {
                     Panel(title: "PERFORMANCE · ALL", fill: true) {
@@ -111,6 +115,7 @@ struct AnalyticsView: View {
                 }
 
                 positions
+                }
             }
             .padding(.top, 7)
         }

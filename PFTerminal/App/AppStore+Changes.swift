@@ -59,7 +59,11 @@ extension AppStore {
         let txs = doc.transactions(c)
         var s: [AssetID: PriceSeries] = [:]
         for id in assetsHeld(during: history, in: c) {
-            if let x = assetSeries(id, history) ?? assetSeries(id, .all) { s[id] = x }
+            // A range series that starts after `start` (a young listing, a short feed) would leave the
+            // window's beginning unpriced; the ALL series covers it when loaded.
+            let ranged = assetSeries(id, history)
+            let covers = ranged?.first.map { $0.time <= start.addingTimeInterval(2 * 86400) } ?? false
+            if let x = covers ? ranged : assetSeries(id, .all) ?? ranged { s[id] = x }
             else if let peg = pegCheck(id), peg.status != .depeg { s[id] = Stablecoins.flatSeries(peg.peg) }
         }
         let chart = PortfolioHistoryEngine.chart(transactions: txs, summary: summary, start: start, points: points, series: s, now: Date()) {
@@ -74,6 +78,15 @@ extension AppStore {
     static let benchmarkAssets: [Asset] = [Benchmark.btc, Benchmark.eth].compactMap { id in AssetCatalog.known.first { $0.id == id } }
 
     func benchmark(_ r: Benchmark.Range) -> Benchmark.Result {
+        let key = "\(context.storageKey)|\(r.rawValue)|\(dataVersion)|\(Int(now.timeIntervalSince1970 / 60))"
+        if let hit = benchmarkCache[key] { return hit }
+        if benchmarkCache.count > 20 { benchmarkCache.removeAll() }
+        let res = computeBenchmark(r)
+        benchmarkCache[key] = res
+        return res
+    }
+
+    private func computeBenchmark(_ r: Benchmark.Range) -> Benchmark.Result {
         let now = Date()
         let start = r.start(now: now, firstTransaction: summary.firstDate)
         let pf = Benchmark.portfolioSide(portfolioChart(start: start, history: r.history), start: start, firstTransaction: summary.firstDate)
@@ -83,16 +96,24 @@ extension AppStore {
         return Benchmark.Result(range: r, start: start, portfolio: pf, btc: side(Benchmark.btc, "BTC"), eth: side(Benchmark.eth, "ETH"))
     }
 
+    /// Price history still on its way (benchmark / What Changed say "loading", not "missing").
+    var historyPending: Bool { !historyQueue.isEmpty || !loadingHistory.isEmpty }
+
     func setBenchmarkRange(_ r: Benchmark.Range) {
         benchmarkRange = r
         loadBenchmarkHistory()
     }
 
-    /// Portfolio history for the window plus BTC/ETH history, even when they aren't held.
+    /// Portfolio plus BTC/ETH history (even when not held) for every range: the relative table
+    /// shows all of them at once.
     func loadBenchmarkHistory() {
-        let h = benchmarkRange.history
-        loadHistory(assetsHeld(during: h), h)
-        for a in Self.benchmarkAssets { loadReferenceHistory(a, h) }
+        // The chart's range first: the queue is paced, the table's other ranges can follow.
+        var order = [benchmarkRange.history]
+        for r in Benchmark.Range.allCases where !order.contains(r.history) { order.append(r.history) }
+        for h in order {
+            loadHistory(assetsHeld(during: h), h)
+            for a in Self.benchmarkAssets { loadReferenceHistory(a, h) }
+        }
     }
 
     /// History for an asset that may not be in the ledger (benchmarks).

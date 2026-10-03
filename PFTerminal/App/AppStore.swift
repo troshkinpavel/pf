@@ -145,6 +145,7 @@ final class AppStore {
     var providerHealth: [ProviderRouter.Health] = []
     @ObservationIgnored var historyCache: (key: String, chart: PortfolioChart)?
     @ObservationIgnored var attributionCache: [String: Attribution.Result] = [:]
+    @ObservationIgnored var benchmarkCache: [String: Benchmark.Result] = [:]
     var apiKeyEntry: String?
     /// Set when data from the previous app identity exists but could not be read automatically.
     var legacyDataUnreadable = false
