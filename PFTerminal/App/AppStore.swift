@@ -42,6 +42,11 @@ final class AppStore {
     var context: PortfolioContext = .all   // change via setContext(_:)
     @ObservationIgnored var heldAnywhere: Set<AssetID> = []
     var settings: AppSettings { didSet { settingsChanged(oldValue) } }
+    /// macOS appearance, for `theme = system`. Kept current by `startAppearanceObserver`.
+    var systemIsDark = AppStore.readSystemIsDark() { didSet { if oldValue != systemIsDark { applyTheme() } } }
+    /// Changes whenever the resolved palette does; root views use it as their identity so every
+    /// token is read again (Theme.* are not observable).
+    var themeID = ThemePalette.dark.name
     var share: ShareConfig { didSet { persistShare() } }
 
     // MARK: market
@@ -184,6 +189,7 @@ final class AppStore {
         router = ProviderRouter(providers: [])
         summary = PortfolioEngine.summarize(transactions: [], assets: [:], quotes: [:])
         Fmt.current = Fmt(style: s.numbers, currency: s.currency)
+        applyTheme()
 
         if o.seedDemo { loadDemo(save: !o.inMemory) }
         else { loadFromDisk() }
@@ -238,6 +244,7 @@ final class AppStore {
         connectStream()
         if settings.appLock { locked = true }
         startLockObservers()
+        startAppearanceObserver()
         diagnostics.record(.app, .info, "launch")
         rollingSnapshotNow()        // first snapshot after an upgrade, or after edits made by another version
         startSync()
@@ -597,6 +604,7 @@ final class AppStore {
         if old.numbers != settings.numbers { recompute() }
         if old.widgetPrivacy != settings.widgetPrivacy { writeWidgetSnapshot() }
         if old.keepInDock != settings.keepInDock { keepInDockChanged() }   // privacy applies immediately
+        if old.theme != settings.theme { applyTheme() }
     }
 
     /// Currency is the ledger's currency: switching is allowed only when every transaction matches.

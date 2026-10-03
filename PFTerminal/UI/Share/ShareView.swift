@@ -65,7 +65,7 @@ struct ShareView: View {
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
-                .background(Color(hex: 0x0a0b0c))
+                .background(Theme.well)
                 .overlay(Rectangle().strokeBorder(Theme.border, lineWidth: 1))
             }
             .frame(maxHeight: .infinity)

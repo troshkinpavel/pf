@@ -1,5 +1,11 @@
 import Foundation
 
+/// App appearance (Settings → APPEARANCE → theme). `system` follows macOS light/dark.
+/// Colours live in PFCoreUI (`ThemePalette`); this is only the stored choice.
+public enum AppTheme: String, Codable, CaseIterable, Sendable {
+    case dark, light, midnight, graphite, system
+}
+
 public enum MenuBarFormat: String, Codable, CaseIterable, Sendable {
     case valuePct = "value + 24h %", valueDelta = "Σ value  Δ today", compact = "◈ compact", hidden = "icon only"
 }
@@ -28,6 +34,8 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public var onboarded: Bool = false
     /// Mac-local: keep the Dock icon while only the menu bar item is open. Never synced.
     public var keepInDock: Bool = false
+    /// Appearance. Older settings have no value and stay on the original dark look.
+    public var theme: AppTheme = .dark
 
     public static let providerOptions = ["Auto", "Binance", "Bybit", "CoinGecko"]
     /// Settings format of market routing. 0 = before 0.5 (CoinGecko was the default primary).
@@ -76,6 +84,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         menuBarContext = (try? c.decode(String.self, forKey: .menuBarContext)) ?? d.menuBarContext
         onboarded = (try? c.decode(Bool.self, forKey: .onboarded)) ?? d.onboarded
         keepInDock = (try? c.decode(Bool.self, forKey: .keepInDock)) ?? d.keepInDock
+        theme = (try? c.decode(AppTheme.self, forKey: .theme)) ?? d.theme   // unknown values (a newer build) → dark
     }
 }
 

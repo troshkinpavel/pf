@@ -27,6 +27,10 @@ struct PFTerminalApp: App {
             o.publishWidgets = false
         }
         let s = AppStore(o)
+        #if DEBUG
+        // `--theme light|midnight|graphite|system`: snapshots and manual checks of each theme.
+        if let i = args.firstIndex(of: "--theme"), i + 1 < args.count, let t = AppTheme(rawValue: args[i + 1]) { s.settings.theme = t }
+        #endif
         _store = State(initialValue: s)
         AppDelegate.store = s
     }

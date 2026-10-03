@@ -17,7 +17,7 @@ public struct ShareCardView: View {
 
     public static func palette(_ t: ShareTheme) -> Palette {
         switch t {
-        case .terminal: .init(bg: Color(hex: 0x0e0f11), fg: Color(hex: 0xe4e5e7), dim: Color(hex: 0x7a7e85), border: Color(hex: 0x232529), pos: Theme.pos, neg: Theme.neg, bar: Color(hex: 0x8b8f96))
+        case .terminal: .init(bg: Color(hex: 0x0e0f11), fg: Color(hex: 0xe4e5e7), dim: Color(hex: 0x7a7e85), border: Color(hex: 0x232529), pos: Color(hex: 0x7fcf9a), neg: Color(hex: 0xe8847a), bar: Color(hex: 0x8b8f96))   // fixed: cards never follow the app theme
         case .monochrome: .init(bg: Color(hex: 0xeeeeea), fg: Color(hex: 0x141414), dim: Color(hex: 0x6b6b66), border: Color(hex: 0xcfcfc9), pos: Color(hex: 0x141414), neg: Color(hex: 0x141414), bar: Color(hex: 0x141414))
         case .phosphor: .init(bg: Color(hex: 0x050b07), fg: Color(hex: 0xa6f0b8), dim: Color(hex: 0x5a9a6a), border: Color(hex: 0x14301d), pos: Color(hex: 0xa6f0b8), neg: Color(hex: 0xf0c27a), bar: Color(hex: 0x5a9a6a))
         }

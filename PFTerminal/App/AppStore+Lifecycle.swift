@@ -1,6 +1,7 @@
 import PFCore
 import PFCoreUI
 import AppKit
+import SwiftUI
 
 // Dock / menu bar lifecycle.
 //
@@ -83,4 +84,32 @@ extension AppStore {
         case let .failed(m): "✗ \(m) · [ retry ]"
         }
     }
+}
+
+// MARK: - Appearance
+
+extension AppStore {
+    /// Resolves the theme setting to a palette and applies it everywhere at once: tokens, the
+    /// window and menu chrome (NSApp.appearance, also used by alerts and menus), and `themeID`,
+    /// which re-creates the SwiftUI trees so every view reads the new tokens. No restart.
+    func applyTheme() {
+        let p = settings.theme.palette(systemIsDark: systemIsDark)
+        Theme.palette = p
+        NSApp?.appearance = NSAppearance(named: p.isLight ? .aqua : .darkAqua)
+        themeID = p.name
+    }
+
+    nonisolated static func readSystemIsDark() -> Bool {
+        UserDefaults.standard.string(forKey: "AppleInterfaceStyle") == "Dark"
+    }
+
+    /// macOS light/dark changes, for `theme = system`. Read from the global setting, not
+    /// NSApp.effectiveAppearance, which follows the appearance PF itself sets.
+    func startAppearanceObserver() {
+        DistributedNotificationCenter.default().addObserver(forName: .init("AppleInterfaceThemeChangedNotification"), object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.systemIsDark = Self.readSystemIsDark() }
+        }
+    }
+
+    var colorScheme: ColorScheme { Theme.isLight ? .light : .dark }
 }

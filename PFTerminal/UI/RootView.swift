@@ -51,7 +51,8 @@ struct RootView: View {
         .foregroundStyle(Theme.text)
         .font(Theme.mono(12))
         .background(WindowAccessor { w in store.attachMainWindow(w) })
-        .preferredColorScheme(.dark)
+        .preferredColorScheme(store.colorScheme)
+        .id(store.themeID)          // theme switch: every view reads the new tokens
         .alert("Replace current portfolio?", isPresented: Binding(get: { store.pendingImport != nil }, set: { if !$0 { store.pendingImport = nil } }), presenting: store.pendingImport) { d in
             Button("Replace", role: .destructive) { store.applyImport() }
             Button("Cancel", role: .cancel) { store.pendingImport = nil }
@@ -86,11 +87,11 @@ struct Scrim<Content: View>: View {
 
     var body: some View {
         ZStack(alignment: .top) {
-            Color.black.opacity(0.36).contentShape(Rectangle()).onTapGesture { dismiss?() }
+            Theme.scrim.contentShape(Rectangle()).onTapGesture { dismiss?() }
             content
                 .background(Theme.raised)
                 .overlay(Rectangle().strokeBorder(Theme.overlayBorder, lineWidth: 1))
-                .shadow(color: .black.opacity(0.65), radius: 30, y: 20)
+                .shadow(color: .black.opacity(Theme.isLight ? 0.16 : 0.65), radius: 30, y: 20)
                 .padding(.top, top)
         }
         .transition(.asymmetric(insertion: .opacity.animation(.linear(duration: 0.08)), removal: .identity))
@@ -165,7 +166,7 @@ struct StatusBar: View {
 
     var body: some View {
         HStack(spacing: 14) {
-            PFGlyph(size: 12, color: Color(hex: 0x131313))
+            PFGlyph(size: 12, color: Theme.onAccent)
                 .padding(.horizontal, 8).frame(maxHeight: .infinity).background(Theme.acc)
             if store.hasPortfolio {
                 TermButton(action: { store.openSwitcher() }) { TT("[" + store.contextName.lowercased() + "]", 11, Theme.acc).fixedSize() }

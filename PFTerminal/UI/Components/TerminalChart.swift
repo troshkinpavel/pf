@@ -44,7 +44,7 @@ struct TerminalChart<Trailing: View>: View {
                             .frame(width: CGFloat(cols) * cw, alignment: .leading)
                             .overlay(alignment: .topLeading) {
                                 if let h = hoverCol {
-                                    Rectangle().fill(Color.white.opacity(0.19)).frame(width: 1)
+                                    Rectangle().fill(Theme.chartGrid).frame(width: 1)
                                         .offset(x: (CGFloat(h) + 0.5) * cw)
                                 }
                             }

@@ -7,7 +7,8 @@ struct MenuBarPopover: View {
     @Environment(AppStore.self) private var store
 
     var body: some View {
-        if store.locked { lockedBody } else { content }
+        Group { if store.locked { lockedBody } else { content } }
+            .id(store.themeID)
     }
 
     /// While locked: no portfolio names, values or positions.
@@ -22,7 +23,7 @@ struct MenuBarPopover: View {
             }
         }
         .padding(14).frame(width: 340)
-        .background(Color(hex: 0x141517))
+        .background(Theme.popover)
     }
 
     @ViewBuilder private var content: some View {
@@ -90,8 +91,8 @@ struct MenuBarPopover: View {
         }
         .padding(.horizontal, 16).padding(.top, 14).padding(.bottom, 10)
         .frame(width: 340)
-        .background(Color(hex: 0x141517))
-        .preferredColorScheme(.dark)
+        .background(Theme.popover)
+        .preferredColorScheme(store.colorScheme)
         .onAppear {
             store.popoverOpen = true
             store.loadHistory(store.summary.positions.prefix(store.settings.popoverRows).map(\.asset.id), .h24)

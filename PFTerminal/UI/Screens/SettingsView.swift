@@ -123,7 +123,8 @@ struct SettingsView: View {
         let s = store.settings
         return [
             Section(title: "APPEARANCE", rows: [
-                Row(k: "theme", v: "dark", c: Theme.t2),
+                Row(k: "theme", v: s.theme.rawValue + (s.theme == .system ? " · " + (store.systemIsDark ? "dark" : "light") : ""),
+                    action: cycle(AppTheme.allCases, s.theme) { store.settings.theme = $0 }),
                 Row(k: "density", v: s.density, action: cycle(["compact", "comfortable"], s.density) { store.settings.density = $0 }),
                 Row(k: "charts", v: s.chartStyle.rawValue, action: cycle(AsciiChart.Style.allCases, s.chartStyle) { store.settings.chartStyle = $0 }),
                 Row(k: "numbers", v: s.numbers.rawValue, action: cycle(NumberStyle.allCases, s.numbers) { store.settings.numbers = $0 }),
@@ -193,7 +194,7 @@ struct SettingsView: View {
         ]
         let health: [Row] = store.dataHealth.map { h in
             let glyph = h.level == .ok ? "✓" : h.level == .warning ? "!" : "✗"
-            let c = h.level == .ok ? Theme.t2 : h.level == .warning ? Theme.acc : Theme.neg
+            let c = h.level == .ok ? Theme.t2 : h.level == .warning ? Theme.warning : Theme.neg
             let actionable = h.level != .ok && (h.asset != nil || h.area == .sync || h.area == .recovery)
             return Row(k: glyph + " " + h.area.rawValue, v: h.text, c: c, action: actionable ? { store.reviewFinding(h) } : nil)
         }

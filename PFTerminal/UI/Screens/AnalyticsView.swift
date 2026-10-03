@@ -171,7 +171,7 @@ struct AnalyticsView: View {
                                 Cell(f.money(v.position.costBasis, 0), Theme.t3).frame(width: 84)
                             }
                             HStack(spacing: 0) {
-                                Text(String(repeating: "█", count: n(v.value?.double ?? 0))).font(Theme.mono(12)).foregroundStyle(Color(hex: 0xa9acb1)).lineLimit(1)
+                                Text(String(repeating: "█", count: n(v.value?.double ?? 0))).font(Theme.mono(12)).foregroundStyle(Theme.barStrong).lineLimit(1)
                                     .frame(maxWidth: .infinity, alignment: .leading).clipped()
                                 Cell(f.money(v.value, 0)).frame(width: 84)
                             }

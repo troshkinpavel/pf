@@ -57,12 +57,15 @@ final class CriticalFlowsUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["CONFIGURE"].waitForExistence(timeout: 3))
         let window = app.windows.firstMatch
         let before = window.frame
-        app.staticTexts["custom"].firstMatch.click()
+        func el(_ text: String) -> XCUIElement {
+            app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@ OR value CONTAINS %@", text, text)).firstMatch
+        }
+        el("pick fields").click()
         for f in ["[ ] portfolio name", "[ ] asset allocation", "[ ] average entries", "[ ] position values"] {
-            let t = app.staticTexts[f]
+            let t = el(f)
             if t.waitForExistence(timeout: 2) { t.click() }
         }
-        XCTAssertTrue(app.staticTexts["REVEALS POSITION DATA — review before sharing"].waitForExistence(timeout: 2))
+        XCTAssertTrue(el("REVEALS POSITION DATA").waitForExistence(timeout: 2))
         XCTAssertEqual(window.frame, before, "the window keeps its size and position")
     }
 }
