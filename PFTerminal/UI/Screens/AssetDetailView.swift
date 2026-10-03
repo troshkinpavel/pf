@@ -93,6 +93,7 @@ struct AssetDetailView: View {
                 KV(k: "amount", v: f.amount(p.quantity) + " " + v.asset.symbol)
                 KV(k: "cost · avg " + f.price(p.averageEntry), v: f.money(p.costBasis))
                 KV(k: "value", v: f.money(v.value))
+                divider
                 KV(k: "unrealized", v: f.signed(v.unrealized) + " · " + f.pct(v.returnPct, 1), c: Theme.signColor(v.unrealized))
                 let sells = p.transactions.filter { $0.type == .sell }.count
                 KV(k: "realized", v: p.realizedPnL == 0 && sells == 0 ? f.money(Decimal(0), 0) + " · no sells" : f.signed(p.realizedPnL), c: p.realizedPnL == 0 ? Theme.t2 : Theme.signColor(p.realizedPnL))
@@ -149,12 +150,16 @@ struct AssetDetailView: View {
                     KV(k: "target weight", v: "set in Base scenario · g s", c: Theme.t4)
                 }
                 if let dd {
+                    divider
                     KV(k: "local peak · " + String(DateFmt.ymd(dd.at).dropFirst(5)), v: f.money(Decimal.of(dd.peak), 0), c: Theme.t2)
                     KV(k: "from peak", v: dd.fromPeak > -0.05 ? "at peak" : f.pct(dd.fromPeak, 1) + "  " + f.signed(Decimal.of(dd.fromPeakValue), 0), c: dd.fromPeak < -0.05 ? Theme.neg : Theme.t2)
                 }
             }
         }
     }
+
+    /// Separates the groups inside a card (design §04).
+    private var divider: some View { Rectangle().fill(Theme.innerBorder).frame(height: 1).padding(.vertical, 3) }
 
     /// Rows hide when empty, so a fresh position shows only what has data.
     @ViewBuilder
