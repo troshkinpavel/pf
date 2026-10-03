@@ -23,6 +23,10 @@ struct CommandPaletteView: View {
             .overlay(alignment: .bottom) { Hairline() }
             VStack(spacing: 0) {
                 ForEach(Array(items.enumerated()), id: \.element.id) { i, it in
+                    if let g = it.group, g != items[safe: i - 1]?.group {
+                        TT(g, 10.5, Theme.t3, tracking: 0.84).padding(.leading, 28).padding(.top, i == 0 ? 2 : 8).padding(.bottom, 2)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
                     Button(action: it.run) {
                         Columns([.fixed(22), .fr(1), .fixed(140)]) {
                             TT(i == sel ? "›" : "", 12, Theme.acc).frame(maxWidth: .infinity)
@@ -41,7 +45,7 @@ struct CommandPaletteView: View {
                     .buttonStyle(.plain)
                     .onHover { if $0, store.palette?.sel != i { store.palette?.sel = i } }
                 }
-                if items.isEmpty { TT("no match · try: buy eth 0.5 @ 3500 · target eth 10k · share 24h", 11, Theme.t4).padding(12) }
+                if items.isEmpty { TT("no match · try: buy eth 0.5 @ 3500 · alert btc below 80k · watch sol 135 · compare 1y", 11, Theme.t4).padding(12) }
             }
             .padding(.vertical, 6)
             .frame(maxHeight: 420, alignment: .top)
@@ -49,7 +53,7 @@ struct CommandPaletteView: View {
             HStack {
                 TT("↑↓ select · ↵ run · esc close", 11, Theme.t4)
                 Spacer()
-                TT("buy eth 0.5 @ 3500 · target eth 10k · movers · pnl", 11, Theme.t4)
+                TT("alert · watch · convert · scenario · compare · buy eth 0.5 @ 3500", 11, Theme.t4)
             }
             .padding(.horizontal, 16).padding(.vertical, 9)
             .overlay(alignment: .top) { Hairline() }

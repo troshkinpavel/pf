@@ -78,6 +78,12 @@ enum DebugSnapshots {
                     ("49-keys", { store.leaderActive = false; store.keysOverlay = true }),
                     ("50-overview", { store.keysOverlay = false; store.go(.overview) }),
                     ("51-asset", { store.openAsset(tel) }),
+                    ("52-palette-symbol", { store.openPalette("tel") }),
+                    ("53-palette-alert", { store.openPalette("alert tel above .005") }),
+                    ("54-palette-watch", { store.openPalette("watch sol 135 210") }),
+                    ("55-empty-watch", { store.palette = nil; store.updateIntel { $0 = IntelDocument() }; store.go(.watch) }),
+                    ("55b-empty-alerts", { store.go(.alerts) }),
+                    ("55c-empty-scenarios", { store.go(.scenarios) }),
                 ]
             }
             if ProcessInfo.processInfo.arguments.contains("--ui-testing") {

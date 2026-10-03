@@ -21,6 +21,8 @@ struct PaletteItem: Identifiable {
     var detail = ""
     var hint = ""
     var isCommand = false
+    /// Section header in the palette (0.7: ASSET · IN CONTEXT · ACTIONS, verb groups).
+    var group: String?
     let run: () -> Void
 }
 

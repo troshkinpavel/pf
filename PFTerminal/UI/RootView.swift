@@ -167,7 +167,7 @@ struct TitleBar: View {
         case .benchmark: c.append(("analytics", { store.go(.analytics) })); c.append(("benchmark", {}))
         case .watch: c.append(("watchlist", {}))
         case .alerts: c.append(("alerts", {}))
-        case .scenarios: c.append(("scenarios", {})); c.append((store.currentScenario?.name.lowercased() ?? "", {}))
+        case .scenarios: c.append(("scenarios", {})); if let s = store.currentScenario { c.append((s.name.lowercased(), {})) }
         case .analytics: c.append(("analytics", {}))
         case .settings: c.append(("settings", {}))
         case .share: c.append(("share", {}))

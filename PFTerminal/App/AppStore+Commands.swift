@@ -15,6 +15,8 @@ extension AppStore {
         let f = Fmt.current
         var items: [PaletteItem] = []
         let trimmed = q.trimmingCharacters(in: .whitespaces)
+        // Leading spaces dropped, a trailing one kept: "alert tel " opens setup ready for the condition.
+        if let intel = intelPaletteItems(String(q.drop { $0 == " " })) { return Array(intel.prefix(11)) }
         let cmd = CommandParser.parse(trimmed)
 
         switch cmd {
@@ -89,9 +91,7 @@ extension AppStore {
         let structured: Bool = { guard let c = cmd else { return false }; if case .navigate = c { return false }; return true }()
         let toks = CommandParser.tokens(trimmed)
         if toks.count == 1, toks[0].count >= 2, !structured, cmd == nil, let a = resolveAsset(toks[0]) {
-            let q = quotes[a.id]
-            items.append(PaletteItem(label: "Open " + a.symbol, detail: q.map { f.price($0.price) + "  " + f.pct($0.change24h) } ?? a.name.lowercased(),
-                                     hint: "↵", isCommand: true, run: { [weak self] in self?.openAssetOrAdd(a) }))
+            return symbolPaletteItems(a)   // 0.7: the asset, where it appears, what to do with it
         }
 
         let isOpen = trimmed.lowercased().hasPrefix("open")
