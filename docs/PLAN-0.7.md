@@ -1,6 +1,6 @@
 # PF Terminal 0.7.0: Portfolio Intelligence (implementation plan)
 
-**Status:** in development on `release/0.7.0`. Nothing here is released yet.
+**Status:** implemented on `release/0.7.0` (phases 1–10), not released, not tagged.
 
 **Specification:** `pf Terminal 0.7.dc.html` in the Claude Design project (sections 01–14). All states, notes, keys and copy in that file are requirements.
 
@@ -33,6 +33,10 @@
 6. **Theme rows:** `theme ‹ dark · light · system ›` + `dark variant ‹ dark · midnight · graphite ›`, mapped onto the 0.6 setting so 0.6 can still read it.
 7. **Alert firing on one Mac only** needs synced rules; with local rules each Mac evaluates its own.
 8. **Benchmark history** comes from the price history of BTC and ETH (fetched even when not held) and the portfolio's TWR over the same window. Missing data shows as "—" with the reason.
+9. **Overview header "today"** keeps 0.6's flow-adjusted 24h change (it is also what the menu bar, widgets and share cards show). The WHAT MOVED band and What Changed use the local-day market move, labelled as such.
+10. **24h move migration.** 0.6 notified on the portfolio's 24h move; the design's rule is "any held asset · |24h| > N%". The migrated rule follows the design (same threshold, daily repeat). It can fire more often than 0.6 did; it is editable or can be paused in Alerts.
+11. **intel.json file protection** is "until first unlock" (the ledger stays "complete"): alerts are evaluated and saved from the menu bar while the Mac is locked, when "complete" files can be neither created nor read. A file that exists but can't be read is never treated as missing.
+12. **Watch → position cash source** is always "new deposit · excluded from twr": PF has no cash balance to swap from.
 
 ## Phases
 
