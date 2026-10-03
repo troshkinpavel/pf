@@ -287,9 +287,9 @@ enum SyncE2E {
         _ = add(C, C.doc.portfolios[0].id, .buy, "DOGE", "1000", "0.08", "2024-05-05")
         let cOriginal = C.doc
         _ = await enable(C, expect: .choose, .useCloud)
-        let backups = ((try? FileManager.default.contentsOfDirectory(atPath: C.files.directory.path)) ?? []).filter { $0.hasPrefix("portfolio.before-icloud-") }
-        let backupDoc = backups.first.flatMap { try? PortfolioDocument.load(Data(contentsOf: C.files.directory.appendingPathComponent($0))) }
-        check(backupDoc.map { Set($0.transactions) == Set(cOriginal.transactions) } ?? false, "USE ICLOUD: local ledger backed up first (\(backups.first ?? "none"))")
+        let backup = C.snapshots.list().first { $0.reason == "before-icloud" }
+        let backupDoc = backup.flatMap { try? C.snapshots.load($0) }
+        check(backupDoc.map { Set($0.transactions.map(\.id)) == Set(cOriginal.transactions.map(\.id)) } ?? false, "USE ICLOUD: verified recovery snapshot of the local ledger first (\(backup?.id ?? "none"))")
         check(sameLedger(C, A), "USE ICLOUD: C now equals the iCloud dataset")
         let Dm = client("D-merge")
         Dm.createEmpty()
@@ -328,6 +328,99 @@ enum SyncE2E {
         await sync(B)
         check(B.doc.transactions.filter { $0.id == localOnly?.id }.count == 1, "change made while off reached B exactly once")
         check(sameLedger(A, B), "A and B identical after re-enable")
+
+        // ------------------------------------------------------------------
+        // 0.6 hardening soak: the same two clients, CloudKit Development, throwaway zone.
+        func converged(_ what: String) async {
+            await sync(A); await sync(B); await sync(A)
+            let c = live(await cloud(A), .transaction)
+            check(sameLedger(A, B), "\(what): A and B identical (\(A.doc.transactions.count) tx)")
+            check(c.count == A.doc.transactions.count && Set(c.map(\.id)).count == c.count, "\(what): CloudKit holds exactly the ledger (\(c.count) live tx, no duplicates)")
+            check(A.syncState.pendingCount == 0 && B.syncState.pendingCount == 0, "\(what): nothing left queued")
+        }
+        let core = A.doc.portfolios.first { $0.name == "CORE" }?.id ?? A.doc.portfolios[0].id
+
+        section("Soak · repeated launch / foreground / reconnect")
+        let soakBefore = live(await cloud(A), .transaction).count
+        for i in 1...4 {
+            A = client("A-mac")                                   // relaunch on the same directory
+            A.syncNow(reason: .launch); while let t = A.syncTask { await t.value }
+            A.syncNow(reason: .active); while let t = A.syncTask { await t.value }
+            link(A).offline = true; A.syncNow(reason: .timer); while let t = A.syncTask { await t.value }
+            check(A.syncStatus == .offline, "round \(i): offline pass keeps local data (\(A.doc.transactions.count) tx)")
+            link(A).offline = false; A.syncNow(reason: .network); while let t = A.syncTask { await t.value }
+        }
+        check(live(await cloud(A), .transaction).count == soakBefore, "launch/foreground/reconnect wrote nothing new (\(soakBefore) live tx)")
+        await converged("after relaunches")
+
+        section("Soak · offline edits on both sides")
+        link(A).offline = true; link(B).offline = true
+        let offA = add(A, core, .buy, "ETH", "0.5", "3000", "2024-10-01")
+        if let i = B.doc.transactions.firstIndex(where: { $0.portfolioID == core && $0.id != offA?.id }) { B.doc.transactions[i].note = "edited offline on B"; B.save() }
+        await sync(A); await sync(B)
+        check(A.syncStatus == .offline && B.syncStatus == .offline, "both offline: edits queued (A \(A.syncState.pendingCount), B \(B.syncState.pendingCount))")
+        link(A).offline = false; link(B).offline = false
+        await converged("offline edits")
+        check(B.doc.transactions.contains { $0.id == offA?.id } && A.doc.transactions.contains { $0.note == "edited offline on B" }, "both offline edits survived")
+
+        section("Soak · same-record conflict")
+        if let x = A.doc.transactions.first(where: { $0.portfolioID == core }), let ia = A.doc.transactions.firstIndex(of: x), let ib = B.doc.transactions.firstIndex(where: { $0.id == x.id }) {
+            A.doc.transactions[ia].note = "A's edit"; A.save()
+            try? await Task.sleep(nanoseconds: 1_100_000_000)
+            B.doc.transactions[ib].note = "B's later edit"; B.save()
+            await sync(A); await sync(B); await sync(A)
+            check(A.doc.transactions.first { $0.id == x.id }?.note == "B's later edit" && B.doc.transactions.first { $0.id == x.id }?.note == "B's later edit", "newer edit wins on both")
+            check(B.syncState.conflicts.contains { $0.key.hasSuffix(x.id.uuidString) } || A.syncState.conflicts.contains { $0.key.hasSuffix(x.id.uuidString) }, "the other version kept for review")
+            A.syncState.conflicts.removeAll(); B.syncState.conflicts.removeAll()
+        }
+        await converged("conflict")
+
+        section("Soak · delete vs stale copy")
+        let stale = A.doc
+        if let y = A.doc.transactions.first(where: { $0.portfolioID == core }) {
+            A.deleteTx(y)
+            await sync(A)
+            let F = client("F-stale")
+            F.doc = stale; F.save()                               // an old Mac with yesterday's ledger
+            _ = await enable(F, expect: .choose, .merge)
+            await sync(A); await sync(B)
+            check(!A.doc.transactions.contains { $0.id == y.id } && !B.doc.transactions.contains { $0.id == y.id } && !F.doc.transactions.contains { $0.id == y.id },
+                  "deleted transaction stays deleted on A, B and the stale Mac")
+            check(F.syncState.conflicts.contains { $0.reason.contains("kept the delete") }, "the stale copy is kept for review, not resurrected")
+            F.syncSheet = .disable; F.confirmDisableSync()
+        }
+        await converged("delete vs stale copy")
+
+        section("Soak · reset local ledger while CloudKit has data")
+        let cloudCount = live(await cloud(B), .transaction).count
+        B.createEmpty()                                           // e.g. unreadable portfolio.json, then onboarding "1"
+        await sync(B)
+        check(live(await cloud(B), .transaction).count == cloudCount, "nothing deleted in CloudKit (\(cloudCount) live tx)")
+        check(B.doc.transactions.count == cloudCount, "B recovered its ledger from iCloud (\(B.doc.transactions.count) tx)")
+        await converged("reset ledger")
+
+        section("Soak · interrupted sync")
+        _ = add(A, core, .buy, "SOL", "3", "150", "2024-10-02")
+        A.syncNow(reason: .manual)
+        try? await Task.sleep(nanoseconds: 150_000_000)
+        A.syncTask?.cancel()                                      // the pass is cut off mid-way
+        while let t = A.syncTask { await t.value }
+        await converged("after an interrupted pass")
+
+        section("Soak · sync turned off during an active pass")
+        let midTx = add(A, core, .buy, "LINK", "10", "12", "2024-10-03")
+        A.syncNow(reason: .manual)
+        A.syncSheet = .disable; A.confirmDisableSync()
+        try? await Task.sleep(nanoseconds: 4_000_000_000)          // let the cancelled pass wind down
+        check(!A.syncEnabled && A.syncState.known.isEmpty, "turned off: no sync bookkeeping written back by the old pass")
+        _ = await enable(A, expect: .choose, .merge)
+        await converged("re-enabled after mid-pass disable")
+        check(B.doc.transactions.filter { $0.id == midTx?.id }.count == 1, "the edit made during the cancelled pass arrives exactly once")
+
+        section("Soak · idempotent repeated sync")
+        let saves = live(await cloud(A), .transaction).count
+        for _ in 0..<3 { await sync(A); await sync(B) }
+        check(live(await cloud(A), .transaction).count == saves && A.syncState.pendingCount == 0 && B.syncState.pendingCount == 0, "three more rounds change nothing")
 
         // ------------------------------------------------------------------
         section("What is in CloudKit")

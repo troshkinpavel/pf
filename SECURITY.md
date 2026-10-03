@@ -2,9 +2,12 @@
 
 ## Supported versions
 
+Security fixes go into the latest release.
+
 | Version | Supported |
 |---|---|
-| 0.4.x | yes |
+| 0.5.x | yes |
+| 0.4.x and older | no · please update |
 
 ## Reporting a vulnerability
 
@@ -26,6 +29,8 @@ Examples of what counts as a security problem:
 - market-data requests that carry quantities or values;
 - secrets stored outside the Keychain;
 - privacy-mode bypasses in share cards or widgets;
+- portfolio data visible while the app lock is on, for example in the menu bar;
+- portfolio data in the diagnostic report (Settings → DIAGNOSTICS);
 - sandbox or entitlement problems.
 
-PF Terminal has no server and no account system. It uses public market-data APIs (Binance, Bybit, CoinGecko, DexScreener) and, only when you turn sync on, your own private iCloud database.
+PF Terminal has no server and no account system. It uses public market-data APIs (Binance, Bybit, CoinGecko, DexScreener), `api.github.com` when you check for updates, and, only when you turn sync on, your own private iCloud database.

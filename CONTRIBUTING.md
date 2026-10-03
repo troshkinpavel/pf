@@ -7,7 +7,9 @@ Thanks for your interest in PF Terminal.
 - **Pull requests:** keep them focused. Match the existing style: a platform-neutral `PFCore/` (no AppKit/SwiftUI), no third-party dependencies, terminal-style UI. Add tests for any logic change.
 
 ```bash
-xcodebuild -project PFTerminal.xcodeproj -scheme PFTerminal test -only-testing:PFTerminalTests
+swift test                                                                              # PFCore package
+xcodebuild -project PFTerminal.xcodeproj -scheme PFTerminal test -only-testing:PFTerminalTests      # Mac unit tests
+xcodebuild -project PFTerminal.xcodeproj -scheme PFTerminal test -only-testing:PFTerminalUITests    # UI tests (needs automation permission)
 ```
 
 Architecture, signing (App Groups for widgets), the data formats and how to add a market-data provider are described in [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).

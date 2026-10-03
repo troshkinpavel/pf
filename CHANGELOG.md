@@ -4,17 +4,58 @@ All notable changes to PF Terminal are documented here. The format follows [Keep
 
 ## [Unreleased]
 
+Planned as 0.6.0, "a ledger you can trust". Nothing here is released yet.
+
 ### Fixed
 - **iCloud sync could delete or revert data in a few edge cases.**
-  - **Reset or unreadable local ledger.** If `portfolio.json` was set aside as unreadable, or the ledger was reset or replaced while sync was on, every synced record was uploaded as a deletion. Now the missing records are fetched from iCloud again instead, and nothing is deleted.
+  - **Reset or unreadable local ledger.** If `portfolio.json` was set aside as unreadable, or the ledger was reset or replaced while sync was on, every synced record was uploaded as a deletion. Now the missing records are fetched from iCloud again, and nothing is deleted.
   - **Older copy of a ledger.** When sync was turned on again with Merge or Upload on a Mac holding an older copy, that copy could overwrite newer edits in iCloud and bring deleted records back. Now iCloud's version stands, and the local copy is kept for review in conflicts.
   - **Older remote versions.** A remote version older than the one on this Mac (stale record or stale delete) no longer replaces it.
 - **Clock-independent ordering.** Edits are stamped after the version they're based on, so a Mac with a slow clock can't lose its newer edit or delete.
 - **Sync passes never overlap.** Turning sync off during a pass now stops it without writing anything.
 - **Missing iCloud zone.** If the iCloud zone disappears after syncing, sync stops and keeps local data, instead of silently starting over empty.
+- **Development builds.** A build signed for another CloudKit environment (a Debug build sharing the release app's data) pauses sync instead of mixing that environment's change tokens into the release app's sync state. The unit-test host no longer opens the real ledger or syncs.
+- **RETURN was unrealized only.** The Overview and Analytics "RETURN" ignored realized P&L, so it was misleading after taking profit or a loss.
+  - Overview now shows **TOTAL PNL** and **total return**: realized + unrealized over everything ever invested.
+  - Analytics shows unrealized, realized, total P&L, total return, net contributed and **TWR** (time-weighted, deposits excluded).
+  - The per-position column is labelled **UNRLZD %**.
+- **Backdated transactions used today's price.** A blank price on a past date now uses that day's price from history, or asks for it. The preview says when a price was filled in automatically.
+- **Transfers could get today's price as their cost basis.** A blank cost on a transfer in now uses the average entry of a matching transfer out from another portfolio, or must be entered (0 is allowed). A transfer out no longer stores a price.
+- **App lock.**
+  - It no longer unlocks when the system can't authenticate.
+  - It now also locks when the Mac sleeps or the screen locks, after 5 minutes in the background, and as soon as it is turned on.
+  - The menu bar item and popover show no amounts while the app is locked.
 
 ### Added
+- **Recovery snapshots.**
+  - Bounded, verified local snapshots of the ledger after changes. They are versioned and hold no settings, keys or caches.
+  - A verified safety snapshot is taken before replace-import, restore, remove position, portfolio delete and USE ICLOUD. If that snapshot fails, the operation is cancelled.
+  - Restore from Settings → DATA RECOVERY, with a preview of what changes.
+- **Import preview.** Importing into a portfolio classifies each transaction as READY, DUPLICATE, NEEDS REVIEW or INVALID before anything is added. Rows that need review are imported only if you include them. Also available as **Import into Current Portfolio…**.
+- **Data Health** in Settings. It checks ledger validity, possible duplicate transactions, stale or missing prices, sync conflicts and held-back records, sync health, and recovery-snapshot age. It never changes data, and each warning leads to a review.
+- **Diagnostics.**
+  - A local, bounded operational log, also written to the unified log.
+  - A copyable report with versions, sync state, source health and backoff, and error types.
+  - No portfolio names, values, quantities, notes, keys or account ids; this is enforced by tests.
+- **Depeg notification** (opt-in). It notifies once when a held stablecoin leaves its ±0.5% band, and again only after it has recovered.
+- **Today · what moved.** The Overview's 24h cell lists the top three flow-adjusted contributors.
+- **Remove position** from a position's right-click menu. It deletes that asset's transactions in one portfolio, after confirmation and a safety snapshot.
+- Transaction notes are shown under each transaction in Asset Detail.
+- Menu items: Switch Portfolio (`⌘P`), Import into Current Portfolio, Import Backup (Replace), Export Backup (`⌘⇧E`), Restore Recovery Snapshot, Copy Diagnostic Report.
+- Provider cooldowns (backoff after errors or rate limits) in Settings → MARKET DATA.
 - A compact iCloud status in the status bar while sync is on: synced, syncing, offline, review or sync error.
+
+### Changed
+- **Large portfolios.** Measured on a 10,000-transaction fixture:
+  - Contribution maths is about 2× faster.
+  - Unchanged-ledger sync change detection is about 12× faster (≈140 ms → ≈12 ms).
+  - Live price ticks are coalesced to at most one recalculation every 0.5 s.
+  - Portfolio history is cached between renders.
+- USE ICLOUD's pre-replace backup is now a verified recovery snapshot (previously a `portfolio.before-icloud-*.json` file).
+- Settings shows the iPhone app as "in development", as the README does.
+
+### Removed
+- The unused `fallbackProvider` setting (it had no effect since 0.5.0).
 
 ## [0.5.0] - Market Data Release
 
@@ -25,7 +66,7 @@ Live exchange prices, a built-in asset registry, and stablecoin support.
 - **Offline asset search.** Typing an asset searches the registry instantly: offline, during CoinGecko rate limits, and without `/search`. Online search is only used for tokens outside the registry. Tickers listed more than once are never auto-selected.
 - **Bybit.** Public spot market data: a live WebSocket, prices and chart history, for verified pairs only.
 - **Live feeds.** Binance and Bybit feeds with heartbeat, stale detection and reconnect with backoff. A backup exchange takes over when the first choice drops.
-- **Preferred source.** Choose Auto (the default), Binance, Bybit, CoinGecko or DexScreener, globally in Settings or per asset in Asset Detail. Only sources with a verified mapping are offered.
+- **Preferred source.** Choose Auto (the default), Binance, Bybit or CoinGecko globally in Settings; per asset in Asset Detail, DexScreener is also offered where the asset has a verified contract. Only sources with a verified mapping are offered. *(Corrected: an earlier version of this entry listed DexScreener as a global choice.)*
 - **Source status** in Asset Detail and the source picker: LIVE · BINANCE, LIVE · BYBIT, CACHED · 2m, DELAYED · 6m, FALLBACK · COINGECKO, FALLBACK · DEX, STALE · 18m, NO PRICE.
 - **Stablecoin support** (USD peg), initially for USDT, USDC, DAI, USDS, FDUSD and PYUSD; the registry extends the list.
   - **Valuation.** On peg (±0.5%), they're valued at exactly $1.00 and show no daily move. In a depeg, the real market price is used.

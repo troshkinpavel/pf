@@ -186,7 +186,7 @@ extension AppStore {
         return DataHealth.check(.init(doc: doc, quotes: quotes, marketDriven: marketDrivenAnywhere, now: now,
                                       staleAfter: max(15 * 60, 3 * TimeInterval(settings.refreshSeconds)),
                                       sync: syncEnabled ? syncState : nil, syncError: syncError,
-                                      latestSnapshot: snapshotList.first?.createdAt))
+                                      latestSnapshot: doc.isDemo(.all) ? now : snapshotList.first?.createdAt))   // demo data is never snapshotted
     }
 
     /// Held assets in any live portfolio that are valued at a market price.

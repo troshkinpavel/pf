@@ -154,7 +154,12 @@ These are launch arguments. They are in the scheme but disabled by default.
 | `--mock-market` | `MockMarketDataProvider`: fixed prices and a deterministic history, with no network. The UI shows a **MOCK DATA** tag. |
 | `--demo` | Loads the demo ledger, which is marked **DEMO**. |
 | `--ui-testing` | Throwaway storage and separate preferences. Your real portfolio is never touched, and no widget snapshots are published. |
-| `--snapshots` | DEBUG only. Walks every screen, renders the window, the share-card variants and the widget layouts, then quits. Add `--snapshots-stdout` to stream the PNGs to stdout (a team-signed app's container is protected), and `--snapshots-chrome` to include the title bar. |
+| `--snapshots` | DEBUG only. Walks every screen, renders the window, the share-card variants and the widget layouts, then quits. Add `--snapshots-stdout` to stream the PNGs to stdout (a team-signed app's container is protected), and `--snapshots-chrome` to include the title bar. `--stablecoin-shots` renders the peg screens. |
+| `--sync-e2e` | DEBUG only, with `--ui-testing`. Two independent clients against CloudKit **Development** in a throwaway `PFE2E-*` zone (deleted at the end): enable plans, propagation, offline queue, restarts, conflicts and restore, merge / use iCloud, plus the 0.6 soak (repeated launch/foreground/reconnect, offline edits on both sides, same-record conflict, delete vs stale copy, reset ledger, interrupted pass, disable mid-pass, idempotence). Prints PASS/FAIL. |
+| `--cloudkit-selftest` · `--list-pfzone` | DEBUG only. Round trip in a throwaway `PFSelfTest-*` zone · list `PFZone` record metadata. |
+| `--render-conflicts` · `--widget-check` | DEBUG only. Render the conflict sheet · write and check a widget snapshot. |
+
+Debug builds are signed for CloudKit **Development** and share the release app's container. Since 0.6, sync state records the environment it belongs to, and a build signed for another environment leaves sync paused instead of mixing tokens. The unit-test host (`xcodebuild test`) opens throwaway storage and starts nothing.
 
 README screenshots are produced by these commands:
 
@@ -170,6 +175,7 @@ swift scripts/frame-screenshot.swift shots/03-overview.png .github/assets/hero.p
 ```bash
 xcodebuild -project PFTerminal.xcodeproj -scheme PFTerminal test
 swift test                                     # PFCore package tests
+swift test -c release --filter LargePortfolioBenchmark   # 10,000-transaction timings
 ```
 
 - `PFTerminalTests` (Swift Testing) covers the domain logic, with no network. It includes:
@@ -187,7 +193,33 @@ swift test                                     # PFCore package tests
   - persistence of the active portfolio;
   - widget snapshot privacy and context;
   - iCloud sync against an in-memory CloudKit stand-in with two simulated devices: the enable plans; propagation of create, edit and delete; the offline queue; conflicts; merges without duplicates; import while syncing; newer-schema records; account changes; disable.
-- `PFTerminalUITests` covers onboarding, palette → preview → confirm, and quick share. Xcode needs macOS automation permission to run them.
+- 0.6 (`IntegrityAppTests`, `ReturnSemanticsTests`, `TransactionPricingTests`, `RecoveryAndQualityTests`, `SyncHardeningTests`):
+  - safety snapshots, including that a failed snapshot cancels the operation;
+  - restore round trip;
+  - import classification;
+  - remove position;
+  - menu bar privacy while locked, and the lock lifecycle;
+  - diagnostic-report redaction;
+  - depeg hysteresis;
+  - tick coalescing;
+  - backdated and transfer prices;
+  - return semantics;
+  - Data Health;
+  - the sync hardening matrix.
+- `UpdatesTests`, `MarketAppTests`, `StablecoinAppTests` and `PriceSourceTests` cover update checks, registry search and routing, stablecoin valuation, and source picking.
+- `PFTerminalUITests` covers onboarding, palette → preview → confirm, quick share, and the Dock / menu bar lifecycle. Xcode needs macOS automation permission to run them.
+  - `LifecycleUITests.testCloseHidesFromDockAndEveryReopenPathRestoresIt` clicks the menu bar item.
+  - It fails if that item is hidden (a full or notched menu bar) or when another PF Terminal instance is running. It failed that way on clean `main` once during the 0.6 work, then passed 5 of 5 runs.
+- **Upgrade/downgrade check** (0.5.0 ↔ 0.6), on one data directory with the real 0.5.0 code:
+  ```bash
+  git worktree add --detach /tmp/pf-050 v0.5.0 && cp scripts/cross-version/XV050.swift /tmp/pf-050/PFCoreTests/
+  export PF_XV_DIR=$(mktemp -d)
+  (cd /tmp/pf-050 && PF_XV_STEP=1-write-050 swift test --filter XV050)
+  PF_XV_STEP=2-upgrade-06 swift test --filter CrossVersionTests
+  (cd /tmp/pf-050 && PF_XV_STEP=3-read-050 swift test --filter XV050)
+  PF_XV_STEP=4-upgrade-again-06 swift test --filter CrossVersionTests
+  git worktree remove --force /tmp/pf-050
+  ```
 - `PFCoreTests` (package): byte-exact sync payloads, the CloudKit field mapping (`PFRecord` in `PFZone`, payload in `encryptedValues`), tombstones, newer-schema blocking, old `sync-state.json` files, what may sync, and the TEL price fallback.
 - `MacPhoneCompatibilityTests` drives the real Mac `AppStore` against a second client over the in-memory CloudKit stand-in: ledger out, transaction in, delete back.
 
@@ -196,26 +228,31 @@ swift test                                     # PFCore package tests
 ```
 PFTerminal/
   App/          PFTerminalApp (scenes, commands, key routing), AppStore (+Commands, +Transactions,
-                +Portfolios, +Sources, +Widgets, +Sync, +Lifecycle)
+                +Portfolios, +Sources, +Market, +Widgets, +Sync, +Lifecycle, +Integrity)
   Persistence/  LegacyMigration
-  System/       DEBUG snapshots, CloudKit self-test, sync E2E
+  System/       DEBUG snapshots, CloudKit self-test, sync E2E + soak, WidgetCheck
   UI/           Components, Screens, Share, MenuBar
 Package.swift   the PFCore package (see PFCore package above)
 PFCore/         platform-neutral core, no AppKit/UIKit/SwiftUI:
   Domain/       Models, Portfolios (PortfolioContext, CRUD), PortfolioEngine, PortfolioHistoryEngine,
-                ScenarioEngine, TransactionPlanner, CommandParser, ShareModel, AsciiChart, WidgetSnapshotBuilder, Freshness
-  Market/       provider protocol + router, CoinGecko, Binance (+WebSocket stream), DexScreener, Mock
-  Persistence/  PortfolioDocument (JSON ledger/backup, schema v2), AppSettings, MarketCache (SwiftData)
-  Platform/     Keychain, notifications, app lock (LocalAuthentication), reachability
+                ScenarioEngine, TransactionPlanner, ImportPlanner, DataHealth, Stablecoins, CommandParser,
+                ShareModel, AsciiChart, WidgetSnapshotBuilder, Freshness
+  Market/       provider protocol + router, Binance, Bybit, LiveFeeds (WebSockets), MarketSources,
+                CoinGecko, DexScreener, AssetCatalog, Mock
+  Registry/     AssetRegistry (bundled CanonicalAssetRegistry.json), RegistryOverlayStore
+  Persistence/  PortfolioDocument (JSON ledger/backup, schema v2), LedgerSnapshots, AppSettings, MarketCache (SwiftData)
+  Platform/     Keychain, notifications, app lock (LocalAuthentication), reachability, Diagnostics
+  Updates/      SemanticVersion, UpdateState, UpdateChecking, GitHubReleaseChecker
   Sync/         SyncModels, SyncEngine, CloudKitSyncStore, SyncHostSupport
   Formatting/   Fmt, DateFmt, NumberInput
   Widgets/      WidgetPortfolioSnapshot, WidgetSnapshotStore, PFLink
 PFCoreUI/       design tokens (Theme), widget layouts, step chart, share card
-PFCoreTestSupport/, PFCoreTests/
-  Updates/      SemanticVersion, UpdateState, UpdateChecking, GitHubReleaseChecker
+PFCoreTestSupport/  MockRemote + Device (sync), LargeFixture (10k-transaction benchmark)
+PFCoreTests/
 PFWidgets/      WidgetKit extension: App Intents configuration, timeline provider, previews
 PFTerminalTests/, PFTerminalUITests/
-scripts/        make-icon.swift, make-sample-portfolio.py, frame-screenshot.swift
+scripts/        make-icon.swift, make-sample-portfolio.py, frame-screenshot.swift, make-dmg.sh,
+                cross-version/XV050.swift (0.5.0 half of the upgrade/downgrade check)
 ```
 
 ## Market data
@@ -395,6 +432,8 @@ The app is sandboxed:
   portfolio.json             canonical ledger (human-readable, schema-versioned)
   portfolio.v1-backup.json   written once if a v1 file was migrated
   sync-state.json            iCloud sync bookkeeping (device-local; only when sync was used)
+  backups/pf-*.json          recovery snapshots (0.6): versioned envelope, verified on write, bounded
+  diagnostics.json           last 200 operational events (0.6): category, level, fixed code, error kind
   legacy-migration.json      what was copied from the legacy container (see Identifiers)
   market.store               SwiftData cache: quotes, price history, per-portfolio snapshots
 ~/Library/Group Containers/group.io.github.troskinpavel.pf/
@@ -404,6 +443,13 @@ The app is sandboxed:
 - **Preferences** are stored in `UserDefaults`.
 - **Secrets** are stored in the Keychain (service `io.github.troskinpavel.pf`).
 - **Unreadable ledger.** If `portfolio.json` cannot be read, the app moves it aside; it never overwrites it.
+- **Recovery snapshots** (`SnapshotStore`).
+  - **Envelope.** `{format: "pf-ledger-snapshot", version: 1, createdAt, reason, appVersion, contentHash, portfolios, transactions, document}`. The document is the schema-v2 ledger without settings.
+  - **Verification.** A snapshot counts only after it is read back and its content hash matches.
+  - **Rolling.** 20 s after ledger edits settle, and at launch, but only when the ledger changed.
+  - **Safety.** Taken before replace-import, restore, remove position, deleting a portfolio with transactions, and USE ICLOUD. These operations are cancelled if the snapshot fails.
+  - **Retention.** The newest 8 rolling snapshots, one per day for 14 days, and the newest 8 safety snapshots, all within 64 MB. The newest 3 always stay.
+  - **Unknown files.** Unknown formats and newer versions are ignored and never offered for restore.
 
 ### Backup format (schema v2)
 
@@ -448,13 +494,21 @@ AppStore (+Sync) ── SyncHost ──▶ SyncEngine (PFCore/Sync, pure + async
   - A transaction whose portfolio was deleted elsewhere goes to a `RECOVERED` portfolio.
   - Duplicate portfolio names get a suffix, deterministically on every device.
   - A synced ledger may become oversold. It is then shown as it is: local loads skip the oversell check, while imports stay strict.
+- **Hardening (0.6).**
+  - **Monotonic stamps.** A local change is stamped after the version it is based on, so clock skew can't lose it.
+  - **Never-synced copies.** A copy that was never synced (`version == nil`) loses to iCloud, tombstones included.
+  - **Stale versions.** A remote version older than the one held locally is treated as stale: the local one is kept and re-sent.
+  - **Replaced documents.** A document that shares no portfolio with the synced set is treated as *replaced*. Its missing records are forgotten rather than tombstoned, and a full fetch brings them back (`SyncState.recovering`).
+  - **Serialized passes.** Passes per host are serialized and stop after any await if cancelled or turned off.
+  - **Missing zone.** `zoneNotFound` with a change token turns sync off instead of recreating an empty zone.
+  - **Environment.** `SyncState.environment` pins the state to one CloudKit environment.
 - **Enabling.** `SyncEngine.inspect` compares both sides without changing anything, and the user picks an option in a confirmation:
 
   | Situation | Action |
   |---|---|
   | iCloud has no PF data | **upload** |
   | This Mac is empty | **use iCloud** (fetched in full before anything is replaced) |
-  | Both have data | **merge** (union by id) or **use iCloud** (this Mac's ledger is copied to `portfolio.before-icloud-*.json` first) |
+  | Both have data | **merge** (union by id; where both hold an id with different content, iCloud's version stands and the local copy goes to conflicts) or **use iCloud** (a verified `before-icloud` recovery snapshot of this Mac's ledger first) |
   | Both are identical | **resume** |
 
   No command or shortcut toggles sync.

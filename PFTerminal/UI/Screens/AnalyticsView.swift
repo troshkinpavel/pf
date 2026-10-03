@@ -26,7 +26,7 @@ struct AnalyticsView: View {
                     stat("REALIZED", f.signed(s.realized, 0), Theme.signColor(s.realized), "\(s.closed.count) closed position\(s.closed.count == 1 ? "" : "s")")
                     stat("TOTAL P&L", f.signed(s.totalPnL, 0), Theme.signColor(s.totalPnL), "realized + unrealized")
                     stat("TOTAL RETURN", f.pct(s.totalReturnPct, 1), Theme.signColor(s.totalReturnPct), s.isPartial ? "needs every price" : "on \(f.money(s.invested, 0)) invested")
-                    stat("TWR", f.pct(hist.twrPercent, 1), Theme.signColor(hist.twrPercent), hist.twrPercent == nil ? "needs history" : "deposits excluded" + (s.firstDate.map { " · since " + DateFmt.ymd($0) } ?? ""))
+                    stat("TWR", f.pct(hist.twrPercent, 1), Theme.signColor(hist.twrPercent), hist.twrPercent == nil ? "needs history" : "deposits excluded")
                 }
                 .overlay(Rectangle().strokeBorder(Theme.border, lineWidth: 1))
                 .accessibilityIdentifier("performance-stats")
