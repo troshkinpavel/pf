@@ -135,7 +135,7 @@ extension AppStore {
         case .alerts: return "↵ edit · space pause · n new"
         case .scenarios: return "c b u switch · ↵ edit target · n new"
         case .asset: return "esc back · a alert · t target"
-        case .target: return "↑↓ presets · s save to scenario · esc back"
+        case .target: return "↑↓ presets · ⌘S save to scenario · esc back"
         case .portfolios: return "↵ open · r rename · n new"
         case .settings: return "↑↓ section · ←→ cycle value · / filter"
         case .share: return "⌘C copy · ←→ period · f format"
@@ -269,6 +269,20 @@ extension AppStore {
             if k == " " { togglePause(r.id); return true }
             if k == "r" { rearm(r.id); return true }
             if code == 51 || code == 117 { requestDeleteAlert(r.id); return true }
+        case .scenarios:
+            if ["c", "b", "u"].contains(k), selectScenario(key: k) { return true }
+            if k == "n" { newScenario(); return true }
+            let list = orderedScenarios
+            if (isLeft || isRight), let cur = currentScenario, let i = list.firstIndex(where: { $0.id == cur.id }) {
+                selectScenario(list[(i + (isRight ? 1 : -1) + list.count) % list.count].id); return true
+            }
+            guard let cur = currentScenario else { break }
+            let n = projection(cur).rows.count
+            if isDown, n > 0 { scenarioRow = (scenarioRow + 1) % n; return true }
+            if isUp, n > 0 { scenarioRow = (scenarioRow - 1 + n) % n; return true }
+            if isReturn { beginScenarioEdit(); return true }
+            if k == "r" { scenarioRename = cur.name; return true }
+            if code == 51 || code == 117 { requestDeleteScenario(); return true }
         case .settings:
             if k == "/" { settingsFocusFilter = true; return true }
             return handleSettingsKey(e)

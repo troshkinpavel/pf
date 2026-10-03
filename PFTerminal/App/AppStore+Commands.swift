@@ -200,6 +200,7 @@ extension AppStore {
         if cmd, let n = Int(k), (1...4).contains(n), screen != .settings { goTab(n - 1); return true }
         if cmd, let n = Int(k), (1...9).contains(n), screen == .settings { selectSettingsSection(Self.settingsSectionIDs[n - 1]); return true }
         if cmd && k == "," { go(.settings); return true }
+        if cmd && k == "d" && screen == .scenarios && tx == nil { duplicateScenario(); return true }
         if cmd && k == "z" && !inInput && convertUndo != nil && tx == nil { undoConversion(); return true }
         if cmd && isReturn && screen == .watch && tx == nil && watchDraft == nil, let w = watchRows[safe: watchSel]?.item { convertWatch(w); return true }
         // g leader: the next key picks a destination; anything else cancels it. Never sticks.
@@ -271,6 +272,8 @@ extension AppStore {
             return false
         }
         if screen == .target && (isUp || isDown) { stepTarget(up: isUp); return true }
+        // s (outside the input) or ⌘S: the calculator's target into the Base scenario.
+        if screen == .target && ((k == "s" && !cmd && !inInput) || (cmd && k == "s")) { saveTargetToScenario(); return true }
         if cmd || inInput || quickShare { return false }
 
         if k == "/" && shift { keysOverlay.toggle(); return true }

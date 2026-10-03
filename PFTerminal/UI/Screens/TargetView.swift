@@ -23,9 +23,11 @@ struct TargetView: View {
                     HStack {
                         HStack(alignment: .firstTextBaseline, spacing: 14) {
                             TT("TARGET PRICE", 15, Theme.t1, weight: .semibold, tracking: 0.6)
-                            TT("scenario for current holdings · not a prediction · nothing is saved", 12, Theme.t3)
+                            TT("quick calculator · not a prediction · ⌘S saves to the Base scenario", 12, Theme.t3)
                         }
                         Spacer()
+                        BracketButton("save to scenario ⌘S", color: Theme.acc) { store.saveTargetToScenario() }
+                            .accessibilityIdentifier("target-save-scenario")
                         Tabs(items: store.summary.positions.map { TabItem(id: $0.asset.id, label: $0.asset.symbol) }, selected: v.asset.id, hPad: 10, vPad: 3) { id in
                             store.openTarget(id)
                         }

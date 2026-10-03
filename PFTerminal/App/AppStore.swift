@@ -106,6 +106,9 @@ final class AppStore {
     var watchConfirmRemove: UUID?
     var alertSetup: AlertSetup?
     var alertConfirmDelete: UUID?
+    var scenarioEdit: String?
+    var scenarioRename: String?
+    var scenarioConfirmDelete: UUID?
     var quickShare = false
     var flash = ""
     var message = "ready" { didSet { messageAt = Date() } }
@@ -567,7 +570,7 @@ final class AppStore {
     func go(_ s: Screen) {
         screen = s
         palette = nil; tx = nil; quickShare = false; switcher = nil; newPortfolio = nil; syncSheet = nil; restore = nil; importPreview = nil
-        healthPopover = false; keysOverlay = false; leaderActive = false; watchDraft = nil; watchConfirmRemove = nil; alertSetup = nil; alertConfirmDelete = nil
+        healthPopover = false; keysOverlay = false; leaderActive = false; watchDraft = nil; watchConfirmRemove = nil; alertSetup = nil; alertConfirmDelete = nil; scenarioEdit = nil; scenarioRename = nil; scenarioConfirmDelete = nil
         if s == .alerts { markAlertsSeen() }
         manage.renaming = nil; manage.confirmDelete = nil
         if s == .overview { loadHistory(assetsHeld(during: overviewRange), overviewRange) }
@@ -597,6 +600,7 @@ final class AppStore {
         if watchConfirmRemove != nil { watchConfirmRemove = nil; return }
         if alertSetup != nil { if alertSetup!.review { alertSetup!.review = false } else { alertSetup = nil }; return }
         if alertConfirmDelete != nil { alertConfirmDelete = nil; return }
+        if scenarioEdit != nil || scenarioRename != nil || scenarioConfirmDelete != nil { scenarioEdit = nil; scenarioRename = nil; scenarioConfirmDelete = nil; return }
         if restore != nil { restore = nil; return }
         if importPreview != nil { importPreview = nil; return }
         if syncSheet != nil { syncSheet = nil; return }
