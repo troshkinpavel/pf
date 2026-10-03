@@ -250,6 +250,9 @@ extension AppStore {
         case .benchmark:
             if k == "b" { toggleBenchmark(); return true }
             if isLeft || isRight { setBenchmarkRange(Benchmark.Range.allCases.cycled(from: benchmarkRange, by: isRight ? 1 : -1)); return true }
+        case .settings:
+            if k == "/" { settingsFocusFilter = true; return true }
+            return handleSettingsKey(e)
         default: break
         }
         return false

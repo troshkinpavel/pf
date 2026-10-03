@@ -198,6 +198,7 @@ extension AppStore {
         if cmd && k == "n" { openTx(); return true }
         if cmd && k == "r" { Task { await refresh(auto: false) }; return true }
         if cmd, let n = Int(k), (1...4).contains(n), screen != .settings { goTab(n - 1); return true }
+        if cmd, let n = Int(k), (1...9).contains(n), screen == .settings { selectSettingsSection(Self.settingsSectionIDs[n - 1]); return true }
         if cmd && k == "," { go(.settings); return true }
         // g leader: the next key picks a destination; anything else cancels it. Never sticks.
         if leaderActive && !cmd && !inInput {

@@ -114,6 +114,9 @@ final class AppStore {
     var benchmarkRange: Benchmark.Range = .y1
     var settingsSection = "general"
     var settingsFilter = ""
+    /// Row focus inside the settings pane (⇥); nil = the sidebar has focus.
+    var settingsRow: Int?
+    var settingsFocusFilter = false
     var scenarioID: UUID?
     var wcSel = 0
     var watchSel = 0
@@ -596,6 +599,7 @@ final class AppStore {
         switch screen {
         case .target: if let t = targetAssetID { openAsset(t) } else { go(.overview) }
         case .benchmark: go(.analytics)
+        case .settings where settingsRow != nil: settingsRow = nil
         case .settings where !settingsFilter.isEmpty: settingsFilter = ""
         case .overview: break
         default: go(.overview)
