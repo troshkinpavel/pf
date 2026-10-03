@@ -68,4 +68,22 @@ final class CriticalFlowsUITests: XCTestCase {
         XCTAssertTrue(el("REVEALS POSITION DATA").waitForExistence(timeout: 2))
         XCTAssertEqual(window.frame, before, "the window keeps its size and position")
     }
+
+    /// 0.7: four tabs, the g leader, What Changed and the new screens' empty states.
+    func testTabsLeaderAndIntelScreens() {
+        let app = launch(["--demo"])
+        XCTAssertTrue(app.staticTexts["DEMO"].waitForExistence(timeout: 5))
+        func el(_ id: String) -> XCUIElement { app.descendants(matching: .any)[id] }
+        XCTAssertTrue(el("tab-1").exists && el("tab-4").exists, "four numbered tabs")
+        app.typeKey("2", modifierFlags: .command)
+        XCTAssertTrue(app.staticTexts["WHAT CHANGED"].waitForExistence(timeout: 3))
+        app.typeKey("4", modifierFlags: .command)
+        XCTAssertTrue(el("watch-empty").waitForExistence(timeout: 3) || el("watch-table").exists)
+        app.menuBars.menuBarItems["Go"].click()
+        app.menuItems.matching(NSPredicate(format: "title BEGINSWITH %@", "Alerts")).firstMatch.click()
+        XCTAssertTrue(app.staticTexts["ALERTS"].waitForExistence(timeout: 3))
+        app.typeKey(",", modifierFlags: .command)
+        XCTAssertTrue(el("settings-filter").waitForExistence(timeout: 3))
+        XCTAssertTrue(el("settings-section-sync").exists, "settings sidebar")
+    }
 }
