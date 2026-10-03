@@ -224,6 +224,8 @@ struct IntelAppTests {
         s.scenarioEdit = "2x"; s.commitScenarioEdit()
         #expect(s.currentScenario?.targets[btc.id]?.price == 180000, "same parser as the target screen")
         #expect(s.projection(s.currentScenario!).projected == 90000)
+        s.beginScenarioEdit(); s.scenarioEdit = "30%"; s.commitScenarioEdit()
+        #expect(s.targetWeight(btc.id) == 30 && s.currentScenario?.targets[btc.id]?.price == 180000, "a weight never changes the price target")
         s.duplicateScenario(); #expect(s.intel.scenarios.count == 4)
         s.requestDeleteScenario(); s.requestDeleteScenario(); #expect(s.intel.scenarios.count == 3)
         s.openTarget(btc.id, "150000"); s.saveTargetToScenario()

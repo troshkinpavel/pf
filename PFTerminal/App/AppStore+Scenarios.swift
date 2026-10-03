@@ -80,7 +80,20 @@ extension AppStore {
 
     func commitScenarioEdit() {
         guard let cur = currentScenario, let text = scenarioEdit, let r = projection(cur).rows[safe: scenarioRow] else { return }
-        guard let t = NumberInput.target(text, current: r.price), t > 0 else { message = "✗ target: a price, or a multiple like 3x"; return }
+        // "30%" sets the target weight (Overview ▲, Asset Detail allocation); "" clears it.
+        let raw = text.trimmingCharacters(in: .whitespaces)
+        if raw.hasSuffix("%") {
+            let w = NumberInput.parse(String(raw.dropLast()), style: Fmt.current.style)?.double
+            guard raw == "%" || (w.map { $0 > 0 && $0 <= 100 } ?? false) else { message = "✗ weight: 1–100%"; return }
+            updateIntel { d in
+                guard let i = d.scenarios.firstIndex(where: { $0.id == cur.id }) else { return }
+                d.scenarios[i].targets[r.asset, default: ScenarioTarget(price: r.price)].weight = w
+                d.scenarios[i].editedAt = Date()
+            }
+            scenarioEdit = nil
+            return
+        }
+        guard let t = NumberInput.target(text, current: r.price), t > 0 else { message = "✗ target: a price, a multiple like 3x, or a weight like 30%"; return }
         updateIntel { Scenarios.setTarget(r.asset, price: t, in: cur.id, doc: &$0, now: Date()) }
         scenarioEdit = nil
         if scenarioRow < projection(cur).rows.count - 1 { scenarioRow += 1 }

@@ -91,7 +91,7 @@ struct ScenariosView: View {
     private func targets(_ cur: PortfolioScenario) -> some View {
         let f = Fmt.current, p = store.projection(cur)
         let gain = p.rows.filter { !$0.isStable }.reduce(Decimal(0)) { $0 + $1.upside }
-        return Panel(title: cur.name + " · TARGETS PER ASSET · ↵ EDIT TARGET", padding: .init(top: 12, leading: 0, bottom: 4, trailing: 0)) {
+        return Panel(title: cur.name + " · TARGETS PER ASSET · ↵ EDIT TARGET · 30% SETS A WEIGHT", padding: .init(top: 12, leading: 0, bottom: 4, trailing: 0)) {
             VStack(spacing: 0) {
                 Columns(Self.cols) {
                     Color.clear; HeadCell("ASSET", align: .leading); HeadCell("AMOUNT"); HeadCell("PRICE"); HeadCell("TARGET"); HeadCell("Δ PRICE")
@@ -110,7 +110,7 @@ struct ScenariosView: View {
                             if editing {
                                 HStack(spacing: 4) {
                                     TT(">", 12, Theme.acc)
-                                    TextField("3x · 0.02", text: Binding(get: { store.scenarioEdit ?? "" }, set: { store.scenarioEdit = $0 }))
+                                    TextField("3x · 0.02 · 30%", text: Binding(get: { store.scenarioEdit ?? "" }, set: { store.scenarioEdit = $0 }))
                                         .textFieldStyle(.plain).font(Theme.mono(12)).foregroundStyle(Theme.t1).tint(Theme.acc)
                                         .multilineTextAlignment(.trailing)
                                         .focused($editFocused).onAppear { editFocused = true }
@@ -118,7 +118,9 @@ struct ScenariosView: View {
                                         .accessibilityIdentifier("scenario-target-input")
                                 }
                             } else {
-                                Cell(r.isStable ? f.price(r.target) + " peg" : r.hasTarget ? f.price(r.target) : "—", r.isStable ? Theme.t4 : r.hasTarget ? Theme.t1 : Theme.t4)
+                                let w = cur.targets[r.asset]?.weight
+                                Cell((r.isStable ? f.price(r.target) + " peg" : r.hasTarget ? f.price(r.target) : "—") + (w.map { " · " + f.num($0, 0) + "%" } ?? ""),
+                                     r.isStable ? Theme.t4 : r.hasTarget ? Theme.t1 : Theme.t4)
                             }
                             Cell(f.pct(r.deltaPct, 0), Theme.signColor(r.deltaPct))
                             Cell(f.money(r.valueNow, 0), Theme.t2)
