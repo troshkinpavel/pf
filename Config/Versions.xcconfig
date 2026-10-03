@@ -3,5 +3,5 @@
 // See docs/DEVELOPMENT.md → Versions. (Other PF clients keep their own version lines.)
 
 // PF Terminal for macOS (app + desktop widgets)
-MACOS_MARKETING_VERSION = 0.5.0
-MACOS_BUILD_NUMBER = 4
+MACOS_MARKETING_VERSION = 0.6.0
+MACOS_BUILD_NUMBER = 5

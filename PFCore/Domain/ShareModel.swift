@@ -155,8 +155,9 @@ public enum ShareCardBuilder {
 
         var moverRows: [ShareCardModel.MoverRow]? = nil
         if f.contains(.movers) {
-            let items = movers.filter { imp ? $0.impact != nil : $0.changePct != nil }
-            let top = items.sorted { imp ? $0.impact!.double > $1.impact!.double : $0.changePct! > $1.changePct! }.prefix(config.moverCount)
+            // Gainers: your positive return on the asset over the period (cash-like stablecoins excluded).
+            let items = movers.filter { imp ? $0.impact != nil : ($0.periodReturn ?? 0) > 0 && !$0.valuation.asset.isStablecoin }
+            let top = items.sorted { imp ? $0.impact!.double > $1.impact!.double : $0.periodReturn! > $1.periodReturn! }.prefix(config.moverCount)
             let mx = top.map { abs($0.impact?.double ?? 0) }.max() ?? 1
             moverRows = top.enumerated().map { i, m in
                 var extra: [String] = []
@@ -166,8 +167,8 @@ public enum ShareCardBuilder {
                 return .init(
                     rank: String(format: "%02d", i + 1), symbol: m.valuation.asset.symbol,
                     bar: imp ? " " + String(repeating: "█", count: max(1, Int((abs(a) / (mx > 0 ? mx : 1) * 9).rounded()))) : "",
-                    main: imp ? (net != 0 ? fmt.num(a / net * 100, 0) + "%" : "—") : fmt.pct(m.changePct),
-                    extra: extra.joined(separator: "  "), sign: sign(imp ? a : m.changePct ?? 0))
+                    main: imp ? (net != 0 ? fmt.num(a / net * 100, 0) + "%" : "—") : fmt.pct(m.periodReturn),
+                    extra: extra.joined(separator: "  "), sign: sign(imp ? a : m.periodReturn ?? 0))
             }
         }
 
@@ -190,7 +191,7 @@ public enum ShareCardBuilder {
             sub: f.contains(.pnl) ? nil : periodLabel(config.period),
             chart: chart,
             moversTitle: (imp ? "BIGGEST IMPACT" : "TOP GAINERS") + " / " + config.period.rawValue,
-            moversSub: imp ? "share of move" : "change",
+            moversSub: imp ? "share of move" : (moverRows?.isEmpty == false ? "your return" : "none this period"),
             movers: moverRows, alloc: alloc, brand: config.brand)
     }
 

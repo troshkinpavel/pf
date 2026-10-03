@@ -45,4 +45,24 @@ final class CriticalFlowsUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["QUICK SHARE"].waitForExistence(timeout: 3))
         XCTAssertTrue(app.staticTexts["safe to share"].exists, "public is the default")
     }
+
+    /// Picking custom privacy and more fields grows the options list; the window must not grow with it.
+    func testShareOptionsNeverResizeTheWindow() {
+        let app = launch(["--demo"])
+        XCTAssertTrue(app.staticTexts["DEMO"].waitForExistence(timeout: 5))
+        app.menuBars.menuBarItems["Go"].click()
+        app.menuItems["Quick Share"].click()
+        XCTAssertTrue(app.staticTexts["QUICK SHARE"].waitForExistence(timeout: 3))
+        app.typeKey(.return, modifierFlags: [])
+        XCTAssertTrue(app.staticTexts["CONFIGURE"].waitForExistence(timeout: 3))
+        let window = app.windows.firstMatch
+        let before = window.frame
+        app.staticTexts["custom"].firstMatch.click()
+        for f in ["[ ] portfolio name", "[ ] asset allocation", "[ ] average entries", "[ ] position values"] {
+            let t = app.staticTexts[f]
+            if t.waitForExistence(timeout: 2) { t.click() }
+        }
+        XCTAssertTrue(app.staticTexts["REVEALS POSITION DATA — review before sharing"].waitForExistence(timeout: 2))
+        XCTAssertEqual(window.frame, before, "the window keeps its size and position")
+    }
 }

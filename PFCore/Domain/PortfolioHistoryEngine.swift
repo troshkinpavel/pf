@@ -181,11 +181,17 @@ public struct PeriodPerformance: Sendable {
 }
 
 public struct Mover: Identifiable, Hashable, Sendable {
-    public init(valuation: PositionValuation, changePct: Double? = nil, impact: Decimal? = nil) { self.valuation = valuation; self.changePct = changePct; self.impact = impact }
+    public init(valuation: PositionValuation, changePct: Double? = nil, impact: Decimal? = nil, periodReturn: Double? = nil) {
+        self.valuation = valuation; self.changePct = changePct; self.impact = impact; self.periodReturn = periodReturn
+    }
     public var id: AssetID { valuation.asset.id }
     public let valuation: PositionValuation
     public let changePct: Double?      // asset price move (or return for ALL)
     public let impact: Decimal?        // $ effect on the portfolio
+    /// Your return on this asset over the range, flow-adjusted like the portfolio headline:
+    /// impact ÷ (value held at the start + money put in during the range). A coin bought last
+    /// week only counts from then; its 30-day price move is not your gain.
+    public var periodReturn: Double?
 }
 
 public enum MoversEngine {
@@ -201,7 +207,7 @@ public enum MoversEngine {
     ) -> [Mover] {
         if range == .all {
             return summary.positions.map { v in
-                Mover(valuation: v, changePct: v.totalReturnPct, impact: v.totalPnL)
+                Mover(valuation: v, changePct: v.totalReturnPct, impact: v.totalPnL, periodReturn: v.totalReturnPct)
             }
         }
         let start = range.start(now: now, firstTransaction: summary.firstDate)
@@ -215,7 +221,11 @@ public enum MoversEngine {
                 guard let sp, sp > 0, let px = v.price else { return nil }
                 return ((px - sp) / sp).double * 100
             }()
-            return Mover(valuation: v, changePct: pct, impact: c[v.asset.id]?.contribution)
+            let r = c[v.asset.id].flatMap { x -> Double? in
+                let base = x.startValue + x.inflow
+                return base > 0 ? (x.contribution / base).double * 100 : nil
+            }
+            return Mover(valuation: v, changePct: pct, impact: c[v.asset.id]?.contribution, periodReturn: r)
         }
     }
 
@@ -271,7 +281,19 @@ extension PortfolioHistoryEngine {
         if priced.count >= max(2, points / 3) {
             return PortfolioChart(value: priced.compactMap(\.value), pnl: priced.compactMap(\.pnl), twr: twrIndex(priced), points: priced)
         }
-        let snaps = snapshots(start).map { HistoryPoint(time: $0.timestamp, value: $0.value, cost: $0.costBasis, invested: $0.costBasis, deposited: $0.costBasis) }
+        // Snapshots record value and cost basis only. Money in/out comes from the ledger: cost basis
+        // is not it (a profitable sell lowers cost by less than the cash taken out, which would
+        // read as a loss in TWR).
+        let ordered = PortfolioEngine.ordered(txs)
+        var i = 0, invested = 0.0, deposited = 0.0
+        let snaps = snapshots(start).sorted { $0.timestamp < $1.timestamp }.map { s -> HistoryPoint in
+            while i < ordered.count, ordered[i].timestamp <= s.timestamp {
+                let t = ordered[i]
+                let f = PortfolioEngine.externalFlow(t, fallbackPrice: series[t.assetID]?.price(at: t.timestamp).map(Decimal.of)).double
+                invested += f; deposited += max(0, f); i += 1
+            }
+            return HistoryPoint(time: s.timestamp, value: s.value, cost: s.costBasis, invested: invested, deposited: deposited)
+        }
         guard snaps.count >= 2 else { return PortfolioChart() }
         return PortfolioChart(value: snaps.compactMap(\.value), pnl: snaps.compactMap(\.pnl), twr: twrIndex(snaps), points: snaps)
     }

@@ -34,8 +34,14 @@ struct ShareView: View {
 
             HStack(alignment: .top, spacing: 18) {
                 VStack(alignment: .leading, spacing: 18) {
-                    configure(sh)
-                    privacyCheck(sh)
+                    // Scrolls inside the window: a long custom field list must never grow the window.
+                    ScrollView(.vertical) {
+                        VStack(alignment: .leading, spacing: 18) {
+                            configure(sh)
+                            privacyCheck(sh)
+                        }
+                    }
+                    .scrollIndicators(.never)
                     HStack(spacing: 4) {
                         BracketButton("copy image ⌘C", color: Theme.acc) { store.copyImage() }
                         BracketButton("save png ⌘S") { store.saveImage() }
@@ -45,6 +51,7 @@ struct ShareView: View {
                     }
                 }
                 .frame(width: 410)
+                .frame(maxHeight: .infinity, alignment: .top)
 
                 GeometryReader { geo in
                     let size = sh.format.size
@@ -103,7 +110,9 @@ struct ShareView: View {
                     let fl = sh.fields
                     Columns([.fr(1), .fr(1)]) {
                         VStack(alignment: .leading, spacing: 0) { ForEach([ShareField.name, .pct, .chart, .alloc, .avg], id: \.self) { toggle($0, fl) } }
+                            .frame(maxHeight: .infinity, alignment: .top)
                         VStack(alignment: .leading, spacing: 0) { ForEach([ShareField.value, .pnl, .movers, .posv], id: \.self) { toggle($0, fl) } }
+                            .frame(maxHeight: .infinity, alignment: .top)
                     }
                 }
                 HStack(alignment: .top, spacing: 0) {
