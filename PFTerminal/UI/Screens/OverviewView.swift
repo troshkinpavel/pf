@@ -51,25 +51,25 @@ private struct MetricStrip: View {
             }
             cell {
                 CapsLabel("TODAY · WHAT MOVED")
-                // Flow-adjusted 24h contributions: buying or depositing today is not a gain.
-                let movers = s.positions.filter { ($0.contribution24h ?? 0) != 0 }
-                    .sorted { abs($0.contribution24h!.double) > abs($1.contribution24h!.double) }.prefix(3)
-                if s.change24h != nil, !movers.isEmpty {
+                // Same numbers as What Changed › today (local day start, flows excluded); d opens it.
+                if let r = store.attribution(.today), r.complete, !r.assets.isEmpty {
                     VStack(alignment: .leading, spacing: 3) {
-                        ForEach(Array(movers)) { v in
+                        ForEach(Array(r.byImpact.prefix(3)), id: \.id) { a in
                             HStack(spacing: 8) {
-                                TT(v.asset.symbol, 12, Theme.t1, weight: .medium).frame(width: 52, alignment: .leading)
-                                TT(f.signed(v.contribution24h, 0), 12, Theme.signColor(v.contribution24h))
+                                TT(store.asset(a.id)?.symbol ?? a.id, 12, Theme.t1, weight: .medium).frame(width: 52, alignment: .leading)
+                                TT(f.signed(a.contribution, 0), 12, Theme.signColor(a.contribution))
                             }
                         }
                     }
                     .accessibilityIdentifier("what-moved")
-                    if let d = s.driver { TT(d.valuation.asset.symbol + " " + f.num(d.share, 0) + "% of the move", 11, Theme.t3) }
+                    TT("market " + f.signed(r.marketMove, 0) + (r.flows == 0 ? "" : " · flows " + f.signed(r.flows, 0)) + " · d details", 11, Theme.t3)
                 } else {
                     TT("—", 18, Theme.t3, weight: .medium)
-                    TT("needs 24h change for all positions", 11, Theme.t4)
+                    TT("needs start-of-day prices · d details", 11, Theme.t4)
                 }
             }
+            .contentShape(Rectangle())
+            .onTapGesture { store.go(.changes) }
             VStack(alignment: .leading, spacing: 5) {
                 rank("best", s.best, 1)
                 rank("worst", s.worst, 1)

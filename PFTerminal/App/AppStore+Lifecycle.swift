@@ -93,7 +93,7 @@ extension AppStore {
     /// window and menu chrome (NSApp.appearance, also used by alerts and menus), and `themeID`,
     /// which re-creates the SwiftUI trees so every view reads the new tokens. No restart.
     func applyTheme() {
-        let p = settings.theme.palette(systemIsDark: systemIsDark)
+        let p = settings.theme.palette(systemIsDark: systemIsDark, darkVariant: settings.darkVariant)
         Theme.palette = p
         NSApp?.appearance = NSAppearance(named: p.isLight ? .aqua : .darkAqua)
         themeID = p.name

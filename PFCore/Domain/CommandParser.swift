@@ -2,6 +2,9 @@ import Foundation
 
 public enum Screen: String, Codable, Sendable {
     case overview, asset, target, movers, analytics, settings, share, portfolios
+    /// 0.7: What Changed (tab 2's default mode; Movers is its other mode), Watchlist (tab 4),
+    /// and the reference screens reached with g + key or ⌘K.
+    case changes, watch, alerts, scenarios, benchmark
 }
 
 public struct ShareOverrides: Equatable, Sendable {
@@ -38,6 +41,11 @@ public enum CommandParser {
         "movers": .movers, "gainers": .movers, "losers": .movers,
         "analytics": .analytics, "pnl": .analytics, "allocation": .analytics, "performance": .analytics, "drawdown": .analytics,
         "settings": .settings, "preferences": .settings, "prefs": .settings, "sync": .settings, "icloud": .settings,
+        "changes": .changes, "changed": .changes, "attribution": .changes, "today": .changes,
+        "watch": .watch, "watchlist": .watch, "watching": .watch,
+        "alerts": .alerts, "rules": .alerts,
+        "scenarios": .scenarios, "scenario": .scenarios, "targets": .scenarios,
+        "benchmark": .benchmark, "compare": .benchmark, "vs": .benchmark,
     ]
     private static let shareTokens: Set<String> = ["share"]
 

@@ -13,7 +13,7 @@ struct RootView: View {
             ZStack(alignment: .top) {
                 Group {
                     if !store.hasPortfolio { OnboardingView() }
-                    else if store.summary.isEmpty && store.summary.closed.isEmpty && [.overview, .asset, .target, .movers, .analytics].contains(store.screen) {
+                    else if store.summary.isEmpty && store.summary.closed.isEmpty && [.overview, .asset, .target, .movers, .analytics, .changes, .benchmark].contains(store.screen) {
                         EmptyPortfolioView()
                     } else {
                         switch store.screen {
@@ -25,6 +25,11 @@ struct RootView: View {
                         case .settings: SettingsView()
                         case .share: ShareView()
                         case .portfolios: PortfoliosView()
+                        case .changes: ChangesView()
+                        case .benchmark: AnalyticsView(benchmark: true)
+                        case .watch: WatchView()
+                        case .alerts: AlertsView()
+                        case .scenarios: ScenariosView()
                         }
                     }
                 }
@@ -41,6 +46,13 @@ struct RootView: View {
                 if store.restore != nil { Scrim(top: 40, dismiss: nil) { RestoreSheet() } }
                 if store.importPreview != nil { Scrim(top: 40, dismiss: nil) { ImportPreviewSheet() } }
                 if let k = store.apiKeyEntry { Scrim(top: 40) { store.apiKeyEntry = nil } content: { APIKeySheet(initial: k) } }
+                if store.healthPopover {
+                    ZStack(alignment: .bottomTrailing) {
+                        Color.black.opacity(0.001).contentShape(Rectangle()).onTapGesture { store.healthPopover = false }
+                        HealthPopover().padding(.trailing, 10).padding(.bottom, 6)
+                    }
+                }
+                if store.keysOverlay { Scrim(top: 40) { store.keysOverlay = false } content: { KeysOverlay() } }
                 if store.locked { LockView() }
             }
             .clipped()
@@ -114,11 +126,8 @@ struct TitleBar: View {
             if store.doc.isDemo(store.context) { tag("DEMO") }
             if store.mockMarket { tag("MOCK DATA") }
             Spacer()
+            // 0.7: LIVE / upd moved to the status bar's health zone (⑤).
             HStack(spacing: 16) {
-                let f = store.freshness
-                HStack(spacing: 6) { TT(f.glyph, 11, f.color); TT(f.label, 11, Theme.t2) }
-                    .help(Text(verbatim: store.lastError.map { "last error: " + String(describing: $0) } ?? "market data freshness"))
-                TT("upd " + (store.lastSuccess.map(DateFmt.hms) ?? "—"), 11, Theme.t3)
                 chip("share", "⌘⇧S") { store.quickShare = false; store.go(.share) }
                 chip("commands", "⌘K") { store.openPalette() }
                 chip("settings", "⌘,") { store.go(.settings) }
@@ -151,66 +160,18 @@ struct TitleBar: View {
             let sym = store.targetValuation?.asset.symbol ?? ""
             c.append((sym, { if let id = store.targetValuation?.asset.id { store.openAsset(id) } }))
             c.append(("target", {}))
-        case .movers: c.append(("movers", {}))
+        case .movers: c.append(("changes", { store.go(.changes) })); c.append(("movers", {}))
+        case .changes: c.append(("changes", {})); c.append(("what changed", {}))
+        case .benchmark: c.append(("analytics", { store.go(.analytics) })); c.append(("benchmark", {}))
+        case .watch: c.append(("watchlist", {}))
+        case .alerts: c.append(("alerts", {}))
+        case .scenarios: c.append(("scenarios", {})); c.append((store.currentScenario?.name.lowercased() ?? "", {}))
         case .analytics: c.append(("analytics", {}))
         case .settings: c.append(("settings", {}))
         case .share: c.append(("share", {}))
         case .portfolios: c.append(("portfolios", {}))
         }
         return c
-    }
-}
-
-struct StatusBar: View {
-    @Environment(AppStore.self) private var store
-
-    var body: some View {
-        HStack(spacing: 14) {
-            PFGlyph(size: 12, color: Theme.onAccent)
-                .padding(.horizontal, 8).frame(maxHeight: .infinity).background(Theme.acc)
-            if store.hasPortfolio {
-                TermButton(action: { store.openSwitcher() }) { TT("[" + store.contextName.lowercased() + "]", 11, Theme.acc).fixedSize() }
-            }
-            HStack(spacing: 4) {
-                ForEach(Array(tabs.enumerated()), id: \.offset) { i, t in
-                    TermButton(action: { store.go(t.1) }) {
-                        TT(t.0 + (i == activeIndex ? "*" : " "), 11, i == activeIndex ? Theme.t1 : Theme.t3).fixedSize().padding(.horizontal, 6)
-                    }
-                }
-            }
-            .disabled(!store.hasPortfolio)
-            Text(store.message).font(Theme.mono(11)).foregroundStyle(Theme.t2).lineLimit(1).truncationMode(.tail)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            if let sync = store.syncShortLabel {
-                TermButton(action: { store.go(.settings) }) { TT(sync, 11, store.syncStatusColor).fixedSize() }
-                    .help(store.syncStatusLabel)
-            }
-            // The status message gives way first; shortcut hints and provider stay readable.
-            TT(hints + "   " + providerLabel + " · next \(store.nextRefreshIn)s", 11, Theme.t4).fixedSize().padding(.trailing, 12)
-        }
-        .frame(height: 24)
-        .background(Theme.chrome)
-        .overlay(alignment: .top) { Rectangle().fill(Theme.chromeBorder).frame(height: 1) }
-    }
-
-    private var providerLabel: String { store.mockMarket ? "mock" : store.settings.primaryProvider.lowercased() }
-
-    private var tabs: [(String, Screen)] { [("1:portfolio", .overview), ("2:movers", .movers), ("3:analytics", .analytics), ("4:settings", .settings)] }
-    private var activeIndex: Int {
-        switch store.screen { case .movers: 1; case .analytics: 2; case .settings: 3; case .portfolios: -1; default: 0 }
-    }
-    private var hints: String {
-        if !store.hasPortfolio { return "1 empty · 2 demo · 3 import" }
-        switch store.screen {
-        case .overview: return "↑↓ select · ↵ open · ←→ range · [ ] portfolio"
-        case .portfolios: return "↑↓ · ↵ open · r rename · a archive · ⌫ delete · n new"
-        case .asset: return "t target · ←→ period · ↑↓ tx · e edit · ⌫ delete · esc back"
-        case .target: return "↑↓ presets · esc back"
-        case .movers: return "↑↓ · ↵ open · p mode · ←→ range"
-        case .analytics: return "hover charts for values"
-        case .settings: return "click to cycle"
-        case .share: return "⌘C copy · ⌘S save · ←→ period · f format · p privacy"
-        }
     }
 }
 

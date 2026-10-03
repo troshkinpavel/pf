@@ -100,7 +100,30 @@ final class AppStore {
     var tx: TxDraft?
     var quickShare = false
     var flash = ""
-    var message = "ready"
+    var message = "ready" { didSet { messageAt = Date() } }
+    /// When `message` last changed: the status bar shows it for a few seconds (message slot).
+    var messageAt = Date.distantPast
+    // 0.7 navigation (see AppStore+Navigation): UI state only, never persisted.
+    var leaderActive = false
+    @ObservationIgnored var leaderTask: Task<Void, Never>?
+    var changesUsesMovers = false
+    var analyticsUsesBenchmark = false
+    var healthPopover = false
+    var keysOverlay = false
+    var wcPeriod: Attribution.Period = .today
+    var benchmarkRange: Benchmark.Range = .y1
+    var settingsSection = "general"
+    var settingsFilter = ""
+    var scenarioID: UUID?
+    var wcSel = 0
+    var watchSel = 0
+    var alertSel = 0
+    var scenarioRow = 0
+    // 0.7 Portfolio Intelligence data (watchlist, alerts, scenarios): intel.json, local to this Mac.
+    @ObservationIgnored let intelStore: IntelStore
+    var intel = IntelDocument()
+    /// Set when intel.json is from a newer PF: the data is shown but never written.
+    var intelReadOnly: String?
     var pendingImport: PortfolioDocument?
     var pendingDelete: Transaction?
     var locked = false
@@ -118,6 +141,7 @@ final class AppStore {
     var pendingRemovePosition: (asset: AssetID, portfolio: UUID)?
     var providerHealth: [ProviderRouter.Health] = []
     @ObservationIgnored var historyCache: (key: String, chart: PortfolioChart)?
+    @ObservationIgnored var attributionCache: [String: Attribution.Result] = [:]
     var apiKeyEntry: String?
     /// Set when data from the previous app identity exists but could not be read automatically.
     var legacyDataUnreadable = false
@@ -171,6 +195,7 @@ final class AppStore {
         }
         files = PortfolioStore(directory: dir)
         snapshots = SnapshotStore(directory: dir)
+        intelStore = IntelStore(directory: dir)
         diagnostics = DiagnosticLog(directory: dir)
         cache = MarketCache(directory: dir, inMemory: o.inMemory)
         defaults = o.defaults
@@ -207,6 +232,7 @@ final class AppStore {
         if o.syncRemote == nil, syncRemote != nil { syncRemoteEnvironment = Self.cloudEnvironment }
         quotes = cache.quotes(currency: s.currency).filter { k, _ in doc.assets.contains { $0.id == k } }
         snapshotList = snapshots.list()
+        loadIntel()
         recompute()
     }
 
@@ -532,6 +558,7 @@ final class AppStore {
     func go(_ s: Screen) {
         screen = s
         palette = nil; tx = nil; quickShare = false; switcher = nil; newPortfolio = nil; syncSheet = nil; restore = nil; importPreview = nil
+        healthPopover = false; keysOverlay = false; leaderActive = false
         manage.renaming = nil; manage.confirmDelete = nil
         if s == .overview { loadHistory(assetsHeld(during: overviewRange), overviewRange) }
     }
@@ -553,6 +580,9 @@ final class AppStore {
     }
 
     func back() {
+        if leaderActive { leaderActive = false; leaderTask?.cancel(); return }
+        if keysOverlay { keysOverlay = false; return }
+        if healthPopover { healthPopover = false; return }
         if restore != nil { restore = nil; return }
         if importPreview != nil { importPreview = nil; return }
         if syncSheet != nil { syncSheet = nil; return }
@@ -565,6 +595,8 @@ final class AppStore {
         if tx != nil { tx = nil; return }
         switch screen {
         case .target: if let t = targetAssetID { openAsset(t) } else { go(.overview) }
+        case .benchmark: go(.analytics)
+        case .settings where !settingsFilter.isEmpty: settingsFilter = ""
         case .overview: break
         default: go(.overview)
         }
@@ -604,7 +636,8 @@ final class AppStore {
         if old.numbers != settings.numbers { recompute() }
         if old.widgetPrivacy != settings.widgetPrivacy { writeWidgetSnapshot() }
         if old.keepInDock != settings.keepInDock { keepInDockChanged() }   // privacy applies immediately
-        if old.theme != settings.theme { applyTheme() }
+        if old.theme != settings.theme || old.darkVariant != settings.darkVariant { applyTheme() }
+        if old.launchAtLogin != settings.launchAtLogin { applyLaunchAtLogin() }
     }
 
     /// Currency is the ledger's currency: switching is allowed only when every transaction matches.

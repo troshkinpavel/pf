@@ -4,6 +4,8 @@ import SwiftUI
 
 struct AnalyticsView: View {
     @Environment(AppStore.self) private var store
+    /// 0.7: the Benchmark mode (b) keeps the stat box and swaps the content below.
+    var benchmark = false
 
     var body: some View {
         let s = store.summary, f = Fmt.current

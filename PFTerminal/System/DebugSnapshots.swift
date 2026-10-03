@@ -55,6 +55,26 @@ enum DebugSnapshots {
                     ("33-stable-analytics", { pegQuote("0.9998"); store.recompute(); store.go(.analytics) }),
                 ]
             }
+            if ProcessInfo.processInfo.arguments.contains("--intel-shots") {
+                seedIntelDemo(store)
+                steps = [
+                    ("40-changes-today", { store.go(.overview); store.wcPeriod = .today; store.go(.changes); store.loadAttributionHistory() }),
+                    ("40b-changes-7d", { store.wcPeriod = .d7; store.loadAttributionHistory() }),
+                    ("40c-changes-30d", { store.wcPeriod = .d30; store.loadAttributionHistory() }),
+                    ("41-movers-mode", { store.toggleChangesMode() }),
+                    ("42-benchmark", { store.analyticsUsesBenchmark = true; store.go(.benchmark); store.loadBenchmarkHistory() }),
+                    ("43-watch", { store.go(.watch) }),
+                    ("44-alerts", { store.go(.alerts) }),
+                    ("45-scenarios", { store.go(.scenarios) }),
+                    ("46-settings", { store.settingsSection = "general"; store.go(.settings) }),
+                    ("46b-settings-filter", { store.settingsFilter = "sync" }),
+                    ("47-health", { store.settingsFilter = ""; store.go(.overview); store.healthPopover = true }),
+                    ("48-leader", { store.healthPopover = false; store.leaderActive = true }),
+                    ("49-keys", { store.leaderActive = false; store.keysOverlay = true }),
+                    ("50-overview", { store.keysOverlay = false; store.go(.overview) }),
+                    ("51-asset", { store.openAsset(tel) }),
+                ]
+            }
             if ProcessInfo.processInfo.arguments.contains("--ui-testing") {
                 seedDesignPortfolios(store)
                 steps += [
@@ -131,6 +151,47 @@ enum DebugSnapshots {
     static func emit(_ name: String, _ data: Data) {
         guard ProcessInfo.processInfo.arguments.contains("--snapshots-stdout") else { return }
         print("PFPNG \(name) \(data.base64EncodedString())")
+    }
+
+    /// Sample 0.7 data for screenshots: watchlist, alert rules (one fired), c · b · u scenarios.
+    @MainActor
+    static func seedIntelDemo(_ store: AppStore) {
+        let now = Date()
+        func reg(_ sym: String) -> Asset? { AssetRegistry.shared.entries(symbol: sym).first.map { AssetRegistry.shared.asset(for: $0) } ?? AssetCatalog.known.first { $0.symbol == sym } }
+        store.updateIntel { d in
+            d = IntelDocument()
+            d.migrations = ["0.6-notifications"]
+            for (sym, add, entry, target, note) in [("SOL", Decimal(142.1), Decimal(135), Decimal(210), "wait for unlock cliff"), ("LINK", 15.4, 13.5, 22, "scale in over 3 tranches"),
+                                                     ("RENDER", 3.8, 3.6, nil, ""), ("HNT", 3.1, nil, nil, "just tracking")] as [(String, Decimal, Decimal?, Decimal?, String)] {
+                if let a = reg(sym) { Watchlist.add(a, price: add, entry: entry, target: target, note: note, to: &d, now: now.addingTimeInterval(-86400 * 20)) }
+            }
+            let held = store.summary.positions.map(\.asset)
+            var n = 0
+            func rule(_ k: AlertKind, _ s: AlertSubject, _ t: Double, _ r: AlertRepeat = .once, fired: Bool = false, paused: Bool = false) {
+                n += 1
+                var a = AlertRule(number: n, kind: k, subject: s, threshold: t, repeatMode: r, paused: paused, createdAt: now.addingTimeInterval(-86400 * 10))
+                if fired { a.state = .fired; a.firedAt = now.addingTimeInterval(-3600 * 3); a.unseen = true }
+                d.alerts.append(a)
+            }
+            if let tel = held.first(where: { $0.symbol == "TEL" }) {
+                rule(.priceAbove, .asset(tel.id), 0.004, fired: true)
+                rule(.weightAbove, .asset(tel.id), 35, .cross)
+            }
+            rule(.drawdown, .portfolio(store.context.storageKey), 20, .cross)
+            rule(.move24h, .anyHeld, 15, .daily)
+            rule(.depeg, .anyStablecoin, 0.5, .cross)
+            if let btc = held.first(where: { $0.symbol == "BTC" }) { rule(.priceBelow, .asset(btc.id), 80_000) }
+            rule(.valueAbove, .portfolio(store.context.storageKey), 60_000)
+            if let sol = reg("SOL") { rule(.priceAbove, .asset(sol.id), 180, paused: true) }
+            d.alertLog = [AlertEvent(at: now.addingTimeInterval(-3600 * 3), rule: d.alerts[0].id, number: 1, message: "TEL price ≥ $0.0040", delivery: "banner · unseen")]
+            let prices = Dictionary(uniqueKeysWithValues: store.summary.positions.compactMap { v in v.price.map { (v.asset.id, $0) } })
+            Scenarios.createPresets(in: &d, prices: prices, now: now)
+            for (key, mult) in [("c", 1.3), ("b", 2.5), ("u", 6.0)] {
+                if let i = d.scenarios.firstIndex(where: { $0.key == key }) {
+                    for (id, p) in prices where !Stablecoins.isStablecoin(id) { d.scenarios[i].targets[id] = ScenarioTarget(price: p * Decimal.of(mult), weight: key == "b" ? 30 : nil) }
+                }
+            }
+        }
     }
 
     /// The design's portfolio set, for ui-testing snapshots only (in-memory store).

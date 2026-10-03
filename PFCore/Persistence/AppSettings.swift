@@ -36,6 +36,20 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public var keepInDock: Bool = false
     /// Appearance. Older settings have no value and stay on the original dark look.
     public var theme: AppTheme = .dark
+    /// 0.7: which dark palette `system` uses when macOS is dark (dark · midnight · graphite).
+    public var darkVariant: AppTheme = .dark
+    /// 0.7: hour the day starts for "Today" in What Changed (0 = local midnight).
+    public var dayStartHour: Int = 0
+    /// 0.7: open at login (in the menu bar, without the window).
+    public var launchAtLogin: Bool = false
+    /// 0.7 alert delivery (rules live in Alerts).
+    public var alertBanner: Bool = true
+    public var alertBadge: Bool = true
+    public var alertSound: Bool = false
+    /// "off" or "HH–HH" (local hours): fired alerts are queued and delivered after.
+    public var quietHours: String = "off"
+    public static let quietHourOptions = ["off", "22–07", "00–07", "23–08"]
+    public static let dayStartOptions = [0, 4, 6, 8]
 
     public static let providerOptions = ["Auto", "Binance", "Bybit", "CoinGecko"]
     /// Settings format of market routing. 0 = before 0.5 (CoinGecko was the default primary).
@@ -85,6 +99,23 @@ public struct AppSettings: Codable, Equatable, Sendable {
         onboarded = (try? c.decode(Bool.self, forKey: .onboarded)) ?? d.onboarded
         keepInDock = (try? c.decode(Bool.self, forKey: .keepInDock)) ?? d.keepInDock
         theme = (try? c.decode(AppTheme.self, forKey: .theme)) ?? d.theme   // unknown values (a newer build) → dark
+        darkVariant = (try? c.decode(AppTheme.self, forKey: .darkVariant)) ?? d.darkVariant
+        dayStartHour = (try? c.decode(Int.self, forKey: .dayStartHour)) ?? d.dayStartHour
+        launchAtLogin = (try? c.decode(Bool.self, forKey: .launchAtLogin)) ?? d.launchAtLogin
+        alertBanner = (try? c.decode(Bool.self, forKey: .alertBanner)) ?? d.alertBanner
+        alertBadge = (try? c.decode(Bool.self, forKey: .alertBadge)) ?? d.alertBadge
+        alertSound = (try? c.decode(Bool.self, forKey: .alertSound)) ?? d.alertSound
+        quietHours = (try? c.decode(String.self, forKey: .quietHours)) ?? d.quietHours
+    }
+}
+
+extension AppSettings {
+    /// True when `date` falls inside quiet hours ("22–07" wraps midnight).
+    public func isQuiet(_ date: Date, calendar: Calendar = .current) -> Bool {
+        let parts = quietHours.split(separator: "–").compactMap { Int($0) }
+        guard parts.count == 2 else { return false }
+        let h = calendar.component(.hour, from: date)
+        return parts[0] <= parts[1] ? (h >= parts[0] && h < parts[1]) : (h >= parts[0] || h < parts[1])
     }
 }
 

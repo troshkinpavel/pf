@@ -21,6 +21,12 @@ extension AppTheme {
         case .system: systemIsDark ? .dark : .light
         }
     }
+
+    /// 0.7: `system` follows macOS with the chosen dark variant when dark.
+    public func palette(systemIsDark: Bool, darkVariant: AppTheme) -> ThemePalette {
+        guard self == .system, systemIsDark else { return palette(systemIsDark: systemIsDark) }
+        return [.dark, .midnight, .graphite].contains(darkVariant) ? darkVariant.palette(systemIsDark: true) : .dark
+    }
 }
 
 /// One complete set of colour tokens (sRGB hex). Every theme defines every token, so a view

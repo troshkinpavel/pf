@@ -135,10 +135,18 @@ struct AppCommands: Commands {
             Button("Copy Diagnostic Report") { store.copyDiagnosticReport() }
         }
         CommandMenu("Go") {
-            Button("Portfolio") { show(); store.go(.overview) }.keyboardShortcut("1")
-            Button("Movers") { show(); store.go(.movers) }.keyboardShortcut("2")
-            Button("Analytics") { show(); store.go(.analytics) }.keyboardShortcut("3")
-            Button("Settings") { show(); store.go(.settings) }.keyboardShortcut("4")
+            Button("Portfolio") { show(); store.goTab(0) }.keyboardShortcut("1")
+            Button("Changes") { show(); store.goTab(1) }.keyboardShortcut("2")
+            Button("Analytics") { show(); store.goTab(2) }.keyboardShortcut("3")
+            Button("Watchlist") { show(); store.goTab(3) }.keyboardShortcut("4")
+            Divider()
+            Button("What Changed  g c") { show(); store.leaderKey("c") }
+            Button("Movers  g m") { show(); store.leaderKey("m") }
+            Button("Benchmark  g b") { show(); store.leaderKey("b") }
+            Button("Alerts  g a") { show(); store.go(.alerts) }
+            Button("Scenarios  g s") { show(); store.go(.scenarios) }
+            Button("Manage Portfolios  g p") { show(); store.go(.portfolios) }
+            Button("Keyboard Shortcuts") { show(); store.keysOverlay = true }.keyboardShortcut("/", modifiers: [.command, .shift])
             Divider()
             Button("Command Palette") { show(); store.openPalette() }.keyboardShortcut("k")
             Button("Switch Portfolio…") { show(); store.openSwitcher() }.keyboardShortcut("p")

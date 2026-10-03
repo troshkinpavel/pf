@@ -167,11 +167,13 @@ extension AppStore {
     /// Routes key presses like a TUI. Returns true when consumed. Text editing keeps
     /// its normal shortcuts: plain keys are ignored while an input has focus.
     func handleKey(_ e: NSEvent) -> Bool {
-        guard e.window === mainWindow, !locked else { return false }
+        guard e.window === mainWindow else { return false }
         let cmd = e.modifierFlags.contains(.command)
         let shift = e.modifierFlags.contains(.shift)
         // Physical key (ANSI position) so shortcuts work on any keyboard layout, e.g. ⌘K on Russian.
         let k = Self.latinKey[e.keyCode] ?? e.charactersIgnoringModifiers?.lowercased() ?? ""
+        if cmd && k == "l" { toggleLock(); return true }
+        guard !locked else { return false }
         let code = e.keyCode
         let inInput = mainWindow?.firstResponder is NSText
         let isEsc = code == 53, isReturn = code == 36 || code == 76
@@ -195,8 +197,14 @@ extension AppStore {
         if cmd && !shift && k == "p" { openSwitcher(); return true }
         if cmd && k == "n" { openTx(); return true }
         if cmd && k == "r" { Task { await refresh(auto: false) }; return true }
-        if cmd, let n = Int(k), (1...4).contains(n) { go([.overview, .movers, .analytics, .settings][n - 1]); return true }
+        if cmd, let n = Int(k), (1...4).contains(n), screen != .settings { goTab(n - 1); return true }
         if cmd && k == "," { go(.settings); return true }
+        // g leader: the next key picks a destination; anything else cancels it. Never sticks.
+        if leaderActive && !cmd && !inInput {
+            if isEsc { back(); return true }
+            leaderKey(k)
+            return true
+        }
         if isEsc { back(); return true }
         if syncSheet != nil { return true }   // confirmations are mouse-only: nothing toggles sync by accident
 
@@ -252,10 +260,14 @@ extension AppStore {
         if screen == .target && (isUp || isDown) { stepTarget(up: isUp); return true }
         if cmd || inInput || quickShare { return false }
 
-        if k == "/" { openPalette("open "); return true }
+        if k == "/" && shift { keysOverlay.toggle(); return true }
+        if keysOverlay || healthPopover { return false }
+        if k == "g" && !shift { startLeader(); return true }
+        if k == "/" && screen != .settings { openPalette("open "); return true }
         if k == "[" || k == "]" { cyclePortfolio(k == "]" ? 1 : -1); return true }
-        if let n = Int(k), (1...4).contains(n) { go([.overview, .movers, .analytics, .settings][n - 1]); return true }
+        if let n = Int(k), (1...4).contains(n), screen != .settings { goTab(n - 1); return true }
         if k == "," { go(.settings); return true }
+        if handleIntelKey(k, e: e, shift: shift) { return true }
 
         let n = summary.positions.count
         switch screen {
@@ -267,6 +279,7 @@ extension AppStore {
             if isReturn, let p = live[safe: sel] { setContext(.portfolio(p.id)); return true }
             if isLeft || isRight { setOverviewRange(Self.overviewRanges.cycled(from: overviewRange, by: isRight ? 1 : -1)); return true }
             if k == "v" { overviewMode = overviewMode == .value ? .pnl : .value; return true }
+            if k == "d" { changesUsesMovers = false; go(.changes); return true }
         case .portfolios:
             let list = manageList, m = list.count
             guard m > 0 else { break }
@@ -284,7 +297,9 @@ extension AppStore {
             if isReturn, n > 0 { openAsset(summary.positions[sel].asset.id); return true }
             if isLeft || isRight { setOverviewRange(Self.overviewRanges.cycled(from: overviewRange, by: isRight ? 1 : -1)); return true }
             if k == "v" { overviewMode = overviewMode == .value ? .pnl : .value; return true }
+            if k == "d" { changesUsesMovers = false; go(.changes); return true }
         case .movers:
+            if k == "m" { toggleChangesMode(); return true }
             if isDown, n > 0 { msel = (msel + 1) % n; return true }
             if isUp, n > 0 { msel = (msel - 1 + n) % n; return true }
             if isReturn, let id = moversOrder[safe: msel] { openAsset(id); return true }
