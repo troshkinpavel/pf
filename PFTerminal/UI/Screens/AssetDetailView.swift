@@ -17,13 +17,17 @@ struct AssetDetailView: View {
         let f = Fmt.current, q = v.quote, peg = store.pegCheck(v.asset.id)
         return ScrollView(.vertical) {
             VStack(alignment: .leading, spacing: 18) {
+                // Design §04: name · pair, then the symbol with the market line beside it.
                 HStack(alignment: .bottom) {
                     VStack(alignment: .leading, spacing: 6) {
-                        TT(v.asset.name.uppercased() + " / " + store.settings.currency, 12, Theme.t2, tracking: 0.48)
-                        TT(v.asset.symbol, 22, Theme.t1, weight: .semibold)
-                        if let peg { TT("STABLECOIN · \(peg.peg.currency) PEG", 11, Theme.t3, tracking: 0.44) }
+                        TT(v.asset.name.uppercased() + " · " + v.asset.symbol + "/" + store.settings.currency, 12, Theme.t2, tracking: 0.48)
+                        HStack(alignment: .firstTextBaseline, spacing: 28) {
+                            TT(v.asset.symbol, 22, Theme.t1, weight: .semibold).fixedSize()
+                            if let peg { TT("STABLECOIN · \(peg.peg.currency) PEG", 11, Theme.t3, tracking: 0.44).fixedSize() }
+                            marketLine(v)
+                        }
                     }
-                    Spacer()
+                    Spacer(minLength: 16)
                     HStack(spacing: 6) {
                         action("alert", "a") { store.openAlertSetup(subject: .asset(v.asset.id)) }
                         if peg == nil { action("target", "t") { store.openTarget(v.asset.id) } }
@@ -36,10 +40,8 @@ struct AssetDetailView: View {
                         else { HStack(spacing: 0) { TT(f.pct(v.change24h) + " ", 12, Theme.signColor(v.change24h)); TT("24h", 12, Theme.t3) } }
                     }
                 }
-                .padding(.bottom, 4)
-                marketLine(v)
-                    .padding(.bottom, 12)
-                    .overlay(alignment: .bottom) { Hairline() }
+                .padding(.bottom, 14)
+                .overlay(alignment: .bottom) { Hairline() }
 
                 HStack(alignment: .top, spacing: 18) {
                     VStack(spacing: 18) {
@@ -63,22 +65,24 @@ struct AssetDetailView: View {
 
     // MARK: 0.7 right column (design §04)
 
-    /// MARKET collapsed to one dim line; the price source stays one click away.
+    /// MARKET collapsed to one dim line (design §04); the price source stays one click away, quiet.
     private func marketLine(_ v: PositionValuation) -> some View {
         let f = Fmt.current, q = v.quote
         let ath = q.flatMap { q in q.ath.map { ((q.price / $0) - 1).double * 100 } }
+        let rank = AssetRegistry.shared.entry(for: v.asset)?.marketCapRank
         let parts = [q?.marketCap.map { "mcap " + f.compact($0) }, q?.volume24h.map { "vol 24h " + f.compact($0) },
-                     q?.change[.d7].map { "7d " + f.pct($0, 1) }, q?.change[.d30].map { "30d " + f.pct($0, 1) },
+                     rank.map { "rank #\($0)" },
                      q?.ath.map { "ath " + f.price($0) + (ath.map { " " + f.pct($0, 1) } ?? "") }].compactMap { $0 }
         let st = store.sourceState(v.asset.id)
+        let bad: Bool = { switch st?.status { case .stale?, .noPrice?, nil: true; default: false } }()
         return HStack(spacing: 10) {
-            TT(parts.isEmpty ? "no market data yet" : parts.joined(separator: " · "), 11.5, Theme.t3).lineLimit(1).fixedSize()
-            if let q, (q.volume24h ?? 0) < lowLiquidityVolume { TT("! low liquidity", 11.5, Theme.neg) }
+            TT(parts.isEmpty ? "no market data yet" : parts.joined(separator: " · "), 11.5, Theme.t3).lineLimit(1).truncationMode(.tail)
+            if let q, (q.volume24h ?? 0) < lowLiquidityVolume { TT("! low liquidity", 11.5, Theme.neg).fixedSize() }
             TermButton(action: { store.openSourcePicker(v.asset.id) }) {
-                TT("source " + (st?.status.label ?? "—") + (st?.preferred != nil ? " · pinned" : " · auto") + " ‹ change ›", 11.5, Self.statusColor(st?.status))
+                TT("· " + (st?.status.label.lowercased() ?? "—") + (st?.preferred != nil ? " · pinned" : "") + " ‹›", 11.5, bad ? Theme.neg : Theme.t4).fixedSize()
             }
+            .help("price source · change")
             .accessibilityIdentifier("price-source")
-            Spacer(minLength: 0)
         }
     }
 
@@ -236,12 +240,37 @@ struct AssetDetailView: View {
         }
         if let p = v.price, !vals.isEmpty { vals.append(p.double) }
         let span: Double = r.seconds.map { $0 / 60 } ?? Date().timeIntervalSince(v.position.transactions.first?.timestamp ?? Date()) / 60
-        return Panel(title: "PRICE · \(v.asset.symbol)/\(store.settings.currency)") {
+        // Average entry, armed price alerts (⚑ #n) and buys, as in the design.
+        let avg = v.position.averageEntry?.double ?? 0
+        var levels = avg > 0 ? [ChartLevel(value: avg, color: Theme.acc, label: "avg " + f.price(v.position.averageEntry))] : []
+        for a in store.intel.alerts where a.subject == .asset(v.asset.id) && !a.paused {
+            let lv: Double? = switch a.kind {
+            case .priceAbove, .priceBelow: a.threshold
+            case .target: Scenarios.base(store.intel)?.targets[v.asset.id]?.price.double
+            default: nil
+            }
+            if let lv { levels.append(ChartLevel(value: lv, color: Theme.acc, label: "⚑ #\(a.number) " + f.price(Decimal.of(lv)))) }
+        }
+        let now = Date()
+        let buys = v.position.transactions.filter { $0.type == .buy || $0.type == .transferIn }
+            .map { 1 - now.timeIntervalSince($0.timestamp) / (span * 60) }.filter { $0 >= 0 && $0 <= 1 }
+        let lo = vals.min() ?? 0, hi = vals.max() ?? 0
+        let off = levels.dropFirst(avg > 0 ? 1 : 0).filter { !vals.isEmpty && ($0.value < lo || $0.value > hi) }
+        let avgOff = vals.isEmpty || avg <= 0 ? "" : avg > hi ? " ↑" : avg < lo ? " ↓" : ""
+        return Panel(title: "PRICE · \(v.asset.symbol)/\(store.settings.currency) · \(r.rawValue)") {
             TerminalChart(values: vals, rows: 19, style: store.settings.chartStyle, spanMinutes: span, endTime: Date(),
                           emptyText: store.loadingHistory.contains(store.seriesKey(v.asset.id, r)) ? "loading history…" : "missing historical data for \(v.asset.symbol)",
                           axis: { f.priceDigits($0) }, value: { f.price($0) },
-                          delta: { a, b, _ in ((a >= b ? "+" : "-") + f.price(abs(a - b)) + " (" + f.pct(b != 0 ? (a / b - 1) * 100 : 0) + ")", a - b) }) {
-                Tabs(AppStore.assetRanges.map(\.rawValue), selected: r.rawValue) { store.setAssetRange(ChartRange(rawValue: $0)!) }
+                          delta: { a, b, _ in ((a >= b ? "+" : "-") + f.price(abs(a - b)) + " (" + f.pct(b != 0 ? (a / b - 1) * 100 : 0) + ")", a - b) },
+                          levels: levels, markers: buys) {
+                HStack(spacing: 14) {
+                    HStack(spacing: 6) {
+                        if avg > 0 { TT("— — avg entry " + f.price(v.position.averageEntry) + avgOff, 11.5, Theme.t3) }
+                        if !buys.isEmpty { TT("· ┊ buys", 11.5, Theme.t3) }
+                        ForEach(off) { l in TT("· " + l.label + (l.value > hi ? " ↑" : " ↓"), 11.5, Theme.acc) }
+                    }
+                    Tabs(AppStore.assetRanges.map(\.rawValue), selected: r.rawValue) { store.setAssetRange(ChartRange(rawValue: $0)!) }
+                }
             }
         }
     }

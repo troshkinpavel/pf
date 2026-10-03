@@ -2,6 +2,14 @@ import PFCore
 import PFCoreUI
 import SwiftUI
 
+/// A horizontal price level drawn over the plot (average entry, alert thresholds).
+struct ChartLevel: Identifiable {
+    var id: String { label }
+    let value: Double
+    let color: Color
+    let label: String
+}
+
 /// ASCII line/block chart with y-axis, time axis, hover crosshair and a readout header.
 /// Column count follows the available width, so wider windows show more detail.
 struct TerminalChart<Trailing: View>: View {
@@ -18,6 +26,10 @@ struct TerminalChart<Trailing: View>: View {
     var delta: (Double, Double, Double) -> (String, Double)
     /// Overrides the line colour's sign (e.g. P&L change when the plotted value includes deposits).
     var trend: Double? = nil
+    /// Dashed horizontal levels, drawn when inside the plotted range.
+    var levels: [ChartLevel] = []
+    /// Dotted vertical markers at 0…1 of the time span (e.g. buys).
+    var markers: [Double] = []
     @ViewBuilder var trailing: Trailing
 
     @State private var hoverCol: Int?
@@ -42,6 +54,7 @@ struct TerminalChart<Trailing: View>: View {
                         lines(plot.map(\.plot), color: Theme.signColor(trend ?? (vals.last ?? 0) - (vals.first ?? 0)))
                             .opacity(style == .line ? 1 : 0.6)
                             .frame(width: CGFloat(cols) * cw, alignment: .leading)
+                            .overlay { overlays(vals) }
                             .overlay(alignment: .topLeading) {
                                 if let h = hoverCol {
                                     Rectangle().fill(Theme.chartGrid).frame(width: 1)
@@ -63,6 +76,25 @@ struct TerminalChart<Trailing: View>: View {
             }
         }
         .frame(height: height)
+    }
+
+    /// Same scale as AsciiChart.render: row j shows max − j/(rows−1) · range.
+    private func overlays(_ vals: [Double]) -> some View {
+        Canvas { ctx, size in
+            guard let mn = vals.min(), let mx = vals.max() else { return }
+            let rg = mx - mn == 0 ? 1 : mx - mn
+            for m in markers where (0...1).contains(m) {
+                var p = Path(); p.move(to: CGPoint(x: m * size.width, y: 0)); p.addLine(to: CGPoint(x: m * size.width, y: size.height))
+                ctx.stroke(p, with: .color(Theme.chartGrid), style: StrokeStyle(lineWidth: 1, dash: [2, 3]))
+            }
+            for l in levels where l.value >= mn && l.value <= mx {
+                let y = CGFloat((mx - l.value) / rg * Double(rows - 1)) * lineH + lineH / 2
+                var p = Path(); p.move(to: CGPoint(x: 0, y: y)); p.addLine(to: CGPoint(x: size.width, y: y))
+                ctx.stroke(p, with: .color(l.color.opacity(0.7)), style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
+                ctx.draw(Text(l.label).font(Theme.mono(10)).foregroundColor(l.color), at: CGPoint(x: 4, y: y - 7), anchor: .leading)
+            }
+        }
+        .allowsHitTesting(false)
     }
 
     private func lines(_ rows: [String], color: Color) -> some View {
