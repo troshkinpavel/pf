@@ -161,7 +161,8 @@ extension AppStore {
             if let a = pricesAge, a > 0 { t += " · prices \(a)m" }
             return Health(level: .degraded, glyph: "▲", text: t)
         }
-        let staleAfter = 2 * TimeInterval(settings.refreshSeconds)
+        // Two missed refreshes at the interval actually in use (it backs off in the background).
+        let staleAfter = 2 * effectiveInterval
         if let age = Freshness.oldestQuoteAge(held: marketDrivenHeld, quotes: quotes, now: now), age > max(staleAfter, 120), !inFlight {
             return Health(level: .bad, glyph: "●", text: "stale " + DateFmt.age(age))
         }

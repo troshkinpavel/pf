@@ -328,6 +328,8 @@ extension AppStore {
         case .asset:
             let txs = currentAssetTransactions
             if k == "t", let a = assetID { openTarget(a); return true }
+            if k == "a", let a = assetID { openAlertSetup(subject: .asset(a)); return true }
+            if k == "s" { go(.scenarios); return true }
             if isLeft || isRight { setAssetRange(Self.assetRanges.cycled(from: assetRange, by: isRight ? 1 : -1)); return true }
             if isDown, !txs.isEmpty { txSel = (txSel + 1) % txs.count; return true }
             if isUp, !txs.isEmpty { txSel = (txSel - 1 + txs.count) % txs.count; return true }

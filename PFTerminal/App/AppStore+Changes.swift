@@ -55,7 +55,7 @@ extension AppStore {
         let c = c ?? context
         let summary = c == context ? self.summary : summary(for: c)
         let key = "start|\(c.storageKey)|\(Int(start.timeIntervalSince1970 / 60))|\(history.rawValue)|\(points)|\(dataVersion)|\(summary.totalValue)"
-        if let h = historyCache, h.key == key { return h.chart }
+        if let h = historyCache[key] { return h }
         let txs = doc.transactions(c)
         var s: [AssetID: PriceSeries] = [:]
         for id in assetsHeld(during: history, in: c) {
@@ -69,7 +69,8 @@ extension AppStore {
         let chart = PortfolioHistoryEngine.chart(transactions: txs, summary: summary, start: start, points: points, series: s, now: Date()) {
             self.cache.snapshots(since: $0, context: c.storageKey)
         }
-        historyCache = (key, chart)
+        if historyCache.count > 16 { historyCache.removeAll() }
+        historyCache[key] = chart
         return chart
     }
 
@@ -151,5 +152,41 @@ extension AppStore {
     static var launchedAsLoginItem: Bool {
         guard let e = NSAppleEventManager.shared().currentAppleEvent else { return false }
         return e.eventID == kAEOpenApplication && e.paramDescriptor(forKeyword: keyAEPropData)?.enumCodeValue == keyAELaunchedAsLogInItem
+    }
+}
+
+// MARK: - Asset Detail intelligence (design §04)
+
+extension AppStore {
+    struct ImpactRow { let label: String; let priceChange: Double?; let contribution: Decimal?; let pp: Double?; let rank: String }
+
+    /// This asset's share of the portfolio move over today · 7d · 30d (from What Changed).
+    func assetImpact(_ id: AssetID) -> [ImpactRow] {
+        Attribution.Period.allCases.map { p in
+            guard let r = attribution(p), r.complete, let a = r.assets.first(where: { $0.id == id }) else {
+                return ImpactRow(label: p.label.lowercased(), priceChange: nil, contribution: nil, pp: nil, rank: "—")
+            }
+            let rank = (r.byImpact.firstIndex { $0.id == id } ?? 0) + 1
+            return ImpactRow(label: p.label.lowercased(), priceChange: a.priceChange, contribution: a.contribution,
+                             pp: r.startValue > 0 ? (a.contribution / r.startValue).double * 100 : nil, rank: "\(rank)/\(r.assets.count)")
+        }
+    }
+
+    /// Position value against its local peak since the first buy. The path is quantity held at
+    /// each point × price, so a later buy doesn't reset the peak to "now".
+    func positionDrawdown(_ v: PositionValuation) -> (peak: Double, at: Date, fromPeak: Double, fromPeakValue: Double)? {
+        guard let first = v.position.transactions.first?.timestamp, let now = v.value?.double, now > 0,
+              let s = assetSeries(v.asset.id, .all) ?? assetSeries(v.asset.id, assetRange) else { return nil }
+        let txs = v.position.transactions.sorted { $0.timestamp < $1.timestamp }
+        var i = 0, q = Decimal(0)
+        var peak = (value: now, at: Date())
+        for p in s.points where p.time >= first {
+            while i < txs.count, txs[i].timestamp <= p.time {
+                q += txs[i].type.increases ? txs[i].quantity : -txs[i].quantity; i += 1
+            }
+            let val = q.double * p.price
+            if val > peak.value { peak = (val, p.time) }
+        }
+        return (peak.value, peak.at, (now / peak.value - 1) * 100, now - peak.value)
     }
 }

@@ -12,6 +12,7 @@ struct OverviewView: View {
         ScrollView(.vertical) {
             VStack(alignment: .leading, spacing: 18) {
                 MetricStrip()
+                WhatMovedBand()
                 PerformancePanel()
                 if store.isAll { AllPortfoliosPanel() }
                 PositionsPanel()
@@ -50,26 +51,12 @@ private struct MetricStrip: View {
                 TT(store.isAll ? "\(store.doc.livePortfolios.count) portfolios · \(s.transactionCount) tx" : "\(s.positions.count) assets · \(s.transactionCount) tx", 12, Theme.t3)
             }
             cell {
-                CapsLabel("TODAY · WHAT MOVED")
-                // Same numbers as What Changed › today (local day start, flows excluded); d opens it.
-                if let r = store.attribution(.today), r.complete, !r.assets.isEmpty {
-                    VStack(alignment: .leading, spacing: 3) {
-                        ForEach(Array(r.byImpact.prefix(3)), id: \.id) { a in
-                            HStack(spacing: 8) {
-                                TT(store.asset(a.id)?.symbol ?? a.id, 12, Theme.t1, weight: .medium).frame(width: 52, alignment: .leading)
-                                TT(f.signed(a.contribution, 0), 12, Theme.signColor(a.contribution))
-                            }
-                        }
-                    }
-                    .accessibilityIdentifier("what-moved")
-                    TT("market " + f.signed(r.marketMove, 0) + (r.flows == 0 ? "" : " · flows " + f.signed(r.flows, 0)) + " · d details", 11, Theme.t3)
-                } else {
-                    TT("—", 18, Theme.t3, weight: .medium)
-                    TT("needs start-of-day prices · d details", 11, Theme.t4)
-                }
+                // 0.7: the 24h driver moved into the WHAT MOVED band; TWR comes over from Analytics.
+                let twr = store.portfolioHistory(.all, points: 121).twrPercent
+                CapsLabel("TWR · ALL")
+                TT(f.pct(twr, 1), 18, Theme.signColor(twr), weight: .medium)
+                TT(twr == nil ? "needs history" : "deposits excluded", 12, Theme.t3)
             }
-            .contentShape(Rectangle())
-            .onTapGesture { store.go(.changes) }
             VStack(alignment: .leading, spacing: 5) {
                 rank("best", s.best, 1)
                 rank("worst", s.worst, 1)
@@ -96,6 +83,51 @@ private struct MetricStrip: View {
             TT(r?.symbol ?? "—", 12, Theme.t1)
             Cell(r.map { Fmt.current.pct($0.value, dp) } ?? "—", Theme.signColor(r?.value))
         }
+    }
+}
+
+/// TODAY · WHAT MOVED (design §02): market move and flows kept apart, the top three by $ impact,
+/// the entry to What Changed (d). Same numbers as What Changed › today.
+private struct WhatMovedBand: View {
+    @Environment(AppStore.self) private var store
+
+    var body: some View {
+        let f = Fmt.current
+        let r = store.attribution(.today)
+        HStack(spacing: 28) {
+            HStack(spacing: 10) {
+                TT("TODAY · WHAT MOVED", 10.5, Theme.t2, tracking: 0.84)
+                TT("deposits excluded", 11, Theme.t4)
+            }
+            if let r, r.complete, !r.assets.isEmpty {
+                HStack(spacing: 8) { TT("market move", 12, Theme.t3); TT(f.signed(r.marketMove, 0), 12, Theme.signColor(r.marketMove)) }
+                HStack(spacing: 8) {
+                    TT("flows · not performance", 12, Theme.t3)
+                    TT(r.flows == 0 ? f.money(Decimal(0), 0) : f.signed(r.flows, 0), 12, Theme.t2)
+                    if r.buys + r.sells > 0 { TT("\(r.buys + r.sells) trade\(r.buys + r.sells == 1 ? "" : "s")", 11, Theme.t4) }
+                }
+                let top = Array(r.byImpact.prefix(3))
+                let mx = top.map { abs($0.contribution.double) }.max() ?? 1
+                HStack(spacing: 18) {
+                    ForEach(top, id: \.id) { a in
+                        HStack(spacing: 6) {
+                            TT(store.asset(a.id)?.symbol ?? a.id, 12, Theme.t1, weight: .medium)
+                            TT(f.signed(a.contribution, 0), 12, Theme.signColor(a.contribution))
+                            TT(String(repeating: "█", count: max(1, Int((abs(a.contribution.double) / mx * 6).rounded()))), 10, Theme.signColor(a.contribution).opacity(0.7))
+                        }
+                    }
+                }
+            } else {
+                TT(r == nil ? "no transactions yet" : "needs start-of-day prices", 12, Theme.t4)
+            }
+            Spacer(minLength: 8)
+            HStack(spacing: 6) { TT("details →", 12, Theme.t3); TT("d", 12, Theme.acc) }
+        }
+        .padding(.horizontal, 16).frame(height: 38)
+        .overlay(Rectangle().strokeBorder(Theme.border, lineWidth: 1))
+        .contentShape(Rectangle())
+        .onTapGesture { store.changesUsesMovers = false; store.go(.changes) }
+        .accessibilityIdentifier("what-moved")
     }
 }
 
@@ -159,7 +191,9 @@ private struct PositionsPanel: View {
                             Cell(f.price(v.position.averageEntry), Theme.t2)
                             Cell(f.signed(v.unrealized), Theme.signColor(v.unrealized))
                             Cell(f.pct(v.returnPct, 1), Theme.signColor(v.unrealized))
-                            AllocationCell(fraction: (v.allocation ?? 0) / 100, label: v.allocation.map { f.num($0, 1) + "%" } ?? "—")
+                            let over = (v.allocation ?? 0) > (store.targetWeight(v.asset.id) ?? .infinity)
+                            AllocationCell(fraction: (v.allocation ?? 0) / 100, label: (v.allocation.map { f.num($0, 1) + "%" } ?? "—") + (over ? " ▲" : ""))
+                                .help(over ? "above its Base scenario target weight \(f.num(store.targetWeight(v.asset.id) ?? 0, 0))%" : "")
                                 .padding(.leading, 28)
                         }
                         .padding(.leading, 4).padding(.trailing, 14)

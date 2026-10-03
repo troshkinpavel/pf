@@ -25,7 +25,8 @@ struct AssetDetailView: View {
                     }
                     Spacer()
                     HStack(spacing: 6) {
-                        action("target", "t") { store.openTarget(v.asset.id) }
+                        action("alert", "a") { store.openAlertSetup(subject: .asset(v.asset.id)) }
+                        if peg == nil { action("target", "t") { store.openTarget(v.asset.id) } }
                         action("add transaction", "⌘N") { store.openTx(TxDraft(asset: v.asset.symbol)) }
                     }
                     Spacer()
@@ -35,8 +36,10 @@ struct AssetDetailView: View {
                         else { HStack(spacing: 0) { TT(f.pct(v.change24h) + " ", 12, Theme.signColor(v.change24h)); TT("24h", 12, Theme.t3) } }
                     }
                 }
-                .padding(.bottom, 14)
-                .overlay(alignment: .bottom) { Hairline() }
+                .padding(.bottom, 4)
+                marketLine(v)
+                    .padding(.bottom, 12)
+                    .overlay(alignment: .bottom) { Hairline() }
 
                 HStack(alignment: .top, spacing: 18) {
                     VStack(spacing: 18) {
@@ -45,65 +48,10 @@ struct AssetDetailView: View {
                     }
                     .frame(maxWidth: .infinity)
                     VStack(spacing: 18) {
-                        Panel(title: "POSITION", padding: .init(top: 14, leading: 14, bottom: 10, trailing: 14)) {
-                            VStack(spacing: 7) {
-                                KV(k: "amount", v: f.amount(v.position.quantity) + " " + v.asset.symbol)
-                                KV(k: "average entry", v: f.price(v.position.averageEntry))
-                                KV(k: "cost basis", v: f.money(v.position.costBasis))
-                                KV(k: "current value", v: f.money(v.value))
-                                KV(k: "unrealized pnl", v: f.signed(v.unrealized), c: Theme.signColor(v.unrealized))
-                                KV(k: "unrealized return", v: f.pct(v.returnPct), c: Theme.signColor(v.returnPct))
-                                if v.position.realizedPnL != 0 {
-                                    KV(k: "realized pnl", v: f.signed(v.position.realizedPnL), c: Theme.signColor(v.position.realizedPnL))
-                                }
-                                KV(k: "total pnl", v: f.signed(v.totalPnL), c: Theme.signColor(v.totalPnL))
-                                KV(k: "total return", v: f.pct(v.totalReturnPct), c: Theme.signColor(v.totalReturnPct))
-                                KV(k: "portfolio weight", v: v.allocation.map { f.num($0, 1) + "%" } ?? "—", c: Theme.t2)
-                            }
-                        }
-                        Panel(title: "MARKET", padding: .init(top: 14, leading: 14, bottom: 10, trailing: 14)) {
-                            VStack(spacing: 7) {
-                                KV(k: "price", v: f.price(v.price))
-                                ForEach([ChangePeriod.h1, .h24, .d7, .d30], id: \.self) { p in
-                                    KV(k: p.rawValue.lowercased(), v: f.pct(q?.change[p]), c: Theme.signColor(q?.change[p]))
-                                }
-                                KV(k: "market cap", v: f.compact(q?.marketCap))
-                                KV(k: "24h volume", v: f.compact(q?.volume24h))
-                                KV(k: "ATH", v: f.price(q?.ath))
-                                KV(k: "distance from ATH", v: q.flatMap { q in q.ath.map { ((q.price / $0) - 1).double * 100 } }.map { f.pct($0) } ?? "—", c: Theme.neg)
-                                if let q, (q.volume24h ?? 0) < lowLiquidityVolume {
-                                    KV(k: "! low liquidity", v: "price may be unreliable", c: Theme.neg)
-                                }
-                                TermButton(action: { store.openSourcePicker(v.asset.id) }) {
-                                    let st = store.sourceState(v.asset.id)
-                                    KV(k: "price source", v: (st?.status.label ?? "—") + (st?.preferred != nil ? " · pinned" : " · auto") + "  ‹ change ›",
-                                       c: Self.statusColor(st?.status))
-                                }
-                                .accessibilityIdentifier("price-source")
-                            }
-                        }
-                        if peg == nil {   // price targets are meaningless for a pegged coin
-                        Panel(title: "IF \(v.asset.symbol) REACHES", padding: .init(top: 12, leading: 6, bottom: 6, trailing: 6)) {
-                            VStack(spacing: 0) {
-                                if let px = v.price {
-                                    ForEach(ScenarioEngine.presets(for: px), id: \.self) { t in
-                                        let s = ScenarioEngine.evaluate(target: t, quantity: v.position.quantity, costBasis: v.position.costBasis, currentPrice: px,
-                                                                        portfolioTotal: store.summary.totalValue, circulatingSupply: q?.circulatingSupply, ath: q?.ath)
-                                        TermButton(action: { store.openTarget(v.asset.id, "\(t)") }, hoverBg: Theme.selected) {
-                                            Columns([.fr(1), .fr(1), .fixed(64)]) {
-                                                TT(f.level(t), 12, Theme.text).fixedSize()
-                                                Cell(f.money(s.positionValue, 0), Theme.t2)
-                                                Cell(s.multiple.map { f.num($0, 2) + "x" } ?? "—", Theme.t1)
-                                            }
-                                            .padding(.horizontal, 8).padding(.vertical, 4)
-                                        }
-                                    }
-                                } else {
-                                    TT("price unavailable", 11, Theme.t4).padding(8)
-                                }
-                            }
-                        }
-                        }
+                        positionPanel(v)
+                        if store.summary.positions.count > 1 { impactPanel(v) }
+                        allocationPanel(v)
+                        contextPanel(v)
                     }
                     .frame(width: 340)
                 }
@@ -111,6 +59,127 @@ struct AssetDetailView: View {
             .padding(.top, 2)
         }
         .scrollIndicators(.never)
+    }
+
+    // MARK: 0.7 right column (design §04)
+
+    /// MARKET collapsed to one dim line; the price source stays one click away.
+    private func marketLine(_ v: PositionValuation) -> some View {
+        let f = Fmt.current, q = v.quote
+        let ath = q.flatMap { q in q.ath.map { ((q.price / $0) - 1).double * 100 } }
+        let parts = [q?.marketCap.map { "mcap " + f.compact($0) }, q?.volume24h.map { "vol 24h " + f.compact($0) },
+                     q?.change[.d7].map { "7d " + f.pct($0, 1) }, q?.change[.d30].map { "30d " + f.pct($0, 1) },
+                     q?.ath.map { "ath " + f.price($0) + (ath.map { " " + f.pct($0, 1) } ?? "") }].compactMap { $0 }
+        let st = store.sourceState(v.asset.id)
+        return HStack(spacing: 10) {
+            TT(parts.isEmpty ? "no market data yet" : parts.joined(separator: " · "), 11.5, Theme.t3).lineLimit(1).fixedSize()
+            if let q, (q.volume24h ?? 0) < lowLiquidityVolume { TT("! low liquidity", 11.5, Theme.neg) }
+            TermButton(action: { store.openSourcePicker(v.asset.id) }) {
+                TT("source " + (st?.status.label ?? "—") + (st?.preferred != nil ? " · pinned" : " · auto") + " ‹ change ›", 11.5, Self.statusColor(st?.status))
+            }
+            .accessibilityIdentifier("price-source")
+            Spacer(minLength: 0)
+        }
+    }
+
+    private func positionPanel(_ v: PositionValuation) -> some View {
+        let f = Fmt.current, p = v.position
+        return Panel(title: "POSITION · P&L", padding: .init(top: 14, leading: 14, bottom: 10, trailing: 14)) {
+            VStack(spacing: 7) {
+                KV(k: "amount", v: f.amount(p.quantity) + " " + v.asset.symbol)
+                KV(k: "cost · avg " + f.price(p.averageEntry), v: f.money(p.costBasis))
+                KV(k: "value", v: f.money(v.value))
+                KV(k: "unrealized", v: f.signed(v.unrealized) + " · " + f.pct(v.returnPct, 1), c: Theme.signColor(v.unrealized))
+                let sells = p.transactions.filter { $0.type == .sell }.count
+                KV(k: "realized", v: p.realizedPnL == 0 && sells == 0 ? f.money(Decimal(0), 0) + " · no sells" : f.signed(p.realizedPnL), c: p.realizedPnL == 0 ? Theme.t2 : Theme.signColor(p.realizedPnL))
+                KV(k: "total p&l", v: f.signed(v.totalPnL) + " · " + f.pct(v.totalReturnPct, 1), c: Theme.signColor(v.totalPnL))
+            }
+        }
+    }
+
+    private func impactPanel(_ v: PositionValuation) -> some View {
+        let f = Fmt.current
+        let cols: [Columns.Col] = [.fixed(54), .fr(1), .fr(1), .fr(1), .fixed(44)]
+        return Panel(title: "PORTFOLIO IMPACT", padding: .init(top: 14, leading: 14, bottom: 10, trailing: 14)) {
+            VStack(spacing: 6) {
+                Columns(cols) { Color.clear; HeadCell("PRICE"); HeadCell("$"); HeadCell("PF"); HeadCell("RANK") }
+                ForEach(store.assetImpact(v.asset.id), id: \.label) { r in
+                    Columns(cols) {
+                        TT(r.label, 12, Theme.t3)
+                        Cell(f.pct(r.priceChange, 1), Theme.signColor(r.priceChange))
+                        Cell(r.contribution.map { f.signed($0, 0) } ?? "—", Theme.signColor(r.contribution))
+                        Cell(r.pp.map { (abs($0) < 0.05 ? "±" : $0 < 0 ? "−" : "+") + f.num(abs($0), 1) + "pp" } ?? "—", Theme.signColor(r.pp))
+                        Cell(r.rank, Theme.t3)
+                    }
+                }
+            }
+        }
+        .accessibilityIdentifier("asset-impact")
+    }
+
+    private func allocationPanel(_ v: PositionValuation) -> some View {
+        let f = Fmt.current
+        let w = v.allocation ?? 0, t = store.targetWeight(v.asset.id)
+        let dd = store.positionDrawdown(v)
+        return Panel(title: "ALLOCATION · DRAWDOWN", padding: .init(top: 14, leading: 14, bottom: 10, trailing: 14)) {
+            VStack(spacing: 7) {
+                KV(k: "weight now / target", v: f.num(w, 1) + "%" + (t.map { " / " + f.num($0, 1) + "%" } ?? " / —"), c: Theme.t1)
+                // ┃ marks the target; the overweight part is amber.
+                let width = 30, cut = t.map { min(width, Int(($0 / 100 * Double(width)).rounded())) }
+                let fill = min(width, Int((w / 100 * Double(width)).rounded()))
+                HStack(spacing: 0) {
+                    if let cut {
+                        TT(String(repeating: "█", count: min(fill, cut)), 12, Theme.bar)
+                        TT(String(repeating: "░", count: max(0, cut - fill)), 12, Theme.track)
+                        TT("┃", 12, Theme.t1)
+                        TT(String(repeating: "█", count: max(0, fill - cut)), 12, Theme.acc)
+                        TT(String(repeating: "░", count: max(0, width - max(fill, cut))), 12, Theme.track)
+                    } else {
+                        TT(AsciiChart.bar(w / 100, width: width), 12, Theme.bar)
+                    }
+                    Spacer(minLength: 0)
+                }
+                if let t, w > t, let val = v.value {
+                    KV(k: "over target", v: "+" + f.num(w - t, 1) + "pp · trim ≈ " + f.money(val * Decimal.of((w - t) / w), 0), c: Theme.acc)
+                } else if t == nil {
+                    KV(k: "target weight", v: "set in Base scenario · g s", c: Theme.t4)
+                }
+                if let dd {
+                    KV(k: "local peak · " + String(DateFmt.ymd(dd.at).dropFirst(5)), v: f.money(Decimal.of(dd.peak), 0), c: Theme.t2)
+                    KV(k: "from peak", v: dd.fromPeak > -0.05 ? "at peak" : f.pct(dd.fromPeak, 1) + "  " + f.signed(Decimal.of(dd.fromPeakValue), 0), c: dd.fromPeak < -0.05 ? Theme.neg : Theme.t2)
+                }
+            }
+        }
+    }
+
+    /// Rows hide when empty, so a fresh position shows only what has data.
+    @ViewBuilder
+    private func contextPanel(_ v: PositionValuation) -> some View {
+        let f = Fmt.current, id = v.asset.id
+        let watch = store.watchContext(id)
+        let scen = store.orderedScenarios.filter { $0.targets[id] != nil }.prefix(4)
+        let rules = store.intel.alerts.filter { $0.subject == .asset(id) }
+        if watch != nil || !scen.isEmpty || !rules.isEmpty {
+            Panel(title: "CONTEXT", padding: .init(top: 14, leading: 14, bottom: 10, trailing: 14)) {
+                VStack(spacing: 7) {
+                    if let w = watch {
+                        let firstBuy = v.position.transactions.first { $0.type == .buy }
+                        let vs = w.priceAtAdd.flatMap { a in firstBuy.map { ((($0.price / a) - 1).double * 100) } }
+                        KV(k: "watched " + String(DateFmt.ymd(w.addedAt).dropFirst(5)), v: (w.priceAtAdd.map { f.price($0) } ?? "—") + (vs.map { " → bought " + f.pct($0, 1) } ?? ""), c: Theme.t2)
+                        if let e = w.entry, let b = firstBuy { KV(k: "vs planned entry", v: f.pct(((b.price / e) - 1).double * 100, 1) + " · " + f.price(e), c: Theme.t2) }
+                    }
+                    if !scen.isEmpty {
+                        KV(k: "scenarios", v: scen.map { ($0.key ?? String($0.name.prefix(3)).lowercased()) + " " + f.level($0.targets[id]!.price).replacingOccurrences(of: "$", with: "") }.joined(separator: "  "), c: Theme.t2)
+                    }
+                    if !rules.isEmpty {
+                        let fired = rules.filter { $0.state == .fired && !$0.paused }, armed = rules.filter { $0.state == .armed && !$0.paused }
+                        KV(k: "alerts", v: (fired.first.map { "⚑ #\($0.number) fired" + ($0.firedAt.map { " " + DateFmt.hm($0) } ?? "") + " · " } ?? "") + "\(armed.count) armed",
+                           c: fired.isEmpty ? Theme.t2 : Theme.acc)
+                    }
+                }
+            }
+            .accessibilityIdentifier("asset-context")
+        }
     }
 
     private func action(_ label: String, _ key: String, _ a: @escaping () -> Void) -> some View {

@@ -154,7 +154,8 @@ final class AppStore {
     var importPreview: ImportPreviewState?
     var pendingRemovePosition: (asset: AssetID, portfolio: UUID)?
     var providerHealth: [ProviderRouter.Health] = []
-    @ObservationIgnored var historyCache: (key: String, chart: PortfolioChart)?
+    /// Reconstructed charts by key: several are on screen at once (overview chart + TWR · ALL, benchmark rows).
+    @ObservationIgnored var historyCache: [String: PortfolioChart] = [:]
     @ObservationIgnored var attributionCache: [String: Attribution.Result] = [:]
     @ObservationIgnored var benchmarkCache: [String: Benchmark.Result] = [:]
     var apiKeyEntry: String?
@@ -441,7 +442,7 @@ final class AppStore {
         // Views ask for this on every render; reconstruction only reruns when data, the live total
         // or the minute changes.
         let key = "\(c.storageKey)|\(range.rawValue)|\(points)|\(dataVersion)|\(summary.totalValue)|\(summary.isPartial)|\(Int(Date().timeIntervalSince1970 / 60))"
-        if let h = historyCache, h.key == key { return h.chart }
+        if let h = historyCache[key] { return h }
         let txs = doc.transactions(c)
         var s: [AssetID: PriceSeries] = [:]
         for id in assetsHeld(during: range, in: c) {
@@ -451,7 +452,8 @@ final class AppStore {
         let chart = PortfolioHistoryEngine.chart(transactions: txs, summary: summary, range: range, points: points, series: s, now: Date()) {
             self.cache.snapshots(since: $0, context: c.storageKey)
         }
-        historyCache = (key, chart)
+        if historyCache.count > 16 { historyCache.removeAll() }
+        historyCache[key] = chart
         return chart
     }
 
