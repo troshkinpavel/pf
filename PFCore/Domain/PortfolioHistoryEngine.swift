@@ -273,7 +273,14 @@ extension PortfolioHistoryEngine {
     public static func chart(transactions txs: [Transaction], summary: PortfolioSummary, range: ChartRange, points: Int,
                       series: [AssetID: PriceSeries], now end: Date,
                       snapshots: (Date) -> [PortfolioSnapshotValue] = { _ in [] }) -> PortfolioChart {
-        let start = range.start(now: end, firstTransaction: summary.firstDate)
+        chart(transactions: txs, summary: summary, start: range.start(now: end, firstTransaction: summary.firstDate), points: points,
+              series: series, now: end, snapshots: snapshots)
+    }
+
+    /// Same as above from an explicit start (benchmark windows such as 6M).
+    public static func chart(transactions txs: [Transaction], summary: PortfolioSummary, start: Date, points: Int,
+                      series: [AssetID: PriceSeries], now end: Date,
+                      snapshots: (Date) -> [PortfolioSnapshotValue] = { _ in [] }) -> PortfolioChart {
         let grid = grid(start: start, end: end, count: points)
         var pts = reconstruct(transactions: txs, grid: grid, series: series)
         pts = pinLast(pts, liveValue: summary.isPartial ? nil : summary.totalValue.double, liveCost: summary.costBasis.double)
