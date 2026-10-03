@@ -69,7 +69,7 @@ Also shipped in 0.6.0: appearance themes (dark, light, midnight, graphite, syste
 ## Follow-ups
 
 - [ ] Run a two-device soak on two physical Macs, or a Mac and an iPhone build, against Development. Before release, the `--sync-e2e` soak ran with two independent clients on one Mac.
-- [ ] Update README screenshots for the new Overview, Movers and Analytics layouts.
+- [x] Update README screenshots for the new Overview and Analytics layouts (the menu bar and widget images are unchanged).
 
 Before release, the 0.6.0 build was used on a real ledger with Production iCloud sync.
 
