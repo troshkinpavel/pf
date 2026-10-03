@@ -50,12 +50,14 @@ struct CapsLabel: View {
 struct Panel<Content: View>: View {
     let title: String
     var padding = EdgeInsets(top: 16, leading: 14, bottom: 12, trailing: 14)
+    /// Stretch to the row's height, so panels side by side end on one line.
+    var fill = false
     @ViewBuilder var content: Content
 
     var body: some View {
         content
             .padding(padding)
-            .frame(maxWidth: .infinity, alignment: .topLeading)
+            .frame(maxWidth: .infinity, maxHeight: fill ? .infinity : nil, alignment: .topLeading)
             .overlay(Rectangle().strokeBorder(Theme.border, lineWidth: 1))
             .overlay(alignment: .topLeading) {
                 if !title.isEmpty {
@@ -166,6 +168,18 @@ struct KV: View {
             Spacer(minLength: 8)
             TT(v, size, c)
         }
+    }
+}
+
+/// One cell of a metric strip (Overview, Movers, Analytics): caps label, figure, note.
+struct StripCell<Content: View>: View {
+    var first = false
+    @ViewBuilder var content: Content
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) { content }
+            .padding(.horizontal, 16).padding(.vertical, 12)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .overlay(alignment: .leading) { if !first { Rectangle().fill(Theme.border).frame(width: 1) } }
     }
 }
 

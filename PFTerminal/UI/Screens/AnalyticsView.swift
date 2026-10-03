@@ -16,37 +16,68 @@ struct AnalyticsView: View {
         // Stablecoins are cash: not ranked as best/worst.
         let byRet = s.positions.filter { $0.returnPct != nil && !$0.asset.isStablecoin }.sorted { $0.returnPct! > $1.returnPct! }
 
+        let realizedClosed = s.closed.count
         ScrollView(.vertical) {
             VStack(alignment: .leading, spacing: 18) {
-                // PORTFOLIO PERFORMANCE: what was made, on what, and how the market did (TWR).
-                Columns(Array(repeating: .fr(1), count: 7)) {
-                    stat("VALUE", f.money(s.totalValue, 0), Theme.t1, "\(s.positions.count) positions", first: true)
-                    stat("NET CONTRIBUTED", f.money(s.netContributed, 0), Theme.t1, "in − out · \(s.transactionCount) tx")
-                    stat("UNREALIZED", f.signed(s.unrealized, 0), Theme.signColor(s.unrealized), f.pct(s.unrealizedReturnPct, 1) + " on open cost")
-                    stat("REALIZED", f.signed(s.realized, 0), Theme.signColor(s.realized), "\(s.closed.count) closed position\(s.closed.count == 1 ? "" : "s")")
-                    stat("TOTAL P&L", f.signed(s.totalPnL, 0), Theme.signColor(s.totalPnL), "realized + unrealized")
-                    stat("TOTAL RETURN", f.pct(s.totalReturnPct, 1), Theme.signColor(s.totalReturnPct), s.isPartial ? "needs every price" : "on \(f.money(s.invested, 0)) invested")
-                    stat("TWR", f.pct(hist.twrPercent, 1), Theme.signColor(hist.twrPercent), hist.twrPercent == nil ? "needs history" : "deposits excluded")
+                // One stat box, two rows: what you hold and made · how it performed.
+                VStack(spacing: 0) {
+                    Columns(Array(repeating: .fr(1), count: 6)) {
+                        stat("VALUE", f.money(s.totalValue, 0), Theme.t1, "\(s.positions.count) positions", first: true)
+                        stat("NET CONTRIBUTED", f.money(s.netContributed, 0), Theme.t1, "in − out · \(s.transactionCount) tx")
+                        stat("OPEN COST BASIS", f.money(s.costBasis, 0), Theme.t1, "what is still held")
+                        stat("UNREALIZED", f.signed(s.unrealized, 0), Theme.signColor(s.unrealized), f.pct(s.unrealizedReturnPct, 1) + " on open cost")
+                        stat("REALIZED", f.signed(s.realized, 0), s.realized == 0 ? Theme.t1 : Theme.signColor(s.realized), "\(realizedClosed) closed position\(realizedClosed == 1 ? "" : "s")")
+                        stat("TOTAL P&L", f.signed(s.totalPnL, 0), Theme.signColor(s.totalPnL), "realized + unrealized")
+                    }
+                    Columns(Array(repeating: .fr(1), count: 5)) {
+                        stat("TOTAL RETURN", f.pct(s.totalReturnPct, 1), Theme.signColor(s.totalReturnPct), s.isPartial ? "needs every price" : "on \(f.money(s.invested, 0)) invested", first: true)
+                        stat("TWR", f.pct(hist.twrPercent, 1), Theme.signColor(hist.twrPercent), hist.twrPercent == nil ? "needs history" : "deposits excluded")
+                        stat("MAX DRAWDOWN", all.count > 1 ? f.num(dd.max * 100, 1) + "%" : "—", dd.max < 0 ? Theme.neg : Theme.t1, ddDate.map { DateFmt.ymd($0) + " · twr" } ?? "needs history")
+                        stat("BEST", byRet.first.map { $0.asset.symbol + " " + f.pct($0.returnPct, 1) } ?? "—", Theme.signColor(byRet.first?.returnPct), byRet.first.map { f.signed($0.unrealized, 0) + " unrealized" } ?? "")
+                        stat("WORST", byRet.count > 1 ? byRet.last!.asset.symbol + " " + f.pct(byRet.last!.returnPct, 1) : "—", Theme.signColor(byRet.last?.returnPct), byRet.count > 1 ? f.signed(byRet.last?.unrealized, 0) + " unrealized" : "")
+                    }
+                    .overlay(alignment: .top) { Rectangle().fill(Theme.innerBorder).frame(height: 1) }
                 }
                 .overlay(Rectangle().strokeBorder(Theme.border, lineWidth: 1))
                 .accessibilityIdentifier("performance-stats")
-                Columns(Array(repeating: .fr(1), count: 4)) {
-                    stat("OPEN COST BASIS", f.money(s.costBasis, 0), Theme.t1, "what is still held", first: true)
-                    stat("BEST", byRet.first.map { $0.asset.symbol + " " + f.pct($0.returnPct, 1) } ?? "—", Theme.signColor(byRet.first?.returnPct), f.signed(byRet.first?.unrealized, 0) + " unrealized")
-                    stat("WORST", byRet.count > 1 ? byRet.last!.asset.symbol + " " + f.pct(byRet.last!.returnPct, 1) : "—", Theme.signColor(byRet.last?.returnPct), byRet.count > 1 ? f.signed(byRet.last?.unrealized, 0) + " unrealized" : "")
-                    stat("MAX DRAWDOWN", all.count > 1 ? f.num(dd.max * 100, 1) + "%" : "—", Theme.neg, ddDate.map { DateFmt.ymd($0) + " · twr" } ?? "needs history")
-                }
-                .overlay(Rectangle().strokeBorder(Theme.border, lineWidth: 1))
 
+                // Performance with its drawdown underneath, beside a full-height allocation.
                 Columns([.fr(2), .fr(1)], spacing: 18) {
-                    Panel(title: "PERFORMANCE · ALL") {
-                        PortfolioChartView(chart: hist, mode: store.analyticsMode, rows: 12, style: store.settings.chartStyle,
-                                           spanMinutes: spanMin, emptyText: "missing historical data") {
-                            ChartModeTabs(mode: store.analyticsMode) { store.analyticsMode = $0 }
+                    Panel(title: "PERFORMANCE · ALL", fill: true) {
+                        VStack(alignment: .leading, spacing: 0) {
+                            PortfolioChartView(chart: hist, mode: store.analyticsMode, rows: 12, style: store.settings.chartStyle,
+                                               spanMinutes: spanMin, emptyText: "missing historical data") {
+                                ChartModeTabs(mode: store.analyticsMode) { store.analyticsMode = $0 }
+                            }
+                            HStack {
+                                TT("DRAWDOWN FROM PEAK · TWR", 10.5, Theme.t2, tracking: 0.84)
+                                Spacer()
+                                if all.count > 1 {
+                                    HStack(spacing: 16) {
+                                        HStack(spacing: 0) { TT("max ", 11.5, Theme.t3); TT(f.num(dd.max * 100, 1) + "%", 11.5, Theme.neg); TT(ddDate.map { " · " + DateFmt.ymd($0) } ?? "", 11.5, Theme.t3) }
+                                        HStack(spacing: 0) { TT("now ", 11.5, Theme.t3); TT(f.num(dd.current * 100, 1) + "%", 11.5, Theme.text) }
+                                    }
+                                }
+                            }
+                            .padding(.top, 10).padding(.bottom, 8).padding(.top, 14)
+                            .overlay(alignment: .top) { Rectangle().fill(Theme.innerBorder).frame(height: 1).padding(.top, 14) }
+                            if all.count > 1 {
+                                GeometryReader { geo in
+                                    let cw = Theme.cell(12)
+                                    let cols = max(10, Int((geo.size.width - 9 * cw) / cw))
+                                    let rows = AsciiChart.drawdownRows(AsciiChart.resample(dd.series, to: cols), height: 5) { f.num($0, 1) }
+                                    HStack(alignment: .top, spacing: 0) {
+                                        chartLines(rows.map(\.axis), Theme.t4).frame(width: 9 * cw)
+                                        chartLines(rows.map(\.plot), Theme.neg).opacity(0.75)
+                                    }
+                                }
+                                .frame(height: 60)
+                            } else {
+                                TT("missing historical data", 11, Theme.t4).frame(height: 60)
+                            }
                         }
                     }
-                    .frame(maxHeight: .infinity, alignment: .top)
-                    Panel(title: "ALLOCATION") {
+                    Panel(title: "ALLOCATION", fill: true) {
                         VStack(alignment: .leading, spacing: 10) {
                             ForEach(s.positions) { v in
                                 VStack(spacing: 3) {
@@ -58,12 +89,13 @@ struct AnalyticsView: View {
                                     }
                                 }
                             }
+                            Spacer(minLength: 0)
                             let stable = s.positions.filter(\.asset.isStablecoin)
                             if !stable.isEmpty {
                                 let value = stable.compactMap(\.value).reduce(0, +), share = stable.compactMap(\.allocation).reduce(0, +)
                                 HStack {
-                                    TT("STABLECOINS", 12, Theme.t1, tracking: 0.48); Spacer()
-                                    TT(f.money(value, 0), 12, Theme.t2); TT(f.num(share, 1) + "%", 12, Theme.text).frame(width: 64, alignment: .trailing)
+                                    TT("STABLECOINS", 10.5, Theme.t2, tracking: 0.84); Spacer()
+                                    TT(f.money(value, 0), 12, Theme.t2); TT(f.num(share, 1) + "%", 12, Theme.text).frame(width: 56, alignment: .trailing)
                                 }
                                 .padding(.top, 8).overlay(alignment: .top) { Rectangle().fill(Theme.innerBorder).frame(height: 1) }
                             }
@@ -72,38 +104,11 @@ struct AnalyticsView: View {
                                 .padding(.top, 8).frame(maxWidth: .infinity, alignment: .leading)
                                 .overlay(alignment: .top) { Rectangle().fill(Theme.innerBorder).frame(height: 1) }
                         }
+                        .frame(maxHeight: .infinity, alignment: .top)
                     }
-                    .frame(maxHeight: .infinity, alignment: .top)
                 }
 
-                Columns([.fr(1), .fr(1), .fr(1)], spacing: 18) {
-                    contribution.frame(maxHeight: .infinity, alignment: .top)
-                    costValue.frame(maxHeight: .infinity, alignment: .top)
-                    Panel(title: "DRAWDOWN FROM PEAK · TWR") {
-                        VStack(alignment: .leading, spacing: 10) {
-                            if all.count > 1 {
-                                GeometryReader { geo in
-                                    let cw = Theme.cell(12)
-                                    let cols = max(10, Int((geo.size.width - 9 * cw) / cw))
-                                    let rows = AsciiChart.drawdownRows(AsciiChart.resample(dd.series, to: cols), height: 8) { f.num($0, 1) }
-                                    HStack(alignment: .top, spacing: 0) {
-                                        chartLines(rows.map(\.axis), Theme.t4).frame(width: 9 * cw)
-                                        chartLines(rows.map(\.plot), Theme.neg).opacity(0.75)
-                                    }
-                                }
-                                .frame(height: 96)
-                                HStack {
-                                    HStack(spacing: 0) { TT("max ", 12, Theme.t3); TT(f.num(dd.max * 100, 1) + "%", 12, Theme.neg) }
-                                    Spacer(); TT(ddDate.map(DateFmt.ymd) ?? "", 12, Theme.t3); Spacer()
-                                    HStack(spacing: 0) { TT("now ", 12, Theme.t3); TT(f.num(dd.current * 100, 1) + "%", 12, Theme.text) }
-                                }
-                            } else {
-                                TT("missing historical data", 11, Theme.t4).frame(height: 96)
-                            }
-                        }
-                    }
-                    .frame(maxHeight: .infinity, alignment: .top)
-                }
+                positions
             }
             .padding(.top, 7)
         }
@@ -130,54 +135,53 @@ struct AnalyticsView: View {
         .overlay(alignment: .leading) { if !first { Rectangle().fill(Theme.innerBorder).frame(width: 1) } }
     }
 
-    /// Total P&L (realized + unrealized) per asset, including closed positions.
-    private var contribution: some View {
-        let f = Fmt.current, s = store.summary
-        // On-peg stablecoins are cash: their cents of peg noise aren't a contribution. A depeg is.
-        let cash: (AssetID) -> Bool = { id in store.asset(id)?.isStablecoin == true && store.pegCheck(id)?.status != .depeg }
-        var rows: [(String, Decimal)] = s.positions.filter { !cash($0.asset.id) }.map { ($0.asset.symbol, ($0.unrealized ?? 0) + $0.position.realizedPnL) }
-        rows += s.closed.filter { !cash($0.assetID) }.map { p in (store.asset(p.assetID)?.symbol ?? "?", p.realizedPnL) }
-        rows.sort { $0.1 > $1.1 }
-        let total = rows.reduce(Decimal(0)) { $0 + $1.1 }
-        let mx = rows.map { abs($0.1.double) }.max() ?? 1
-        return Panel(title: "CONTRIBUTION TO PNL") {
-            VStack(alignment: .leading, spacing: 8) {
-                ForEach(rows, id: \.0) { r in
-                    Columns([.fixed(44), .fixed(96), .fr(1), .fixed(48)]) {
-                        TT(r.0, 12, Theme.t1)
-                        TT(f.signed(r.1, 0), 12, Theme.signColor(r.1))
-                        Text(String(repeating: "█", count: max(1, Int((abs(r.1.double) / max(mx, 1e-9) * 18).rounded()))))
-                            .font(Theme.mono(12)).foregroundStyle(Theme.signColor(r.1)).lineLimit(1).frame(maxWidth: .infinity, alignment: .leading).clipped()
-                        Cell(total != 0 ? f.num((r.1 / total).double * 100, 0) + "%" : "—", Theme.t2)
-                    }
-                }
-            }
-        }
-    }
+    static let posCols: [Columns.Col] = [.fixed(22), .fixed(70), .fixed(110), .fixed(110), .fixed(110), .fixed(84), .fixed(64), .fr(1)]
 
-    private var costValue: some View {
+    /// Open positions: cost → value, unrealized P&L and return, and each one's share of the move.
+    private var positions: some View {
         let f = Fmt.current, s = store.summary
-        let mx = s.positions.map { max($0.value?.double ?? 0, $0.position.costBasis.double) }.max() ?? 1
-        let n = { (x: Double) in max(1, Int((x / max(mx, 1e-9) * 22).rounded())) }
-        return Panel(title: "COST BASIS → VALUE") {
-            VStack(alignment: .leading, spacing: 6) {
-                ForEach(s.positions) { v in
-                    HStack(alignment: .top, spacing: 0) {
-                        TT(v.asset.symbol, 12, Theme.t1).frame(width: 44, alignment: .leading)
-                        VStack(spacing: 1) {
-                            HStack(spacing: 0) {
-                                Text(String(repeating: "▒", count: n(v.position.costBasis.double))).font(Theme.mono(12)).foregroundStyle(Theme.faint).lineLimit(1)
-                                    .frame(maxWidth: .infinity, alignment: .leading).clipped()
-                                Cell(f.money(v.position.costBasis, 0), Theme.t3).frame(width: 84)
-                            }
-                            HStack(spacing: 0) {
-                                Text(String(repeating: "█", count: n(v.value?.double ?? 0))).font(Theme.mono(12)).foregroundStyle(Theme.barStrong).lineLimit(1)
-                                    .frame(maxWidth: .infinity, alignment: .leading).clipped()
-                                Cell(f.money(v.value, 0)).frame(width: 84)
-                            }
+        let rows = s.positions.sorted { ($0.unrealized ?? 0) > ($1.unrealized ?? 0) }
+        let gross = rows.reduce(0.0) { $0 + abs($1.unrealized?.double ?? 0) }
+        let mx = rows.map { abs($0.unrealized?.double ?? 0) }.max() ?? 1
+        return Panel(title: "POSITIONS · P&L", padding: .init(top: 12, leading: 0, bottom: 4, trailing: 0)) {
+            VStack(spacing: 0) {
+                Columns(Self.posCols) {
+                    Color.clear
+                    HeadCell("ASSET", align: .leading); HeadCell("COST"); HeadCell("VALUE"); HeadCell("UNREALIZED"); HeadCell("UNRLZD %"); HeadCell("SHARE")
+                    HeadCell("CONTRIBUTION", align: .leading).padding(.leading, 28)
+                }
+                .frame(height: 26).padding(.leading, 4).padding(.trailing, 14)
+                .overlay(alignment: .bottom) { Hairline() }
+                ForEach(rows) { v in
+                    let u = v.unrealized?.double ?? 0
+                    TableRow(selected: false, height: store.settings.rowHeight, onOpen: { store.openAsset(v.asset.id) }) {
+                        Columns(Self.posCols) {
+                            Color.clear
+                            TT(v.asset.symbol, 12, Theme.t1, weight: .medium)
+                            Cell(f.money(v.position.costBasis, 0), Theme.t2)
+                            Cell(f.money(v.value, 0), Theme.t1)
+                            Cell(f.signed(v.unrealized, 0), Theme.signColor(v.unrealized))
+                            Cell(f.pct(v.returnPct, 1), Theme.signColor(v.unrealized))
+                            Cell(gross > 0 ? f.num(abs(u) / gross * 100, 0) + "%" : "—", Theme.t2)
+                            Text(String(repeating: "█", count: max(1, Int((abs(u) / max(mx, 1e-9) * 32).rounded()))))
+                                .font(Theme.mono(12)).foregroundStyle(Theme.signColor(v.unrealized)).lineLimit(1)
+                                .frame(maxWidth: .infinity, alignment: .leading).clipped().padding(.leading, 28)
                         }
+                        .padding(.leading, 4).padding(.trailing, 14)
                     }
                 }
+                Columns(Self.posCols) {
+                    TT("Σ", 12, Theme.t4).frame(maxWidth: .infinity)
+                    TT("open", 12, Theme.t2)
+                    Cell(f.money(s.costBasis, 0), Theme.t2)
+                    Cell(f.money(s.totalValue, 0), Theme.t1)
+                    Cell(f.signed(s.unrealized, 0), Theme.signColor(s.unrealized))
+                    Cell(f.pct(s.unrealizedReturnPct, 1), Theme.signColor(s.unrealized))
+                    Cell("100%", Theme.t4)
+                    TT("share = |unrealized| / gross unrealized move · realized " + f.signed(s.realized, 0), 11, Theme.t4).padding(.leading, 28)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .frame(height: 28).padding(.leading, 4).padding(.trailing, 14)
             }
         }
     }
