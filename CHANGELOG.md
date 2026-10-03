@@ -2,26 +2,31 @@
 
 All notable changes to PF Terminal are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
-## [Unreleased] - 0.7.0 · Portfolio Intelligence
+## [0.7.0] - Portfolio Intelligence
 
-Know what changed. Know what matters. In development on `release/0.7.0`; not released.
+Know what changed. Know what matters: what moved your portfolio and why, a watchlist, local alert rules, scenarios, a benchmark, and share cards with effects and animation.
 
 ### Added
 - **What Changed** (tab 2, `d` from the portfolio): today · 7d · 30d split into market move and money in / out (excluded from performance), a one-line summary, a start → now bridge, allocation drift and every asset's impact on the portfolio. Missing start prices are named, never estimated. Movers stays one key away (`m`).
 - **Watchlist** (tab 4): assets you follow without holding them, with price since added, distance to your entry, target, alert and note.
 - **Watch → position**: `⌘↵` opens the add-transaction sheet prefilled; target, note and alert carry over; the watch row is archived; `⌘Z` undoes both.
-- **Alerts** (`g a`, ⚑ in the status bar): price above/below, position P&L, portfolio value, weight, 24h move, stablecoin depeg, scenario target and drawdown. Fire once, on every cross (with hysteresis) or daily; never on stale prices. Setup goes command → fields → review with a 30-day backtest and overlapping rules. Delivery: macOS banner, menu bar ⚑ badge until seen, optional sound, quiet hours that queue.
+- **Alerts** (`g a`, ⚑ in the status bar): price above/below, position P&L, portfolio value, weight, 24h move, stablecoin depeg, scenario target and drawdown. Fire once, on every cross (with hysteresis) or daily; never on stale prices. Setup goes command → fields → review with a 30-day backtest and overlapping rules. Delivery: macOS banner, the newest unseen alert in the menu bar popover, optional sound, quiet hours that queue.
 - **Scenarios** (`g s`): conservative · base · bull sets of target prices projected onto your holdings, edited in place with the target parser (`25x`, `150k`), compared side by side. The target screen saves to the Base scenario (`⌘S`).
 - **Benchmark** (Analytics, `b`): TWR vs BTC and ETH buy-and-hold for 1M · 3M · 6M · 1Y · ALL, in percentage points.
 - **Asset Detail**: portfolio impact (today · 7d · 30d), weight against the Base target weight with trim size, drawdown from the position's local peak, and context (watch history, scenario targets, alerts).
 - **⌘K verbs**: `alert …`, `watch …`, `convert …`, `scenario …`, `compare …`; typing a symbol lists the asset, where it appears and what you can do with it.
 - **Settings**: day start for Today, dark variant for the system theme, launch at login (menu bar only), alert delivery.
+- **Share cards**: two new cards, **what changed** (market move, flows, impact per asset) and **vs benchmark** (TWR against BTC / ETH in pp), next to performance. A WHO SEES WHAT panel lists every field as visible or hidden, with a safe-to-share check; percentages only unless the value is visible.
+- **Card effects and animation**: scanlines, glow, dither, glitch and CRT; animated cards (3 s: count up, typewriter or scan) export as MP4 or GIF, rendered on this Mac.
 
 ### Changed
 - **Navigation**: four tabs: portfolio · changes · analytics · watch (⌘1–4 or 1–4). Settings leaves the tab bar (⌘,). `g` then a key goes to any screen; `?` lists the keys of the current view.
 - **Status bar**: five fixed zones. One message slot (events fade, failures stay longer), ⚑ count of unseen alerts, one health glyph with a popover (prices · feeds · iCloud · ledger · recovery). The title bar no longer shows LIVE / last update.
 - **Settings**: one section at a time from a sidebar of nine, each with its status, a filter over every setting and a health summary. Nothing was removed; storage / cloud sync and health appear once.
 - **Overview**: TWR · ALL replaces the 24h driver cell; TODAY · WHAT MOVED is a band with the market move, flows and the top three; ▲ marks positions above their target weight.
+- **Menu bar popover**: value, 24h and $ impact per position with sparklines, what moved today, money in / out, and the newest unseen alert; open and details (`d`) actions. The menu bar title no longer carries an alert count, and many portfolios scroll instead of widening the popover.
+- **UI/UX improvements** across every screen.
+- The demo portfolio holds SOL instead of TEL.
 - **0.6 notifications are alert rules now**: the 24h move and stablecoin depeg switches become editable rules, once, with the same behaviour: the 24h rule watches the active portfolio's 24h change (as in 0.6), at most once a day, with the same notification.
 
 ### Fixed

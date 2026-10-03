@@ -35,15 +35,15 @@
 
 PF Terminal tracks crypto portfolios from a ledger of transactions. It shows positions, cost basis, realized and unrealized P&L, performance and 24h movement. The interface is a native macOS window that you can drive entirely from the keyboard. PF Terminal does not execute trades and does not hold funds.
 
-> **Status:** the current release is v0.6.0, "a ledger you can trust". v0.4.0 was the first public release. PF Terminal is distributed as a `.dmg` through GitHub Releases. There is no Homebrew package.
+> **Status:** the current release is v0.7.0, "Portfolio Intelligence". v0.4.0 was the first public release. PF Terminal is distributed as a `.dmg` through GitHub Releases. There is no Homebrew package.
 >
-> **New in v0.6.0:** hardened iCloud sync, local recovery snapshots with restore, correct total return and TWR, safer imports and transaction prices, an app lock that also covers the menu bar, Data Health, a privacy-safe diagnostic report, and appearance themes. See the [CHANGELOG](CHANGELOG.md).
+> **New in v0.7.0:** What Changed (market move vs money in / out), a watchlist with watch → position, local alert rules, scenarios, a benchmark vs BTC / ETH, new share cards with effects and MP4 / GIF animation, a redesigned menu bar popover, and a reworked navigation, Settings and status bar. See the [CHANGELOG](CHANGELOG.md).
 
 ## Platforms
 
 | Platform | Version | Status |
 |---|---:|---|
-| macOS | 0.6.0 | Available · Open source |
+| macOS | 0.7.0 | Available · Open source |
 | iPhone | 0.1.0 | In development |
 
 The iPhone companion app is currently in development.
@@ -66,9 +66,10 @@ Most portfolio trackers are cloud accounts. PF Terminal is a desktop instrument 
 |---|---|
 | **Portfolios** | Multiple independent portfolios and an **ALL PORTFOLIOS** aggregate. Buy, sell, transfer in and transfer out. Average-cost accounting with fees. Realized and unrealized P&L. Editable transactions. |
 | **Market** | Live prices from Binance and Bybit, CoinGecko as a batched fallback, DexScreener by verified contract. A built-in registry of the top 1,000 assets for instant, offline search. Each price shows where it comes from (LIVE, CACHED, FALLBACK, STALE). A preferred source, globally or per asset. Stablecoins valued at their peg, with depeg detection. USD, EUR and CHF. |
-| **Analysis** | Performance charts (value or P&L). Total P&L, total return and TWR. Flow-adjusted 24h contribution. Movers by % or $ impact. Allocation and a positions P&L table. Time-weighted drawdown. Target price scenarios. |
+| **Analysis** | Performance charts (value or P&L). Total P&L, total return and TWR. Flow-adjusted 24h contribution. Movers by % or $ impact. What Changed: market move vs money in / out, per-asset impact, allocation drift. Benchmark vs BTC / ETH. Allocation and a positions P&L table. Time-weighted drawdown. Scenarios of target prices. |
 | **Terminal UX** | `⌘K` palette with structured commands. Portfolio switching with `⌘P` and `[ ]`. ASCII-style charts. Adjustable density. Themes: dark, light, midnight, graphite, or follow macOS. |
-| **macOS** | Menu bar companion. Desktop widgets (small, medium, large). Share cards: copy, save PNG, share sheet. Opt-in notifications. Touch ID app lock. |
+| **Intelligence** | Watchlist with watch → position. Local alert rules (price, P&L, value, weight, 24h move, depeg, scenario target, drawdown) with a backtest before arming. Everything evaluated on your Mac. |
+| **macOS** | Menu bar companion. Desktop widgets (small, medium, large). Share cards: copy, save PNG, MP4 or GIF, share sheet. Alert notifications. Touch ID app lock. |
 | **Sync** | Optional iCloud sync through your private CloudKit database. Off by default. It includes an offline queue, conflict review with restore, and a safe merge when you turn it on. |
 | **Recovery** | Local recovery snapshots after ledger changes and before anything that replaces data; restore with a preview. Data Health check. Diagnostic report without portfolio data. |
 | **Privacy** | No telemetry. Only public market-data requests leave your Mac. Share cards and widgets have privacy modes. Optional API key stored in the Keychain. |
@@ -142,12 +143,35 @@ movers   pnl   allocation   settings   refresh   export   import
 | Command palette | `⌘K` | | Switch portfolio | `⌘P` |
 | New transaction | `⌘N` | | Previous / next portfolio | `[` `]` |
 | Refresh prices | `⌘R` | | Quick share | `⌘⇧S` |
-| Portfolio · Movers · Analytics · Settings | `⌘1`–`⌘4` | | Copy / save card | `⌘C` / `⌘S` |
+| Portfolio · Changes · Analytics · Watch | `⌘1`–`⌘4` | | Copy / save card | `⌘C` / `⌘S` |
 | Select · open · back | `↑↓` `↵` `esc` | | Chart range | `←` `→` |
 | Search assets | `/` | | Target (asset) · edit · delete tx | `t` · `e` · `⌫` |
 | Export backup | `⌘⇧E` | | Remove position | right-click a position |
+| Go to any screen | `g` then a key | | Keys of this view · Settings | `?` · `⌘,` |
 
 Shortcuts are bound to physical key positions, so they also work with non-Latin keyboard layouts. Keys without modifiers are ignored while a text field has focus.
+
+## Portfolio intelligence
+
+<p align="center">
+  <img src=".github/assets/what-changed.png" width="860" alt="What Changed over 7 days: change split into market move and flows, a summary line, start → now bridge, allocation drift and movers by portfolio impact">
+</p>
+
+- **What Changed** (`2`, or `d` from the portfolio). Today, 7d or 30d, split into the market move and money in / out (excluded from performance), with a one-line summary, a start → now bridge, allocation drift and each asset's impact on the portfolio. A missing start price is named, never estimated.
+- **Watchlist** (`4`). Assets you follow without holding them: price since added, distance to your entry, target, alert and note. `⌘↵` turns a watch into a position through the add-transaction sheet.
+- **Alerts** (`g a`). Price above / below, position P&L, portfolio value, weight, 24h move, stablecoin depeg, scenario target and drawdown. Each rule fires once, on every cross or daily, never on stale prices. The setup shows a 30-day backtest before you arm it. Rules run on your Mac, also from the menu bar while the window is closed.
+- **Scenarios** (`g s`). Conservative · base · bull sets of target prices projected onto your holdings, compared side by side. Your targets, not forecasts.
+- **Benchmark** (Analytics, `b`). TWR vs BTC and ETH buy-and-hold over 1M to ALL, in percentage points.
+
+<p align="center">
+  <img src=".github/assets/watchlist.png" width="860" alt="Watchlist: assets with price, 24h, since added, entry, distance to entry, target, alert and note">
+</p>
+
+<p align="center">
+  <img src=".github/assets/alerts.png" width="860" alt="Alerts: rules table with state, condition, distance and repeat mode, the log and delivery settings">
+</p>
+
+Watchlist, alert rules and scenarios stay on this Mac (`intel.json`, `alerts.json`); they are not synced in 0.7.
 
 ## Analytics
 
@@ -169,13 +193,13 @@ Shortcuts are bound to physical key positions, so they also work with non-Latin 
 ## Menu bar
 
 <p align="center">
-  <img src=".github/assets/menubar.png" width="380" alt="Menu bar item and popover with value, today, all-time P&L, positions with sparklines, best and worst">
+  <img src=".github/assets/menubar.png" width="380" alt="Menu bar popover: value, 24h, total P&L, positions with 24h, impact and sparklines, what moved and flows">
 </p>
 
 PF Terminal stays in the menu bar when the main window is closed, and leaves the Dock until you open the window again. To keep the Dock icon, turn on Settings → GENERAL → keep in Dock when closed.
 
 - **Menu bar item.** Four display formats. It follows the active portfolio or is pinned to ALL.
-- **Popover.** Today's change, total P&L, the top positions with 24h sparklines, best and worst, refresh, and a button to open the app.
+- **Popover.** 24h change, total P&L, the top positions with value, 24h, $ impact and sparklines, what moved today, money in / out, the newest unseen alert, and buttons to open the app or the details of the day.
 - **While the app is locked**, the menu bar item shows `PF 🔒` and the popover shows no portfolio data.
 
 ## Desktop widgets
@@ -203,7 +227,7 @@ Widgets render a snapshot that the app has already prepared. They are not realti
   <img src=".github/assets/share.png" width="860" alt="Share screen: source, period, privacy, content toggles, privacy check and card preview">
 </p>
 
-PF Terminal draws dedicated share images; it does not screenshot the window. The formats are square 1080×1080, landscape 1200×675 and portrait 1080×1350. There are three themes. You can copy the image, save it as PNG, or use the macOS share sheet.
+PF Terminal draws dedicated share images; it does not screenshot the window. There are three cards: **performance**, **what changed** and **vs benchmark**. The formats are square 1080×1080, landscape 1200×675 and portrait 1080×1350, in three themes, with optional effects (scanlines, glow, dither, glitch, CRT). You can copy the image, save it as PNG, or use the macOS share sheet. Animated cards (3 s: count up, typewriter or scan) export as MP4 or GIF, rendered on your Mac.
 
 <p align="center">
   <img src=".github/assets/share-card-terminal.png" width="270" alt="Share card, terminal theme">
@@ -211,6 +235,13 @@ PF Terminal draws dedicated share images; it does not screenshot the window. The
   <img src=".github/assets/share-card-phosphor.png" width="270" alt="Share card, phosphor theme">
 </p>
 
+<p align="center">
+  <img src=".github/assets/share-card-changes.png" width="270" alt="Share card: what changed over 7 days, market move and impact per asset">
+  <img src=".github/assets/share-card-benchmark.png" width="270" alt="Share card: TWR vs BTC and ETH buy-and-hold">
+  <img src=".github/assets/share-card-glitch.png" width="270" alt="Share card with the glitch effect">
+</p>
+
+- **Who sees what.** The panel lists every field as visible or hidden and checks the card before you share it.
 - **Privacy.** **PUBLIC** is the default. It shows percentage performance, the chart and the movers, but no value, holdings or amounts. **VALUE VISIBLE** adds the total value. In **CUSTOM**, sensitive fields (P&L, position values, average entries, portfolio name) must be switched on explicitly.
 - **What the card contains.** Hidden fields never enter the card's data model, so they cannot appear in the image. Tests check this.
 
@@ -354,8 +385,8 @@ Roadmap milestones are product milestones, not app version numbers. The iPhone a
 | v0.3 · Widgets & alerts | Desktop widgets, portfolio 24h-move notification | **done** · internal milestone |
 | v0.4 · iCloud sync | Optional sync between your own devices through your private iCloud (CloudKit) database, off by default | **done** |
 | v0.5 · Market data | Canonical Asset Registry (bundled top-1000) · offline local asset search · Binance + Bybit live pricing · selectable preferred source · LIVE / CACHED / FALLBACK source status · far fewer CoinGecko requests · canonical-contract DexScreener fallback · stablecoin / cash-like support with peg monitoring · stale-while-revalidate caching | **done** |
-| v0.6 · A ledger you can trust | Hardened iCloud sync, recovery snapshots and restore, correct total return and TWR, safer transaction prices and imports, app lock that holds, Data Health and diagnostics without portfolio data, appearance themes ([plan](docs/ROADMAP-0.6.md)) | **done** · current |
-| v0.7 · Portfolio Intelligence | What Changed (market move vs money in/out), watchlist with watch → position, local alert rules, scenarios (c · b · u), benchmark vs BTC / ETH, redesigned navigation, settings and status bar ([plan](docs/PLAN-0.7.md)) | **in development** |
+| v0.6 · A ledger you can trust | Hardened iCloud sync, recovery snapshots and restore, correct total return and TWR, safer transaction prices and imports, app lock that holds, Data Health and diagnostics without portfolio data, appearance themes ([plan](docs/ROADMAP-0.6.md)) | **done** |
+| v0.7 · Portfolio Intelligence | What Changed (market move vs money in/out), watchlist with watch → position, local alert rules, scenarios (c · b · u), benchmark vs BTC / ETH, share cards with effects and animation, redesigned navigation, settings, status bar and menu bar ([plan](docs/PLAN-0.7.md)) | **done** · current |
 | v0.8 · Automation | Shortcuts / App Intents actions, scheduled exports and share cards, synced watchlist / alerts / scenarios | planned |
 | v0.9 · Wallets & exchanges | Read-only on-chain addresses (watch-only wallets), read-only exchange APIs, CSV import | planned |
 | v1.0 · Stable PF Terminal for macOS | Stable, signed and notarized macOS release | planned |
