@@ -215,7 +215,11 @@ extension AppStore {
         i.flags = [("source", s.primaryProvider), ("live feeds", s.realtimeProvider == "off" ? "off" : "on"), ("refresh", "\(s.refreshSeconds)s"),
                    ("currency", s.currency), ("app lock", s.appLock ? "on" : "off"), ("alert rules", "\(intel.alerts.count)"),
                    ("alert delivery", s.alertBanner ? "banner" : "menu bar"), ("widget privacy", s.widgetPrivacy == .full ? "full" : "percent only"),
-                   ("menu bar", "\(s.menuBar)")]
+                   ("menu bar", "\(s.menuBar)"),
+                   // 0.7 intel.json: counts only (never symbols, prices or notes).
+                   ("watchlist", "\(intel.watchlist.filter(\.isActive).count) active · \(intel.watchlist.filter { !$0.isActive }.count) archived"),
+                   ("alerts", "\(intel.alerts.filter { !$0.paused }.count) armed/fired · \(intel.alerts.filter(\.paused).count) paused · log \(intel.alertLog.count)"),
+                   ("scenarios", "\(intel.scenarios.count)"), ("intel file", intelReadOnly == nil ? "ok" : "read-only")]
         let st = syncState
         i.sync = [("mode", st.mode.rawValue), ("status", syncStatusKind), ("last sync", DiagnosticReport.age(st.lastSync, now: i.now)),
                   ("queued", "\(st.pendingCount)"), ("conflicts", "\(st.conflicts.count)"), ("held back", "\(st.blocked.count)"),

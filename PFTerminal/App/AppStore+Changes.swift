@@ -135,6 +135,7 @@ extension AppStore {
                 series[key] = PriceSeries(pts)
                 dataVersion += 1
             }
+            pumpHistory()   // these share the concurrency slots with the ledger's queue
         }
     }
 
