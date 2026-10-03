@@ -15,8 +15,16 @@ public actor MockRemote: SyncRemoteStore {
     public var account: SyncAccountStatus = .available
     public var userID = "user-1"
     public private(set) var saveCalls = 0
+    /// Saves reach the store but the reply is lost (connection dropped mid-push).
+    public var loseSaveReplies = false
+    /// Delays fetches, to overlap sync passes in tests.
+    public var fetchDelay: UInt64 = 0
+    public private(set) var fetchCalls = 0, maxConcurrentFetches = 0
+    private var fetching = 0
 
     public func setOffline(_ v: Bool) { offline = v }
+    public func setLoseSaveReplies(_ v: Bool) { loseSaveReplies = v }
+    public func setFetchDelay(_ ns: UInt64) { fetchDelay = ns }
     public func setUser(_ id: String) { userID = id }
     public func setAccount(_ a: SyncAccountStatus) { account = a }
     public func inject(_ r: SyncRecord) { var r = r; r.remoteVersion = "x\(log.count)"; records[r.key] = r; log.append(r.key) }
@@ -26,6 +34,10 @@ public actor MockRemote: SyncRemoteStore {
 
     public func fetchChanges(since token: Data?) async throws -> SyncFetchResult {
         if offline { throw SyncStoreError.offline }
+        fetchCalls += 1; fetching += 1; maxConcurrentFetches = max(maxConcurrentFetches, fetching)
+        defer { fetching -= 1 }
+        if fetchDelay > 0 { try? await Task.sleep(nanoseconds: fetchDelay) }
+        if offline { throw SyncStoreError.offline }
         let from = token.flatMap { Int(String(decoding: $0, as: UTF8.self)) } ?? 0
         let keys = Array(Set(log[min(from, log.count)...]))
         return SyncFetchResult(records: keys.compactMap { records[$0] }, token: Data("\(log.count)".utf8))
@@ -34,7 +46,7 @@ public actor MockRemote: SyncRemoteStore {
     public func save(_ rs: [SyncRecord]) async throws -> [SyncSaveOutcome] {
         if offline { throw SyncStoreError.offline }
         saveCalls += 1
-        return rs.map { r in
+        let out: [SyncSaveOutcome] = rs.map { r in
             if let cur = records[r.key], cur.remoteVersion != r.remoteVersion { return .conflict(key: r.key, server: cur) }
             var s = r
             s.remoteVersion = "v\(log.count + 1)"
@@ -43,6 +55,8 @@ public actor MockRemote: SyncRemoteStore {
             log.append(r.key)
             return .saved(key: r.key, tag: s.remoteTag, version: s.remoteVersion)
         }
+        if loseSaveReplies { throw SyncStoreError.offline }
+        return out
     }
 
     public var liveCount: (portfolios: Int, transactions: Int) {

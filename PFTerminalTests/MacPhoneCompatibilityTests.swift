@@ -52,4 +52,23 @@ struct MacPhoneCompatibilityTests {
         try await phone.sync(r)
         #expect(!phone.doc.transactions.contains { $0.id == t.id })
     }
+
+    /// The Mac's ledger gets reset while sync is on (unreadable portfolio.json set aside, then
+    /// "1 empty" in onboarding): iCloud keeps everything and the Mac gets its portfolios back.
+    @Test func resetMacDocumentRecoversFromICloudInsteadOfWipingIt() async throws {
+        let r = MockRemote()
+        let mac = macStore(r)
+        mac.createEmpty()
+        let main = mac.doc.portfolios[0].id
+        mac.doc.upsert(Transaction(portfolioID: main, assetID: btc.id, type: .buy, quantity: 1, price: 60000, timestamp: PortfolioInfo.stamp(Date())), asset: btc)
+        mac.save()
+        try await SyncEngine.enable(mac, remote: r, choice: .upload, deviceName: "Mac")
+        #expect(await r.liveCount == (1, 1))
+
+        mac.createEmpty()                        // save() queues changes right away (scheduleSync)
+        #expect(mac.syncState.known.values.allSatisfy { $0.deletedAt == nil }, "no tombstones queued")
+        try await SyncEngine.cycle(mac, remote: r)
+        #expect(await r.liveCount == (1, 1))
+        #expect(mac.doc.portfolios.map(\.id) == [main] && mac.doc.transactions.count == 1)
+    }
 }

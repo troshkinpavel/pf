@@ -104,6 +104,10 @@ public struct SyncState: Codable, Equatable, Sendable {
     /// something (status lines only). Optional: older state files decode without them.
     public var lastRemoteChange: SyncDeviceStamp?
     public var devices: [String: Date]?
+    /// Set when the local document was found replaced; the next fetch is a full one and merges
+    /// iCloud's records back (`adoptCloud`: the local document was empty). Cleared after it.
+    public var recovering: Recovery?
+    public enum Recovery: String, Codable, Sendable { case merge, adoptCloud }
 
     public init() {}
 

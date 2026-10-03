@@ -170,6 +170,10 @@ struct StatusBar: View {
             .disabled(!store.hasPortfolio)
             Text(store.message).font(Theme.mono(11)).foregroundStyle(Theme.t2).lineLimit(1).truncationMode(.tail)
                 .frame(maxWidth: .infinity, alignment: .leading)
+            if let sync = store.syncShortLabel {
+                TermButton(action: { store.go(.settings) }) { TT(sync, 11, store.syncStatusColor).fixedSize() }
+                    .help(store.syncStatusLabel)
+            }
             // The status message gives way first; shortcut hints and provider stay readable.
             TT(hints + "   " + providerLabel + " · next \(store.nextRefreshIn)s", 11, Theme.t4).fixedSize().padding(.trailing, 12)
         }

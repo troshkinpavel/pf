@@ -17,7 +17,14 @@ import Foundation
 /// Conflicts (same record changed on two devices before either synced):
 /// - edit vs delete → the edit is kept (no data loss); the delete is kept for review.
 /// - edit vs edit   → the newer edit wins; the other version is kept for review.
+/// - a local copy never based on any iCloud version (merge, restored backup) vs the record
+///   in iCloud → iCloud wins, tombstones included (no resurrection); the local copy is kept for review.
+/// - a remote version older than the one held locally (stale) → the local one is kept and re-sent.
 /// - assets (identity metadata) → newer wins, no review.
+///
+/// Safety rules: a local document that shares no portfolio with the synced set was replaced
+/// (unreadable file, reset, unrelated import) — its missing records are re-fetched, never
+/// tombstoned. An empty or failed fetch never removes local data. Cycles per host are serialized.
 public enum SyncEngine {
     // MARK: - local objects
 
@@ -64,19 +71,44 @@ public enum SyncEngine {
     @discardableResult
     public static func detectLocalChanges(_ doc: PortfolioDocument, _ st: inout SyncState, now: Date) -> Int {
         let local = localObjects(doc)
+        if isReplaced(local, st) { rebase(local, &st, emptyLocal: isEmpty(doc)) }
         var n = 0
         for (k, o) in local where !st.blocked.contains(k) {
             let e = st.known[k]
             if let e, e.deletedAt == nil, e.hash == o.hash { continue }
-            st.known[k] = .init(hash: o.hash, modifiedAt: now, deletedAt: nil, pending: true, tag: e?.tag, version: e?.version)
+            st.known[k] = .init(hash: o.hash, modifiedAt: stamp(now, after: e), deletedAt: nil, pending: true, tag: e?.tag, version: e?.version)
             n += 1
         }
         // Assets are shared identities and are pruned locally when unused: never tombstoned.
-        for (k, e) in st.known where e.deletedAt == nil && local[k] == nil && !k.hasPrefix("asset.") {
-            st.known[k] = .init(hash: "", modifiedAt: now, deletedAt: now, pending: true, tag: e.tag, version: e.version)
+        for (k, e) in st.known where e.deletedAt == nil && local[k] == nil && !k.hasPrefix("asset.") && !st.blocked.contains(k) {
+            let t = stamp(now, after: e)
+            st.known[k] = .init(hash: "", modifiedAt: t, deletedAt: t, pending: true, tag: e.tag, version: e.version)
             n += 1
         }
         return n
+    }
+
+    /// A local change is always newer than the version it was based on, even if this device's
+    /// clock is behind the device that wrote that version.
+    static func stamp(_ now: Date, after e: SyncState.Entry?) -> Date {
+        guard let e, e.version != nil else { return now }
+        return max(now, e.modifiedAt.addingTimeInterval(0.001))
+    }
+
+    /// Every portfolio this device knows as live in iCloud is missing locally: the document was
+    /// replaced (unreadable file set aside, reset, unrelated import), not edited. Users can't
+    /// delete their last active portfolio, so normal edits never get here.
+    public static func isReplaced(_ local: [String: LocalObject], _ st: SyncState) -> Bool {
+        let live = st.known.filter { $0.key.hasPrefix("portfolio.") && $0.value.deletedAt == nil && !st.blocked.contains($0.key) }.keys
+        return !live.isEmpty && !live.contains { local[$0] != nil }
+    }
+
+    /// Forget (don't tombstone) what the replaced document lacks, and re-fetch everything so
+    /// iCloud's records come back into it. Queued deletions made before stay queued.
+    static func rebase(_ local: [String: LocalObject], _ st: inout SyncState, emptyLocal: Bool) {
+        st.known = st.known.filter { local[$0.key] != nil || ($0.value.pending && $0.value.deletedAt != nil) }
+        st.token = nil
+        st.recovering = emptyLocal ? .adoptCloud : .merge
     }
 
     /// The local version of a record (payload or tombstone), as it would be sent.
@@ -105,8 +137,9 @@ public enum SyncEngine {
             // Our own write echoed back, or a version we already hold.
             if let e, let v = r.remoteVersion, v == e.version { continue }
             let accepted = SyncState.Entry(hash: rh, modifiedAt: r.modifiedAt, deletedAt: r.deletedAt, pending: false, tag: r.remoteTag, version: r.remoteVersion)
+            let from = r.deviceName.map { $0.isEmpty ? "another device" : $0 } ?? "another device"
 
-            guard let e, e.pending else {
+            guard let e, e.pending || r.modifiedAt < e.modifiedAt else {
                 if apply(r, &doc) { st.known[k] = accepted; st.blocked.remove(k) } else { st.blocked.insert(k) }
                 continue
             }
@@ -116,17 +149,28 @@ public enum SyncEngine {
             let mine = record(k, doc, st)
             let keepMine: Bool
             let reason: String
-            let from = r.deviceName.map { $0.isEmpty ? "another device" : $0 } ?? "another device"
-            switch (e.deletedAt != nil, r.isTombstone) {
-            case (false, true):  keepMine = true;  reason = "deleted on \(from) · edited here · kept the edit"
-            case (true, false):  keepMine = false; reason = "deleted here · edited on \(from) · kept the edit"
-            default:
-                keepMine = e.modifiedAt >= r.modifiedAt
-                reason = "edited here and on \(from) · kept the \(keepMine ? "local" : "\(from)") version"
+            if !e.pending {
+                // Older than what this device already holds: stale. Keep ours and send it again.
+                keepMine = true
+                reason = "older version from \(from) · kept the newer one here"
+                st.known[k]?.pending = true
+            } else if e.version == nil {
+                // Never based on iCloud's copy (merge, restored backup): iCloud's version stands.
+                keepMine = false
+                reason = r.isTombstone ? "deleted on \(from) · older copy here · kept the delete" : "older copy here · kept the iCloud version"
+            } else {
+                switch (e.deletedAt != nil, r.isTombstone) {
+                case (false, true):  keepMine = true;  reason = "deleted on \(from) · edited here · kept the edit"
+                case (true, false):  keepMine = false; reason = "deleted here · edited on \(from) · kept the edit"
+                default:
+                    keepMine = e.modifiedAt >= r.modifiedAt
+                    reason = "edited here and on \(from) · kept the \(keepMine ? "local" : "\(from)") version"
+                }
             }
             if keepMine {
                 st.known[k]?.tag = r.remoteTag           // rebase: next save overwrites the server version
                 st.known[k]?.version = r.remoteVersion
+                st.known[k]?.modifiedAt = max(e.modifiedAt, r.modifiedAt.addingTimeInterval(0.001))
                 if r.kind != .asset { addConflict(&st, key: k, kind: r.kind, reason: reason, other: r, now: now) }
             } else {
                 guard apply(r, &doc) else { st.blocked.insert(k); continue }
@@ -223,13 +267,38 @@ public enum SyncEngine {
 
     /// One full sync: fetch → merge → push, retrying server conflicts. Throws on account
     /// or network problems; local pending changes stay queued either way.
+    ///
+    /// Cycles for the same host never overlap: a second call waits for the running one. A cycle
+    /// stops without writing anything if it is cancelled or sync is turned off meanwhile.
     @MainActor
     public static func cycle(_ host: SyncHost, remote: SyncRemoteStore, now: @escaping () -> Date = Date.init) async throws {
+        let id = ObjectIdentifier(host)
+        let previous = running[id]
+        let task = Task { @MainActor in
+            _ = await previous?.result
+            try await runCycle(host, remote: remote, now: now)
+        }
+        running[id] = task
+        defer { if running[id] == task { running[id] = nil } }
+        try await withTaskCancellationHandler { try await task.value } onCancel: { task.cancel() }
+    }
+
+    @MainActor private static var running: [ObjectIdentifier: Task<Void, Error>] = [:]
+
+    @MainActor
+    private static func runCycle(_ host: SyncHost, remote: SyncRemoteStore, now: @escaping () -> Date) async throws {
+        try stillActive(host)
+        // Replaced document noticed before the fetch, so the fetch is the full one.
+        detectLocalChanges(host.syncDocument, &host.syncState, now: now())
         try await checkAccount(host, remote)
+        try stillActive(host)
         let fetched = try await remote.fetchChanges(since: host.syncState.token)
+        try stillActive(host)
         var doc = host.syncDocument, st = host.syncState
         detectLocalChanges(doc, &st, now: now())
         applyRemote(fetched.records, &doc, &st, now: now())
+        if st.recovering == .adoptCloud { dropPlaceholders(&doc, &st) }
+        st.recovering = nil
         normalize(&doc, st, now: now())
         detectLocalChanges(doc, &st, now: now())
         st.token = fetched.token
@@ -239,6 +308,7 @@ public enum SyncEngine {
             let sent = pendingRecords(host.syncDocument, host.syncState)
             if sent.isEmpty { break }
             let outcomes = try await remote.save(sent)
+            try stillActive(host)
             doc = host.syncDocument; st = host.syncState
             detectLocalChanges(doc, &st, now: now())
             applySaveOutcomes(sent: sent, outcomes, &doc, &st, now: now())
@@ -248,6 +318,25 @@ public enum SyncEngine {
             if !outcomes.contains(where: { if case .conflict = $0 { true } else { false } }) { break }
         }
         host.syncState.lastSync = now()
+    }
+
+    @MainActor
+    private static func stillActive(_ host: SyncHost) throws {
+        try Task.checkCancellation()
+        guard host.syncState.mode == .iCloud else { throw CancellationError() }
+    }
+
+    /// The local document was empty when it was replaced (e.g. a fresh MAIN after an unreadable
+    /// file): once iCloud's portfolios are back, its never-synced empty portfolio is dropped.
+    static func dropPlaceholders(_ doc: inout PortfolioDocument, _ st: inout SyncState) {
+        let used = Set(doc.transactions.map(\.portfolioID))
+        let drop = Set(doc.portfolios.map(\.id).filter { id in
+            guard let e = st.known[SyncRecord.key(.portfolio, id.uuidString)] else { return false }
+            return e.pending && e.version == nil && !used.contains(id)
+        })
+        guard !drop.isEmpty, doc.portfolios.count > drop.count else { return }
+        for id in drop { st.known[SyncRecord.key(.portfolio, id.uuidString)] = nil }
+        doc.portfolios.removeAll { drop.contains($0.id) }
     }
 
     @MainActor
@@ -334,7 +423,8 @@ public enum SyncEngine {
 
     /// Turn sync on. `useCloud` replaces the local document with iCloud's (the caller backs
     /// the local file up first); `upload` and `merge` both union by record id: local records
-    /// are queued, remote ones applied, and records with the same id resolved as conflicts.
+    /// are queued, remote ones applied; where both hold the same id with different content,
+    /// iCloud's version stands and the local copy is kept for review.
     @MainActor
     public static func enable(_ host: SyncHost, remote: SyncRemoteStore, choice: Choice, deviceName: String,
                        now: @escaping () -> Date = Date.init) async throws {

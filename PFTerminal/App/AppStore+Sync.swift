@@ -112,7 +112,9 @@ extension AppStore {
         syncTask = Task { [weak self] in
             guard let self else { return }
             do {
+                let recovering = SyncEngine.isReplaced(SyncEngine.localObjects(self.doc), self.syncState) || self.syncState.recovering != nil
                 try await SyncEngine.cycle(self, remote: remote)
+                if recovering { self.message = "✓ portfolios restored from iCloud · \(self.doc.livePortfolios.count) portfolios · \(self.doc.transactions.count) transactions" }
                 self.syncStatus = self.syncState.conflicts.isEmpty ? .synced : .conflict(self.syncState.conflicts.count)
             } catch {
                 self.syncFailed(error)
@@ -124,6 +126,8 @@ extension AppStore {
     }
 
     private func syncFailed(_ error: Error) {
+        // Sync was turned off (or the pass superseded) mid-pass: nothing was written, nothing failed.
+        if error is CancellationError { syncStatus = syncEnabled ? .offline : .localOnly; return }
         let (status, turnsOff) = SyncStatus.after(error)
         if turnsOff { SyncEngine.disable(self) }
         syncStatus = status
@@ -252,6 +256,18 @@ extension AppStore {
         case .accountUnavailable: "iCloud account unavailable"
         case let .conflict(n): "\(n) conflict\(n == 1 ? "" : "s") to review"
         case let .error(m): "error · \(m)"
+        }
+    }
+
+    /// Status bar: one word, only while sync is on.
+    var syncShortLabel: String? {
+        guard syncEnabled else { return nil }
+        switch syncStatus {
+        case .synced: return "icloud: synced"
+        case .syncing, .checking: return "icloud: syncing"
+        case .offline: return "icloud: offline"
+        case .conflict: return "icloud: review"
+        default: return "icloud: sync error"
         }
     }
 

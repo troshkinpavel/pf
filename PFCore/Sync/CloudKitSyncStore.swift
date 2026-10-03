@@ -57,6 +57,9 @@ public final class CloudKitSyncStore: SyncRemoteStore, @unchecked Sendable {
             do {
                 changes = try await db.recordZoneChanges(inZoneWith: zoneID, since: serverToken)
             } catch let e as CKError where e.code == .zoneNotFound {
+                // Synced before, now the zone is gone: stop instead of re-uploading or treating
+                // iCloud as empty. Never synced: first use, create the zone.
+                if token != nil { throw SyncStoreError.cloudDataDeleted }
                 try await ensureZone()
                 return SyncFetchResult(records: [], token: nil)
             } catch let e as CKError where e.code == .userDeletedZone {

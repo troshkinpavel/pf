@@ -2,6 +2,20 @@
 
 All notable changes to PF Terminal are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+- **iCloud sync could delete or revert data in a few edge cases.**
+  - **Reset or unreadable local ledger.** If `portfolio.json` was set aside as unreadable, or the ledger was reset or replaced while sync was on, every synced record was uploaded as a deletion. Now the missing records are fetched from iCloud again instead, and nothing is deleted.
+  - **Older copy of a ledger.** When sync was turned on again with Merge or Upload on a Mac holding an older copy, that copy could overwrite newer edits in iCloud and bring deleted records back. Now iCloud's version stands, and the local copy is kept for review in conflicts.
+  - **Older remote versions.** A remote version older than the one on this Mac (stale record or stale delete) no longer replaces it.
+- **Clock-independent ordering.** Edits are stamped after the version they're based on, so a Mac with a slow clock can't lose its newer edit or delete.
+- **Sync passes never overlap.** Turning sync off during a pass now stops it without writing anything.
+- **Missing iCloud zone.** If the iCloud zone disappears after syncing, sync stops and keeps local data, instead of silently starting over empty.
+
+### Added
+- A compact iCloud status in the status bar while sync is on: synced, syncing, offline, review or sync error.
+
 ## [0.5.0] - Market Data Release
 
 Live exchange prices, a built-in asset registry, and stablecoin support.
