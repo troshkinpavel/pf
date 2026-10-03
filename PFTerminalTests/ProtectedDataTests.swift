@@ -143,4 +143,34 @@ struct ProtectedDataTests {
         #expect(!b.ledgerLoadDeferred && !b.protectedDataWaiting)
         #expect(files(dir).contains { $0.hasPrefix("portfolio.unreadable") })
     }
+
+    /// intel.json (watchlist, scenarios) locked, alerts.json readable: rules keep evaluating,
+    /// the private part is never overwritten with placeholders, unlock merges it back.
+    @Test func lockedIntelPrivatePartWaitsAndMerges() throws {
+        let dir = tempDir(), lock = Lock(), fm = FileManager.default
+        let a = store(dir, lock)
+        a.createEmpty(); buy(a, 1)
+        a.quotes[btc.id] = Quote(price: 90000, source: "test", timestamp: Date())
+        a.watchDraft = WatchDraft(asset: "SOL", entry: "135", note: "private thesis"); a.saveWatch()
+        a.alertSetup = AlertSetup(line: "alert btc above 95000"); a.advanceAlertSetup(); a.advanceAlertSetup()
+        #expect(a.intel.watchlist.count == 1 && a.intel.alerts.count == 1)
+
+        let stash = dir.appendingPathComponent("stash.json")
+        try fm.moveItem(at: a.intelStore.url, to: stash)
+        try fm.createDirectory(at: a.intelStore.url, withIntermediateDirectories: true)   // exists, unreadable
+        let b = store(dir, lock)
+        #expect(b.intelPrivateDeferred && b.intel.alerts.count == 1 && b.intel.watchlist.isEmpty && b.protectedDataWaiting)
+        #expect(!b.updateIntel { Watchlist.add(AssetCatalog.known.first { $0.symbol == "ETH" }!, price: 3000, to: &$0, now: Date()) },
+                "no edits to placeholders")
+        b.quotes[btc.id] = Quote(price: 96000, source: "test", timestamp: Date())
+        b.evaluateAlerts()
+        #expect(b.intel.alertLog.count == 1, "rules still evaluate and persist while the private part is locked")
+        var isDir: ObjCBool = false
+        #expect(fm.fileExists(atPath: b.intelStore.url.path, isDirectory: &isDir) && isDir.boolValue, "intel.json untouched")
+
+        try fm.removeItem(at: b.intelStore.url); try fm.moveItem(at: stash, to: b.intelStore.url)
+        b.resumeProtectedData()
+        #expect(!b.intelPrivateDeferred && !b.protectedDataWaiting)
+        #expect(b.intel.watchlist.first?.note == "private thesis" && b.intel.alertLog.count == 1, "merged: private part from disk, rules from memory")
+    }
 }

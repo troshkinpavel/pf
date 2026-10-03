@@ -43,50 +43,142 @@ public enum IntelStoreError: Error, Equatable, CustomStringConvertible {
     case unavailable
     public var description: String {
         switch self {
-        case .unavailable: "intel.json can't be read right now · watchlist, alerts and scenarios wait, nothing is overwritten"
-        case let .newerSchema(v): "intel.json is from a newer PF (schema \(v)) · watchlist, alerts and scenarios are read-only"
-        case .unreadable: "intel.json could not be read · it was set aside and a fresh one started"
+        case .unavailable: "watchlist, alerts and scenarios can't be read right now · they wait, nothing is overwritten"
+        case let .newerSchema(v): "intel data is from a newer PF (schema \(v)) · watchlist, alerts and scenarios are read-only"
+        case .unreadable: "intel data could not be read · it was set aside"
         }
     }
 }
 
-/// `intel.json`: atomic writes, the previous version kept as `intel.prev.json`. A file from a
-/// newer schema is never overwritten (the app goes read-only for this data instead).
+/// Two files, two protection classes (0.7 release hardening):
+/// - `alerts.json` — rules, their log, migration markers: what alert evaluation reads and writes
+///   from the menu bar while the Mac is locked. "Until first unlock" protection.
+/// - `intel.json` (schema 2) — watchlist (entries, targets, notes) and scenarios: user-authored,
+///   never needed while locked. "Complete" protection, like the ledger.
+/// Atomic writes, previous versions kept as `*.prev.json`. A file from a newer schema is never
+/// overwritten; an unreadable file is set aside, never deleted; a file that can't be read right
+/// now is never treated as missing.
 public struct IntelStore {
     public init(directory: URL) { self.directory = directory }
     public let directory: URL
+    /// Private part (watchlist, scenarios). In schema 1 it held everything.
     public var url: URL { directory.appendingPathComponent("intel.json") }
-    var prevURL: URL { directory.appendingPathComponent("intel.prev.json") }
+    public var runtimeURL: URL { directory.appendingPathComponent("alerts.json") }
+    public static let privateSchema = 2, runtimeSchema = 1
 
     static let encoder: JSONEncoder = {
         let e = JSONEncoder(); e.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]; e.dateEncodingStrategy = .iso8601; return e
     }()
     static let decoder: JSONDecoder = { let d = JSONDecoder(); d.dateDecodingStrategy = .iso8601; return d }()
 
-    /// nil: no file yet (first 0.7 launch). A file that exists but can't be read is never
-    /// treated as missing (that would start empty and overwrite it).
-    public func load() throws -> IntelDocument? {
-        guard FileManager.default.fileExists(atPath: url.path) else { return nil }
-        guard let data = try? Data(contentsOf: url) else { throw IntelStoreError.unavailable }
-        let v = ((try? JSONSerialization.jsonObject(with: data)) as? [String: Any])?["schemaVersion"] as? Int ?? 0
-        if v > IntelDocument.currentSchema { throw IntelStoreError.newerSchema(v) }
-        guard let d = try? Self.decoder.decode(IntelDocument.self, from: data) else {
-            try? FileManager.default.moveItem(at: url, to: directory.appendingPathComponent("intel.unreadable-\(Int(Date().timeIntervalSince1970)).json"))
-            throw IntelStoreError.unreadable
+    struct RuntimeFile: Codable {
+        var schemaVersion = IntelStore.runtimeSchema
+        var alerts: [AlertRule] = [], alertLog: [AlertEvent] = [], migrations: [String] = []
+        init(alerts: [AlertRule], alertLog: [AlertEvent], migrations: [String]) { self.alerts = alerts; self.alertLog = alertLog; self.migrations = migrations }
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            schemaVersion = try c.decodeIfPresent(Int.self, forKey: .schemaVersion) ?? IntelStore.runtimeSchema
+            alerts = try c.decodeIfPresent([AlertRule].self, forKey: .alerts) ?? []
+            alertLog = try c.decodeIfPresent([AlertEvent].self, forKey: .alertLog) ?? []
+            migrations = try c.decodeIfPresent([String].self, forKey: .migrations) ?? []
         }
-        return d
+    }
+    struct PrivateFile: Codable {
+        var schemaVersion = IntelStore.privateSchema
+        var watchlist: [WatchItem] = [], scenarios: [PortfolioScenario] = []
+        init(watchlist: [WatchItem], scenarios: [PortfolioScenario]) { self.watchlist = watchlist; self.scenarios = scenarios }
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            schemaVersion = try c.decodeIfPresent(Int.self, forKey: .schemaVersion) ?? IntelStore.privateSchema
+            watchlist = try c.decodeIfPresent([WatchItem].self, forKey: .watchlist) ?? []
+            scenarios = try c.decodeIfPresent([PortfolioScenario].self, forKey: .scenarios) ?? []
+        }
     }
 
-    public func save(_ d: IntelDocument) throws {
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        if FileManager.default.fileExists(atPath: url.path) {
-            try? FileManager.default.removeItem(at: prevURL)
-            try? FileManager.default.copyItem(at: url, to: prevURL)
+    public struct Loaded: Equatable {
+        public var doc: IntelDocument
+        /// intel.json exists but can't be read yet (locked): watchlist and scenarios are empty
+        /// placeholders and must not be written.
+        public var privateDeferred = false
+        /// A schema 1 intel.json: write both files once.
+        public var needsSplit = false
+        /// Files that were unreadable and moved aside.
+        public var setAside: [String] = []
+    }
+
+    /// nil: neither file yet (first 0.7 launch).
+    public func load() throws -> Loaded? {
+        let fm = FileManager.default
+        let hasRuntime = fm.fileExists(atPath: runtimeURL.path), hasPrivate = fm.fileExists(atPath: url.path)
+        guard hasRuntime || hasPrivate else { return nil }
+        var out = Loaded(doc: IntelDocument())
+        if hasRuntime {
+            guard let data = try? Data(contentsOf: runtimeURL) else { throw IntelStoreError.unavailable }
+            let v = Self.schema(data)
+            if v > Self.runtimeSchema { throw IntelStoreError.newerSchema(v) }
+            if let r = try? Self.decoder.decode(RuntimeFile.self, from: data) {
+                out.doc.alerts = r.alerts; out.doc.alertLog = r.alertLog; out.doc.migrations = r.migrations
+            } else {
+                out.setAside.append(setAside(runtimeURL, "alerts"))
+            }
         }
-        // Alerts are evaluated (and saved) from the menu bar while the Mac is locked, when
-        // "complete" protection refuses to create or read files. Encrypted at rest until the
-        // first unlock after boot.
-        try Self.encoder.encode(d).write(to: url, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
+        if hasPrivate {
+            guard let data = try? Data(contentsOf: url) else {
+                // Locked. Without alerts.json the rules may only exist in this file: wait for all of it.
+                guard hasRuntime else { throw IntelStoreError.unavailable }
+                out.privateDeferred = true
+                return out
+            }
+            let v = Self.schema(data)
+            if v > Self.privateSchema { throw IntelStoreError.newerSchema(v) }
+            if v <= 1, let legacy = try? Self.decoder.decode(IntelDocument.self, from: data) {
+                out.doc.watchlist = legacy.watchlist; out.doc.scenarios = legacy.scenarios
+                // alerts.json wins if a split was interrupted after writing it.
+                if !hasRuntime { out.doc.alerts = legacy.alerts; out.doc.alertLog = legacy.alertLog; out.doc.migrations = legacy.migrations }
+                out.needsSplit = true
+            } else if v > 1, let p = try? Self.decoder.decode(PrivateFile.self, from: data) {
+                out.doc.watchlist = p.watchlist; out.doc.scenarios = p.scenarios
+            } else {
+                out.setAside.append(setAside(url, "intel"))
+            }
+        }
+        return out
+    }
+
+    /// Rules, log and migrations. Runs while locked.
+    public func saveRuntime(_ d: IntelDocument) throws {
+        try write(RuntimeFile(alerts: d.alerts, alertLog: d.alertLog, migrations: d.migrations), to: runtimeURL,
+                  prev: "alerts.prev.json", protection: .completeFileProtectionUntilFirstUserAuthentication)
+    }
+
+    /// Watchlist and scenarios. Fails while locked (protected data unavailable).
+    public func savePrivate(_ d: IntelDocument) throws {
+        try write(PrivateFile(watchlist: d.watchlist, scenarios: d.scenarios), to: url, prev: "intel.prev.json", protection: .completeFileProtection)
+    }
+
+    /// Both parts; runtime first, so an interrupted schema 1 → 2 split resolves to alerts.json.
+    public func save(_ d: IntelDocument) throws { try saveRuntime(d); try savePrivate(d) }
+
+    private func write<T: Encodable>(_ v: T, to file: URL, prev: String, protection: Data.WritingOptions) throws {
+        let fm = FileManager.default
+        try fm.createDirectory(at: directory, withIntermediateDirectories: true)
+        let data = try Self.encoder.encode(v)
+        if fm.fileExists(atPath: file.path) {
+            let p = directory.appendingPathComponent(prev)
+            try? fm.removeItem(at: p)
+            try? fm.copyItem(at: file, to: p)
+        }
+        try data.write(to: file, options: [.atomic, protection])
+    }
+
+    private static func schema(_ data: Data) -> Int {
+        ((try? JSONSerialization.jsonObject(with: data)) as? [String: Any])?["schemaVersion"] as? Int ?? 0
+    }
+
+    private func setAside(_ file: URL, _ name: String) -> String {
+        let dst = "\(name).unreadable-\(Int(Date().timeIntervalSince1970)).json"
+        try? FileManager.default.moveItem(at: file, to: directory.appendingPathComponent(dst))
+        return dst
     }
 }
 

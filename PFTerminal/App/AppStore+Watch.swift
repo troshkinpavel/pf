@@ -103,6 +103,7 @@ extension AppStore {
 
     /// The price at add is unknown until the first quote arrives: fill it once, within a day.
     func backfillWatchPrices() {
+        guard !protectedDataWaiting, !intelPrivateDeferred else { return }   // a strict-file write; waits for unlock
         let now = Date()
         let missing = intel.watchlist.filter { $0.isActive && $0.priceAtAdd == nil && now.timeIntervalSince($0.addedAt) < 86400 && quotes[$0.assetID] != nil }
         guard !missing.isEmpty else { return }

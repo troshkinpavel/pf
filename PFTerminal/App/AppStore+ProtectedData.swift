@@ -41,6 +41,7 @@ extension AppStore {
                 return
             }
         }
+        guard resumeIntelPrivate() else { return }
         protectedDataWaiting = false
         diagnostics.record(.ledger, .info, "protected-data-resumed")
         message = "✓ unlocked · ledger available"

@@ -117,6 +117,10 @@ final class AppStore {
     @ObservationIgnored var ledgerFault: (() -> Error?)?
     @ObservationIgnored var protectedRetryAt = Date.distantPast
     @ObservationIgnored var intelRetry = false
+    /// intel.json (watchlist, scenarios) was locked at launch / a write of it is waiting.
+    @ObservationIgnored var intelPrivateDeferred = false
+    @ObservationIgnored var intelPrivatePending = false
+    @ObservationIgnored var savedIntelPrivate: IntelPrivate?
     var scenarioRename: String?
     var scenarioConfirmDelete: UUID?
     var quickShare = false

@@ -9,6 +9,7 @@ private let btc = Asset(id: "cg:bitcoin", symbol: "BTC", name: "Bitcoin", coinge
 private let tel = Asset(id: "cg:telcoin", symbol: "TEL", name: "Telcoin", coingeckoID: "telcoin")
 private let fakeTel = Asset(id: "dex:base:0xfake", symbol: "TEL", name: "Not Telcoin", chain: "base", contractAddress: "0xfake")
 private let usdc = AssetCatalog.known.first { $0.symbol == "USDC" }!
+private let sol = Asset(id: "cg:solana", symbol: "SOL", name: "Solana", coingeckoID: "solana")
 private func q(_ p: Decimal, ch: Double? = nil, at: Date = t0) -> Quote { Quote(price: p, change: ch.map { [.h24: $0] } ?? [:], source: "t", timestamp: at) }
 private let pf = UUID()
 private func tx(_ a: Asset, _ type: TransactionType, _ qty: Decimal, _ p: Decimal, _ at: Date) -> Transaction {
@@ -123,17 +124,65 @@ struct AlertTests {
         #expect(d.alerts.map(\.kind) == [.move24h, .depeg] && d.alerts.map(\.number) == [1, 2], "migrated once, idempotent")
         d.alerts[0].state = .fired; d.alerts[0].firedAt = t0
         try store.save(d)
-        var back = try #require(try store.load())
-        #expect(back == d)
+        var back = try #require(try store.load()).doc
+        #expect(back.alerts == d.alerts && back.migrations == d.migrations)
         back.alerts.removeAll { $0.number == 1 }
         try store.save(back)
-        #expect(try store.load()?.alerts.map(\.number) == [2])
-        try Data(#"{"schemaVersion":99,"alerts":[]}"#.utf8).write(to: store.url)
+        #expect(try store.load()?.doc.alerts.map(\.number) == [2])
+        try Data(#"{"schemaVersion":99,"alerts":[]}"#.utf8).write(to: store.runtimeURL)
         #expect(throws: IntelStoreError.newerSchema(99)) { try store.load() }
+        try store.saveRuntime(back)
+        try Data(#"{"schemaVersion":99}"#.utf8).write(to: store.url)
+        #expect(throws: IntelStoreError.newerSchema(99)) { try store.load() }
+        try FileManager.default.removeItem(at: store.runtimeURL)
         try FileManager.default.removeItem(at: store.url)
-        try FileManager.default.createDirectory(at: store.url, withIntermediateDirectories: true)   // exists, can't be read as data
+        try FileManager.default.createDirectory(at: store.runtimeURL, withIntermediateDirectories: true)   // exists, can't be read as data
         #expect(throws: IntelStoreError.unavailable) { try store.load() }
-        #expect(FileManager.default.fileExists(atPath: store.url.path), "an unreadable-right-now file is never treated as missing")
+        #expect(FileManager.default.fileExists(atPath: store.runtimeURL.path), "an unreadable-right-now file is never treated as missing")
+    }
+
+    @Test func splitKeepsUserAuthoredDataInTheStrictFile() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("pf-intel-split-\(UUID().uuidString)")
+        let store = IntelStore(directory: dir)
+        var d = IntelDocument()
+        Watchlist.add(sol, price: 150, entry: 135, note: "private thesis", to: &d, now: t0)
+        Scenarios.createPresets(in: &d, prices: [tel.id: 0.004], now: t0)
+        d.alerts = [AlertRule(number: 1, kind: .priceBelow, subject: .asset(sol.id), threshold: 135, createdAt: t0)]
+        try store.save(d)
+        let runtime = try String(contentsOf: store.runtimeURL, encoding: .utf8), priv = try String(contentsOf: store.url, encoding: .utf8)
+        #expect(!runtime.contains("private thesis") && !runtime.contains("CONSERVATIVE") && !runtime.contains("watchlist"), "no notes or scenarios in the file readable while locked")
+        #expect(priv.contains("private thesis") && !priv.contains("priceBelow"))
+        let fm = FileManager.default
+        if let a = try fm.attributesOfItem(atPath: store.url.path)[.protectionKey] as? FileProtectionType,
+           let b = try fm.attributesOfItem(atPath: store.runtimeURL.path)[.protectionKey] as? FileProtectionType {
+            #expect(a == .complete && b == .completeUntilFirstUserAuthentication)
+        }
+        // intel.json locked, alerts.json readable: rules load, the private part waits.
+        try fm.removeItem(at: store.url); try fm.createDirectory(at: store.url, withIntermediateDirectories: true)
+        let l = try #require(try store.load())
+        #expect(l.privateDeferred && l.doc.alerts.count == 1 && l.doc.watchlist.isEmpty)
+    }
+
+    @Test func schema1FileSplitsOnceAtomically() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("pf-intel-v1-\(UUID().uuidString)")
+        let store = IntelStore(directory: dir)
+        var d = IntelDocument()
+        Watchlist.add(sol, price: 150, to: &d, now: t0)
+        d.alerts = [AlertRule(number: 1, kind: .priceBelow, subject: .asset(sol.id), threshold: 135, createdAt: t0)]
+        d.migrations = ["0.6-notifications"]
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let enc = JSONEncoder(); enc.dateEncodingStrategy = .iso8601
+        try enc.encode(d).write(to: store.url)          // what the first 0.7 build wrote
+        let first = try #require(try store.load())
+        #expect(first.needsSplit && first.doc.alerts.count == 1 && first.doc.watchlist.count == 1 && first.doc.migrations == ["0.6-notifications"])
+        // Interrupted after alerts.json: alerts.json wins, nothing doubles.
+        var changed = first.doc; changed.alerts[0].paused = true
+        try store.saveRuntime(changed)
+        let mid = try #require(try store.load())
+        #expect(mid.needsSplit && mid.doc.alerts.count == 1 && mid.doc.alerts[0].paused)
+        try store.savePrivate(mid.doc)
+        let done = try #require(try store.load())
+        #expect(!done.needsSplit && done.doc.alerts == changed.alerts && done.doc.watchlist == d.watchlist)
     }
 
     @Test func notificationMigrationIsExactAndIdempotent() {
@@ -177,13 +226,20 @@ struct AlertTests {
     @Test func unreadableFileIsSetAsideNeverLost() throws {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("pf-intel-bad-\(UUID().uuidString)")
         let store = IntelStore(directory: dir)
-        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        var d = IntelDocument()
+        d.alerts = [AlertRule(number: 1, kind: .priceBelow, subject: .asset(sol.id), threshold: 135, createdAt: t0)]
+        Watchlist.add(sol, price: 150, to: &d, now: t0)
+        try store.save(d)
         try Data("{not json".utf8).write(to: store.url)
-        #expect(throws: IntelStoreError.unreadable) { try store.load() }
+        let l = try #require(try store.load())
+        #expect(l.setAside.count == 1 && l.doc.alerts.count == 1 && l.doc.watchlist.isEmpty, "the readable part still loads")
         let names = try FileManager.default.contentsOfDirectory(atPath: dir.path)
         #expect(names.contains { $0.hasPrefix("intel.unreadable-") } && !names.contains("intel.json"), "moved aside, not deleted")
-        try store.save(IntelDocument()); try store.save(IntelDocument())
+        try Data("{not json".utf8).write(to: store.runtimeURL)
+        #expect(try store.load()?.setAside.first?.hasPrefix("alerts.unreadable-") == true)
+        try store.save(d); try store.save(d)
         #expect(FileManager.default.fileExists(atPath: dir.appendingPathComponent("intel.prev.json").path), "previous version kept")
+        #expect(FileManager.default.fileExists(atPath: dir.appendingPathComponent("alerts.prev.json").path))
     }
 
     @Test func quietHoursWrapMidnight() {
