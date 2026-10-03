@@ -130,6 +130,31 @@ struct AlertTests {
         #expect(try store.load()?.alerts.map(\.number) == [2])
         try Data(#"{"schemaVersion":99,"alerts":[]}"#.utf8).write(to: store.url)
         #expect(throws: IntelStoreError.newerSchema(99)) { try store.load() }
+        try FileManager.default.removeItem(at: store.url)
+        try FileManager.default.createDirectory(at: store.url, withIntermediateDirectories: true)   // exists, can't be read as data
+        #expect(throws: IntelStoreError.unavailable) { try store.load() }
+        #expect(FileManager.default.fileExists(atPath: store.url.path), "an unreadable-right-now file is never treated as missing")
+    }
+
+    @Test func unreadableFileIsSetAsideNeverLost() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("pf-intel-bad-\(UUID().uuidString)")
+        let store = IntelStore(directory: dir)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        try Data("{not json".utf8).write(to: store.url)
+        #expect(throws: IntelStoreError.unreadable) { try store.load() }
+        let names = try FileManager.default.contentsOfDirectory(atPath: dir.path)
+        #expect(names.contains { $0.hasPrefix("intel.unreadable-") } && !names.contains("intel.json"), "moved aside, not deleted")
+        try store.save(IntelDocument()); try store.save(IntelDocument())
+        #expect(FileManager.default.fileExists(atPath: dir.appendingPathComponent("intel.prev.json").path), "previous version kept")
+    }
+
+    @Test func quietHoursWrapMidnight() {
+        var s = AppSettings(); s.quietHours = "22–07"
+        var c = Calendar(identifier: .gregorian); c.timeZone = TimeZone(identifier: "UTC")!
+        let at = { (h: Int) in c.date(from: DateComponents(year: 2026, month: 10, day: 3, hour: h))! }
+        #expect(s.isQuiet(at(23), calendar: c) && s.isQuiet(at(3), calendar: c) && !s.isQuiet(at(7), calendar: c) && !s.isQuiet(at(12), calendar: c))
+        s.quietHours = "off"
+        #expect(!s.isQuiet(at(23), calendar: c))
     }
 
     @Test func commandGrammar() {

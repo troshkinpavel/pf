@@ -109,6 +109,7 @@ final class AppStore {
     var alertSetup: AlertSetup?
     var alertConfirmDelete: UUID?
     var scenarioEdit: String?
+    @ObservationIgnored var intelRetry = false
     var scenarioRename: String?
     var scenarioConfirmDelete: UUID?
     var quickShare = false

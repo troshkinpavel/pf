@@ -45,6 +45,7 @@ extension AppStore {
 
     /// After every refresh (and after rule edits): fire, log, deliver.
     func evaluateAlerts() {
+        retryIntelIfNeeded()
         guard intelReadOnly == nil, !intel.alerts.isEmpty else { return }
         let now = Date()
         let inputs = alertInputs(now: now)

@@ -18,12 +18,20 @@ extension AppStore {
             if d != before { saveIntel() }
         } catch let e as IntelStoreError {
             intelReadOnly = e.description
+            intelRetry = e == .unavailable
             if case .unreadable = e { intelReadOnly = nil; intel = IntelDocument(); saveIntel() }
             message = "✗ " + e.description
             diagnostics.record(.ledger, .warning, "intel-load-failed", error: e)
         } catch {
             intelReadOnly = "intel.json could not be read"
         }
+    }
+
+    /// After `.unavailable` (file protection while locked): try again, never start empty.
+    func retryIntelIfNeeded() {
+        guard intelRetry else { return }
+        intelRetry = false; intelReadOnly = nil
+        loadIntel()
     }
 
     /// Mutate the intel document and persist it. Refused while read-only.

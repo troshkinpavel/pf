@@ -158,18 +158,18 @@ struct IntegrityAppTests {
     // MARK: stablecoins
 
     @Test func depegNotifiesOnceAndRearmsAfterRecovery() {
+        // 0.7: the 0.6 depeg switch is the migrated "any stablecoin · depeg · every cross" rule.
         let s = store()
         let pf = s.doc.portfolios[0].id
         s.doc.assets = [usdc]
         s.doc.transactions = [Transaction(portfolioID: pf, assetID: usdc.id, type: .buy, quantity: 100, price: 1, timestamp: Date().addingTimeInterval(-86400))]
         s.save(); s.recompute()
-        s.settings.depegAlerts = true
-        func price(_ p: String) { s.quotes[usdc.id] = Quote(price: Decimal(string: p)!, source: "t", timestamp: Date()); s.checkDepeg() }
-        let alerted = { Set(s.defaults.stringArray(forKey: AppStore.depegKey) ?? []) }
-        price("0.97"); #expect(alerted() == [usdc.id])
-        let events = s.diagnostics.events.filter { $0.code == "depeg-notified" }.count
-        price("0.96"); #expect(s.diagnostics.events.filter { $0.code == "depeg-notified" }.count == events, "no repeat while depegged")
-        price("1.0001"); #expect(alerted().isEmpty, "re-armed after recovery")
+        s.updateIntel { $0.alerts = [AlertRule(number: 1, kind: .depeg, subject: .anyStablecoin, threshold: 0.5, repeatMode: .cross, createdAt: Date())] }
+        func price(_ p: String) { s.quotes[usdc.id] = Quote(price: Decimal(string: p)!, source: "t", timestamp: Date()); s.evaluateAlerts() }
+        price("0.97"); #expect(s.intel.alerts[0].state == .fired && s.intel.alertLog.count == 1)
+        price("0.96"); #expect(s.intel.alertLog.count == 1, "no repeat while depegged")
+        price("1.0001"); #expect(s.intel.alerts[0].state == .armed, "re-armed after recovery")
+        price("0.97"); #expect(s.intel.alertLog.count == 2)
     }
 
     // MARK: performance

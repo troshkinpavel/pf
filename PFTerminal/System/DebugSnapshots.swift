@@ -172,7 +172,7 @@ enum DebugSnapshots {
         store.updateIntel { d in
             d = IntelDocument()
             d.migrations = ["0.6-notifications"]
-            for (sym, add, entry, target, note) in [("SOL", Decimal(142.1), Decimal(135), Decimal(210), "wait for unlock cliff"), ("LINK", 15.4, 13.5, 22, "scale in over 3 tranches"),
+            for (sym, add, entry, target, note) in [("AVAX", Decimal(26.9), Decimal(25), Decimal(40), "wait for unlock cliff"), ("LINK", 15.4, 13.5, 22, "scale in over 3 tranches"),
                                                      ("RENDER", 3.8, 3.6, nil, ""), ("HNT", 3.1, nil, nil, "just tracking")] as [(String, Decimal, Decimal?, Decimal?, String)] {
                 if let a = reg(sym) { Watchlist.add(a, price: add, entry: entry, target: target, note: note, to: &d, now: now.addingTimeInterval(-86400 * 20)) }
             }
@@ -193,7 +193,7 @@ enum DebugSnapshots {
             rule(.depeg, .anyStablecoin, 0.5, .cross)
             if let btc = held.first(where: { $0.symbol == "BTC" }) { rule(.priceBelow, .asset(btc.id), 80_000) }
             rule(.valueAbove, .portfolio(store.context.storageKey), 60_000)
-            if let sol = reg("SOL") { rule(.priceAbove, .asset(sol.id), 180, paused: true) }
+            if let avax = reg("AVAX") { rule(.priceAbove, .asset(avax.id), 34, paused: true) }
             d.alertLog = [AlertEvent(at: now.addingTimeInterval(-3600 * 3), rule: d.alerts[0].id, number: 1, message: "TEL price ≥ $0.0040", delivery: "banner · unseen")]
             let prices = Dictionary(uniqueKeysWithValues: store.summary.positions.compactMap { v in v.price.map { (v.asset.id, $0) } })
             Scenarios.createPresets(in: &d, prices: prices, now: now)

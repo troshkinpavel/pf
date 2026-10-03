@@ -38,8 +38,12 @@ public struct IntelDocument: Codable, Equatable, Sendable {
 
 public enum IntelStoreError: Error, Equatable, CustomStringConvertible {
     case newerSchema(Int), unreadable
+    /// The file exists but can't be read right now (e.g. file protection while locked).
+    /// Nothing is overwritten; the caller retries later.
+    case unavailable
     public var description: String {
         switch self {
+        case .unavailable: "intel.json can't be read right now · watchlist, alerts and scenarios wait, nothing is overwritten"
         case let .newerSchema(v): "intel.json is from a newer PF (schema \(v)) · watchlist, alerts and scenarios are read-only"
         case .unreadable: "intel.json could not be read · it was set aside and a fresh one started"
         }
@@ -59,9 +63,11 @@ public struct IntelStore {
     }()
     static let decoder: JSONDecoder = { let d = JSONDecoder(); d.dateDecodingStrategy = .iso8601; return d }()
 
-    /// nil: no file yet (first 0.7 launch).
+    /// nil: no file yet (first 0.7 launch). A file that exists but can't be read is never
+    /// treated as missing (that would start empty and overwrite it).
     public func load() throws -> IntelDocument? {
-        guard let data = try? Data(contentsOf: url) else { return nil }
+        guard FileManager.default.fileExists(atPath: url.path) else { return nil }
+        guard let data = try? Data(contentsOf: url) else { throw IntelStoreError.unavailable }
         let v = ((try? JSONSerialization.jsonObject(with: data)) as? [String: Any])?["schemaVersion"] as? Int ?? 0
         if v > IntelDocument.currentSchema { throw IntelStoreError.newerSchema(v) }
         guard let d = try? Self.decoder.decode(IntelDocument.self, from: data) else {
@@ -77,7 +83,10 @@ public struct IntelStore {
             try? FileManager.default.removeItem(at: prevURL)
             try? FileManager.default.copyItem(at: url, to: prevURL)
         }
-        try Self.encoder.encode(d).write(to: url, options: [.atomic, .completeFileProtection])
+        // Alerts are evaluated (and saved) from the menu bar while the Mac is locked, when
+        // "complete" protection refuses to create or read files. Encrypted at rest until the
+        // first unlock after boot.
+        try Self.encoder.encode(d).write(to: url, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
     }
 }
 
