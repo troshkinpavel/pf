@@ -72,6 +72,8 @@ struct TableRow<Content: View>: View {
     var height: CGFloat = 26
     var onSelect: () -> Void = {}
     var onOpen: () -> Void = {}
+    /// Off for the last row of a table that ends at its panel border (no double line).
+    var divider = true
     @ViewBuilder var content: Content
     @State private var hovering = false
 
@@ -79,7 +81,7 @@ struct TableRow<Content: View>: View {
         content
             .frame(height: height)
             .background(selected ? Theme.selected : hovering ? Theme.hover : .clear)
-            .overlay(alignment: .bottom) { Rectangle().fill(Theme.rowBorder).frame(height: 1) }
+            .overlay(alignment: .bottom) { if divider { Rectangle().fill(Theme.rowBorder).frame(height: 1) } }
             .contentShape(Rectangle())
             .onHover { hovering = $0 }
             .onTapGesture(count: 2) { onOpen() }

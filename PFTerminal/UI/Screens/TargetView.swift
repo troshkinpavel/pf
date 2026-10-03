@@ -119,7 +119,7 @@ struct TargetView: View {
                             ForEach(Array(([px] + presets).enumerated()), id: \.offset) { i, t in
                                 let s = eval(t)
                                 let on = tv.map { abs(($0 - t).double) < 1e-12 * max(1, t.double) } ?? false
-                                TableRow(selected: on, height: 26, onSelect: { store.targetInput = "\(t)" }) {
+                                TableRow(selected: on, height: 26, onSelect: { store.targetInput = "\(t)" }, divider: i < presets.count) {
                                     Columns(Self.cols) {
                                         RowMark(on: on)
                                         TT(i == 0 ? f.price(t) + " now" : f.level(t), 12, Theme.t1)

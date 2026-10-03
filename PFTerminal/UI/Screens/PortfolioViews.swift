@@ -217,7 +217,8 @@ struct PortfoliosView: View {
                             let s = store.summary(for: .portfolio(p.id))
                             let on = i == store.manage.sel
                             TableRow(selected: on, height: 30, onSelect: { store.manage.sel = i },
-                                     onOpen: { if !p.isArchived { store.setContext(.portfolio(p.id)); store.go(.overview) } }) {
+                                     onOpen: { if !p.isArchived { store.setContext(.portfolio(p.id)); store.go(.overview) } },
+                                     divider: i < list.count - 1) {
                                 Columns(Self.cols) {
                                     RowMark(on: on)
                                     TT(p.glyph, 12, Theme.t2)
@@ -335,7 +336,7 @@ struct AllPortfoliosPanel: View {
                     let s = store.summary(for: .portfolio(p.id))
                     let w = total > 0 ? s.totalValue.double / total : 0
                     TableRow(selected: i == store.sel, height: store.settings.rowHeight, onSelect: { store.sel = i },
-                             onOpen: { store.setContext(.portfolio(p.id)) }) {
+                             onOpen: { store.setContext(.portfolio(p.id)) }, divider: i < live.count - 1) {
                         Columns(Self.cols) {
                             RowMark(on: i == store.sel)
                             TT(p.glyph, 12, Theme.t2)

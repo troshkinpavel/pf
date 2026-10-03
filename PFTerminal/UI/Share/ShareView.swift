@@ -180,12 +180,17 @@ struct QuickShareView: View {
         let z: CGFloat = { switch sh.format { case .square: 0.42; case .landscape: 0.5; case .portrait: 0.36; case .story: 0.26 } }()
         let size = sh.format.size
         VStack(spacing: 0) {
-            HStack(spacing: 24) {
-                TT("QUICK SHARE", 12, Theme.t1, tracking: 0.72)
-                Spacer()
-                HStack(spacing: 0) { TT(store.doc.displayName(store.shareContext(sh)).lowercased() + " · " + sh.summary + " · ", 11, Theme.t3); TT(sh.level.short, 11, sh.level.color) }.fixedSize()
+            // Two lines: the narrow portrait/story previews can't fit title and settings on one.
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    TT("QUICK SHARE", 12, Theme.t1, tracking: 0.72)
+                    Spacer(minLength: 12)
+                    TT(sh.level.short, 11, sh.level.color).fixedSize()
+                }
+                TT(store.doc.displayName(store.shareContext(sh)).lowercased() + " · " + sh.summary, 11, Theme.t3)
+                    .truncationMode(.middle)
             }
-            .padding(.horizontal, 14).frame(height: 34)
+            .padding(.horizontal, 14).padding(.vertical, 8)
             .overlay(alignment: .bottom) { Hairline() }
             ShareCardView(m: store.shareModel(sh))
                 .scaleEffect(z, anchor: .topLeading)
