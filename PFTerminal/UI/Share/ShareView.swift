@@ -40,8 +40,11 @@ struct ShareView: View {
                             configure(sh)
                             privacyCheck(sh)
                         }
+                        .padding(.top, 8)       // panel titles sit on the top border; keep them inside the scroll clip
+                        .frame(width: 410, alignment: .leading)
                     }
                     .scrollIndicators(.never)
+                    .padding(.top, -8)
                     HStack(spacing: 4) {
                         BracketButton("copy image ⌘C", color: Theme.acc) { store.copyImage() }
                         BracketButton("save png ⌘S") { store.saveImage() }
@@ -82,8 +85,12 @@ struct ShareView: View {
             VStack(alignment: .leading, spacing: 10) {
                 HStack(alignment: .top, spacing: 0) {
                     label("source")
-                    Tabs(items: store.doc.livePortfolios.map { TabItem(id: $0.id.uuidString, label: $0.name.lowercased()) } + [TabItem(id: "all", label: "all")],
-                         selected: store.shareContext(sh).storageKey, hPad: 7) { store.share.source = $0 }
+                    // Many portfolios: the tabs scroll sideways instead of widening the column.
+                    ScrollView(.horizontal) {
+                        Tabs(items: store.doc.livePortfolios.map { TabItem(id: $0.id.uuidString, label: $0.name.lowercased()) } + [TabItem(id: "all", label: "all")],
+                             selected: store.shareContext(sh).storageKey, hPad: 7) { store.share.source = $0 }
+                    }
+                    .scrollIndicators(.never)
                 }
                 HStack(alignment: .top, spacing: 0) {
                     label("period")
@@ -108,7 +115,7 @@ struct ShareView: View {
                 HStack(alignment: .top, spacing: 0) {
                     label("content")
                     let fl = sh.fields
-                    Columns([.fr(1), .fr(1)]) {
+                    Columns([.fr(1), .fr(1)], spacing: 10) {
                         VStack(alignment: .leading, spacing: 0) { ForEach([ShareField.name, .pct, .chart, .alloc, .avg], id: \.self) { toggle($0, fl) } }
                             .frame(maxHeight: .infinity, alignment: .top)
                         VStack(alignment: .leading, spacing: 0) { ForEach([ShareField.value, .pnl, .movers, .posv], id: \.self) { toggle($0, fl) } }
