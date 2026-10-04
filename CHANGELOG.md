@@ -7,11 +7,8 @@ All notable changes to PF Terminal are documented here. The format follows [Keep
 ### Fixed
 - Crash in Overview's **Today · What Moved** band when every top mover's contribution was $0.
 
-## [0.8.1] - Maintenance
-
 ### Changed
-- The repository contains the source code and user and contributor documentation only: internal implementation plans are no longer published, and the development notes keep what contributors need to build and change PF.
-- No app changes since 0.8.0.
+- The repository holds the source code with user and contributor documentation only: internal implementation plans are no longer published, and the development notes keep what contributors need to build and change PF.
 
 ## [0.8.0] - Agent Access
 
