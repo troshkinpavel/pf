@@ -2,6 +2,11 @@
 
 All notable changes to PF Terminal are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.8.1]
+
+### Fixed
+- Crash in Overview's **Today · What Moved** band when every top mover's contribution was $0.
+
 ## [0.8.0] - Agent Access
 
 Your portfolio. Your data. Your agent. An optional way to connect an AI agent you choose to your local portfolio and manage it through MCP, with every ledger change confirmed in PF.

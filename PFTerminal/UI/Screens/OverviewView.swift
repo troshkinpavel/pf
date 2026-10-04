@@ -148,7 +148,7 @@ private struct WhatMovedBand: View {
                     if r.buys + r.sells > 0 { TT("\(r.buys + r.sells) trade\(r.buys + r.sells == 1 ? "" : "s")", 11, Theme.t4) }
                 }
                 let top = Array(r.byImpact.prefix(level >= 3 ? 1 : level == 2 ? 2 : 3))
-                let mx = top.map { abs($0.contribution.double) }.max() ?? 1
+                let mx = max(top.map { abs($0.contribution.double) }.max() ?? 1, .leastNormalMagnitude)   // all-zero movers: 0/0 = NaN traps Int()
                 divider
                 HStack(spacing: 18) {
                     ForEach(top, id: \.id) { a in
