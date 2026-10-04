@@ -35,6 +35,11 @@ struct StatusBar: View {
                     .accessibilityLabel("\(store.unseenAlerts) alert\(store.unseenAlerts == 1 ? "" : "s") fired")
                     .accessibilityIdentifier("status-alerts")
             }
+            if let a = store.agentIndicator {                                          // agent (0.8), only when relevant
+                TermButton(action: { store.go(.settings); store.selectSettingsSection("agents") }) { TT(a.text, 11, a.color).fixedSize() }
+                    .help("agent access · open Settings → agents")
+                    .accessibilityIdentifier("status-agent")
+            }
             let h = store.health                                                       // ⑤
             TermButton(action: { store.healthPopover.toggle() }) {
                 HStack(spacing: 6) {

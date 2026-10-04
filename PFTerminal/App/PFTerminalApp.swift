@@ -4,7 +4,16 @@ import AppKit
 import SwiftUI
 import UserNotifications
 
+/// `PF Terminal --mcp` is the MCP stdio relay an agent client launches (Agent/AgentTransport.swift);
+/// anything else starts the app.
 @main
+enum PFMain {
+    static func main() {
+        if CommandLine.arguments.dropFirst().first == "--mcp" { exit(MCPRelay.run()) }
+        PFTerminalApp.main()
+    }
+}
+
 struct PFTerminalApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
     @State private var store: AppStore
@@ -31,6 +40,13 @@ struct PFTerminalApp: App {
         // `--theme light|midnight|graphite|system`: snapshots and manual checks of each theme.
         if let i = args.firstIndex(of: "--theme"), i + 1 < args.count, let t = AppTheme(rawValue: args[i + 1]) { s.settings.theme = t }
         if let i = args.firstIndex(of: "--density"), i + 1 < args.count { s.settings.density = args[i + 1] }
+        // `--agent-demo`: Agent Access on, read + write, with a fixed test credential (throwaway
+        // --ui-testing state only; never the Keychain).
+        if args.contains("--agent-demo"), args.contains("--ui-testing") {
+            s.agent.credentialOverride = "pfm_demo_credential"
+            s.agent.settings.enabled = true
+            s.agent.settings.mode = .readWrite
+        }
         #endif
         _store = State(initialValue: s)
         AppDelegate.store = s
@@ -109,6 +125,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             MainActor.assumeIsolated { (AppDelegate.store?.handleKey(e) ?? false) ? nil : e }
         }
     }
+
+    /// The socket file goes with the app.
+    @MainActor func applicationWillTerminate(_ n: Notification) { AppDelegate.store?.agentStop() }
 
     /// Closing the window keeps the menu bar companion running.
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }

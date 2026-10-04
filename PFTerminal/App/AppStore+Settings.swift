@@ -48,7 +48,7 @@ struct SettingSection: Identifiable {
 }
 
 extension AppStore {
-    static let settingsSectionIDs = ["general", "appearance", "menubar", "market", "privacy", "sync", "recovery", "alerts", "shortcuts"]
+    static let settingsSectionIDs = ["general", "appearance", "menubar", "market", "privacy", "sync", "recovery", "alerts", "agents", "shortcuts"]
 
     private func cyc<T: Equatable>(_ k: String, _ v: String, _ list: [T], _ cur: T, hint: String = "", _ set: @escaping (T) -> Void) -> SettingRow {
         SettingRow(k: k, v: v, kind: .cycle, hint: hint) { set(list.cycled(from: cur, by: $0)) }
@@ -234,7 +234,7 @@ extension AppStore {
         let shortcuts = SettingSection(id: "shortcuts", title: "shortcuts", status: "", sub: "read-only · full list", groups: [
             SettingGroup(h: "GLOBAL", rows: [
                 ro("command palette", "⌘K"), ro("go to …", "g + key"), ro("tabs", "1 2 3 4 · ⌘1–⌘4"), ro("switch portfolio", "⌘P · [ ]"),
-                ro("settings", "⌘,"), ro("share", "⌘⇧S"), ro("refresh", "⌘R"), ro("lock", "⌘L"), ro("keys for this view", "?"), ro("back / close", "esc"),
+                ro("settings", "⌘, · ⌘1–⌘9 ⌘0 section"), ro("share", "⌘⇧S"), ro("refresh", "⌘R"), ro("lock", "⌘L"), ro("keys for this view", "?"), ro("back / close", "esc"),
             ]),
             SettingGroup(h: "IN VIEWS", rows: [
                 ro("add transaction", "⌘N"), ro("new alert / watch / scenario", "n"), ro("convert watch → position", "⌘↵"),
@@ -242,7 +242,7 @@ extension AppStore {
             ]),
         ])
 
-        return [general, appearance, menubar, market, privacy, sync, recovery, alerts, shortcuts]
+        return [general, appearance, menubar, market, privacy, sync, recovery, alerts, agentSettingsSection, shortcuts]
     }
 
     /// What the right pane shows: one section, or filter matches grouped by section.

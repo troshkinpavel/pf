@@ -129,7 +129,7 @@ extension AppStore {
             (PaletteItem(label: "Copy diagnostic report", detail: "no portfolio data", hint: "diag", run: { [weak self] in self?.palette = nil; self?.copyDiagnosticReport() }), "diagnostics debug report support"),
             (PaletteItem(label: "Open settings", hint: "⌘,", run: { [weak self] in self?.go(.settings) }), "preferences config"),
             (PaletteItem(label: "iCloud sync settings", detail: syncStatusLabel, hint: "sync", run: { [weak self] in self?.go(.settings) }), "sync icloud cloud data"),
-        ]
+        ] + agentPaletteItems
         if doc.portfolios.contains(where: \.isDemo) {
             base.append((PaletteItem(label: "Remove demo data", detail: "restore an empty portfolio", hint: "demo", run: { [weak self] in self?.palette = nil; self?.removeDemo() }), "remove demo clear"))
         } else if doc.transactions.isEmpty {
@@ -178,6 +178,13 @@ extension AppStore {
         let inInput = mainWindow?.firstResponder is NSText
         let isEsc = code == 53, isReturn = code == 36 || code == 76
         let isUp = code == 126, isDown = code == 125, isLeft = code == 123, isRight = code == 124
+        // An agent request waits: esc denies, ⌘↵ confirms. Nothing else reaches the views meanwhile.
+        if let c = agent.pending.first {
+            if isEsc { agentResolve(c.id, confirm: false); return true }
+            if cmd && isReturn { agentResolve(c.id, confirm: true); return true }
+            return !inInput
+        }
+        if agentActivityOpen && isEsc { agentActivityOpen = false; return true }
 
         if !hasPortfolio && !ledgerLoadDeferred {
             guard !cmd, !inInput else { return false }
@@ -198,7 +205,7 @@ extension AppStore {
         if cmd && k == "n" { openTx(); return true }
         if cmd && k == "r" { Task { await refresh(auto: false) }; return true }
         if cmd, let n = Int(k), (1...4).contains(n), screen != .settings { goTab(n - 1); return true }
-        if cmd, let n = Int(k), (1...9).contains(n), screen == .settings { selectSettingsSection(Self.settingsSectionIDs[n - 1]); return true }
+        if cmd, let n = Int(k), (0...9).contains(n), screen == .settings, let id = Self.settingsSectionIDs[safe: n == 0 ? 9 : n - 1] { selectSettingsSection(id); return true }
         if cmd && k == "," { go(.settings); return true }
         if cmd && k == "d" && screen == .scenarios && tx == nil { duplicateScenario(); return true }
         if cmd && k == "z" && !inInput && convertUndo != nil && tx == nil { undoConversion(); return true }

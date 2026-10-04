@@ -152,6 +152,8 @@ final class AppStore {
     var intel = IntelDocument()
     /// Set when intel.json is from a newer PF: the data is shown but never written.
     var intelReadOnly: String?
+    /// Settings → agents → activity overlay.
+    var agentActivityOpen = false
     var pendingImport: PortfolioDocument?
     var pendingDelete: Transaction?
     var locked = false
@@ -201,6 +203,8 @@ final class AppStore {
     @ObservationIgnored var updateChecker: UpdateChecking = GitHubReleaseChecker()
     /// SwiftUI's openWindow for the main window, captured at launch by the menu bar label.
     @ObservationIgnored var openMainWindowAction: (() -> Void)?
+    // 0.8 Agent Access (see Agent/): off by default; observable on its own.
+    @ObservationIgnored let agent: AgentRuntime
     @ObservationIgnored var windowObservers: [NSObjectProtocol] = []
 
     struct Options {
@@ -231,6 +235,7 @@ final class AppStore {
         diagnostics = DiagnosticLog(directory: dir)
         cache = MarketCache(directory: dir, inMemory: o.inMemory)
         defaults = o.defaults
+        agent = AgentRuntime(settings: AgentSettings.load(o.defaults), auditDirectory: o.inMemory ? nil : dir)
         var s = AppSettings.load(o.defaults)
         var mock = o.mockMarket
         #if DEBUG
@@ -305,6 +310,7 @@ final class AppStore {
         startLockObservers()
         startProtectedDataObservers()
         startAppearanceObserver()
+        if agent.settings.enabled { agentStart() }
         diagnostics.record(.app, .info, "launch")
         rollingSnapshotNow()        // first snapshot after an upgrade, or after edits made by another version
         startSync()

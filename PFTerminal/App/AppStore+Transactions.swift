@@ -140,12 +140,9 @@ extension AppStore {
         let f = Fmt.current
         let beforeAvg = PortfolioEngine.positions(doc.transactions.filter { $0.portfolioID == t.portfolioID })[a.id]?.averageEntry
         let old = d.editing.flatMap { id in doc.transactions.first { $0.id == id } }
-        doc.upsert(t, asset: a)
-        save()
-        cache.invalidateSnapshots(from: min(t.timestamp, old?.timestamp ?? t.timestamp))
         let conversion = converting
         tx = nil
-        recompute()
+        commitTransaction(t, asset: a)
         if let c = conversion, c.item.assetID == a.id, old == nil { finishConversion(c, tx: t) }
         let afterAvg = PortfolioEngine.positions(doc.transactions.filter { $0.portfolioID == t.portfolioID })[a.id]?.averageEntry
         if context != .all { context = .portfolio(t.portfolioID); persistContext(); recompute() }
@@ -156,17 +153,32 @@ extension AppStore {
         Task { await refresh(auto: false) }
     }
 
+    /// Writes a validated transaction (new, or an edit with the same id). The one ledger write
+    /// path for the transaction sheet, watch conversion and agents.
+    func commitTransaction(_ t: Transaction, asset a: Asset) {
+        let old = doc.transactions.first { $0.id == t.id }
+        doc.upsert(t, asset: a)
+        save()
+        cache.invalidateSnapshots(from: min(t.timestamp, old?.timestamp ?? t.timestamp))
+        recompute()
+    }
+
+    /// Removes a transaction unless a later one depends on it (throws, nothing changed).
+    func removeTransactionCommitted(_ t: Transaction) throws {
+        try doc.removeTransaction(t)
+        save()
+        cache.invalidateSnapshots(from: t.timestamp)
+        recompute()
+    }
+
     func requestDelete(_ t: Transaction) { pendingDelete = t }
 
     func deleteTx(_ t: Transaction) {
         pendingDelete = nil
-        do { try doc.removeTransaction(t) } catch {
+        do { try removeTransactionCommitted(t) } catch {
             message = "✗ cannot delete: a later transaction depends on it · \(error)"
             return
         }
-        save()
-        cache.invalidateSnapshots(from: t.timestamp)
-        recompute()
         txSel = 0
         message = "✓ transaction deleted · \(t.type.short) \(Fmt.current.amount(t.quantity)) \(asset(t.assetID)?.symbol ?? "")"
         if summary.valuation(t.assetID) == nil && screen == .asset { go(.overview) }

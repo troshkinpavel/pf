@@ -277,6 +277,7 @@ struct LockView: View {
                 } else {
                     BracketButton("unlock with Touch ID", color: Theme.acc) { store.unlock() }
                 }
+                if !store.agent.pending.isEmpty { TT("an agent request is waiting · unlock to review", 11, Theme.acc) }
             }
         }
         .onAppear { store.unlock() }

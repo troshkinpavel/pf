@@ -51,6 +51,8 @@ public struct SnapshotStore {
         case auto, daily
         case beforeImport = "before-import", beforeRestore = "before-restore", beforeICloud = "before-icloud"
         case beforeRemovePosition = "before-remove-position", beforeDeletePortfolio = "before-delete-portfolio"
+        /// 0.8: before an agent's confirmed edit or deletion of a transaction.
+        case beforeAgent = "before-agent"
     }
 
     /// Retention: newest `recent` rolling snapshots, one per day for `days` days, newest `safety`

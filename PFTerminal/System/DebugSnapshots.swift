@@ -89,7 +89,33 @@ enum DebugSnapshots {
                     ("55c-empty-scenarios", { store.go(.scenarios) }),
                 ]
             }
-            if ProcessInfo.processInfo.arguments.contains("--ui-testing") {
+            if ProcessInfo.processInfo.arguments.contains("--agent-shots") {
+                // 0.8 Agent Access UI with a throwaway credential (never the Keychain).
+                store.agent.credentialOverride = "pfm_snapshot"
+                let conn = 9
+                steps = [
+                    ("60-agent-settings-off", { store.go(.settings); store.selectSettingsSection("agents") }),
+                    ("61-agent-settings-on", {
+                        store.agentUpdate { $0.enabled = true; $0.mode = .readWrite }
+                        store.agent.sessions[conn] = AgentRuntime.Session(id: conn, client: "Claude Desktop")
+                        store.agent.lastConnected = ("Claude Desktop", Date())
+                        _ = store.agentCallTool("pf_get_portfolio_context", .obj([]), connection: conn)
+                        _ = store.agentCallTool("pf_get_what_changed", ["period": "7d"], connection: conn)
+                    }),
+                    ("61b-agent-connect", { store.settingsFilter = "claude" }),
+                    ("62-agent-confirm", {
+                        store.settingsFilter = ""
+                        _ = store.agentCallTool("pf_add_transaction", ["type": "buy", "asset": "cg:solana", "amount": 5, "price": 148.2], connection: conn)
+                    }),
+                    ("63-agent-confirm-delete", {
+                        if let c = store.agent.pending.first { store.agentResolve(c.id, confirm: false) }
+                        if let t = store.doc.transactions.last { _ = store.agentCallTool("pf_delete_transaction", ["transaction_id": .str(t.id.uuidString)], connection: conn) }
+                    }),
+                    ("64-agent-activity", { if let c = store.agent.pending.first { store.agentResolve(c.id, confirm: false) }; store.agentActivityOpen = true }),
+                    ("65-agent-status", { store.agentActivityOpen = false; _ = store.agentCallTool("pf_add_transaction", ["type": "buy", "asset": "cg:bitcoin", "amount": 0.01, "price": 90000], connection: conn); store.go(.overview) }),
+                ]
+            }
+            if ProcessInfo.processInfo.arguments.contains("--ui-testing") && !ProcessInfo.processInfo.arguments.contains("--agent-shots") {
                 seedDesignPortfolios(store)
                 steps += [
                     ("13-switcher", { store.go(.overview); store.setContext(.portfolio(store.doc.portfolios[0].id)); store.openSwitcher() }),

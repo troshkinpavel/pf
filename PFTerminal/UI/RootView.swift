@@ -58,6 +58,8 @@ struct RootView: View {
                     }
                 }
                 if store.keysOverlay { Scrim(top: 40) { store.keysOverlay = false } content: { KeysOverlay() } }
+                if store.agentActivityOpen { Scrim(top: 40) { store.agentActivityOpen = false } content: { AgentActivityView() } }
+                if let c = store.agent.pending.first, !store.locked { Scrim(top: 40, dismiss: nil) { AgentConfirmSheet(c: c) } }
                 if store.locked { LockView() }
             }
             .clipped()

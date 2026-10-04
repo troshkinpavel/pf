@@ -44,7 +44,7 @@ struct SettingsView: View {
                     TermButton(action: { store.selectSettingsSection(sec.id) }, hoverBg: Theme.hover) {
                         HStack(spacing: 8) {
                             TT(on ? "›" : " ", 12, Theme.acc).frame(width: 10)
-                            TT("⌘\(i + 1)", 11, Theme.t4).frame(width: 24, alignment: .leading)
+                            TT(i < 9 ? "⌘\(i + 1)" : "⌘0", 11, Theme.t4).frame(width: 24, alignment: .leading)
                             TT(sec.title, 12, Theme.t1, weight: on ? .medium : .regular).fixedSize()
                             Spacer(minLength: 8)
                             TT(sec.status, 11, sec.statusColor).lineLimit(1)

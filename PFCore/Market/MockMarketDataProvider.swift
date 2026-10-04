@@ -25,6 +25,10 @@ public struct MockMarketDataProvider: MarketDataProvider {
         "avalanche-2": .init(price: 28.6, supply: 407e6, ath: 146, vol: 520e6, ch: [.h1: 0.2, .h24: -2.1, .d7: -6.3, .d30: 4.4, .y1: 9.8], noise: 1.2),
         "chainlink": .init(price: 13.42, supply: 678e6, ath: 52.7, vol: 410e6, ch: [.h1: -0.1, .h24: -3.4, .d7: -9.8, .d30: -12.6, .y1: 18.2], noise: 1.2),
         "render-token": .init(price: 4.12, supply: 518e6, ath: 13.5, vol: 96e6, ch: [.h1: 0.3, .h24: 1.2, .d7: 4.7, .d30: -8.4, .y1: -31.0], noise: 1.4),
+        // Coins an agent may ask about in the demo (0.8): not held.
+        "ripple": .init(price: 2.41, supply: 59.4e9, ath: 3.65, vol: 4.2e9, ch: [.h1: 0.2, .h24: 1.9, .d7: -3.1, .d30: 6.4, .y1: 310.0], noise: 1.3),
+        "cardano": .init(price: 0.42, supply: 36.1e9, ath: 3.10, vol: 610e6, ch: [.h1: -0.1, .h24: -0.8, .d7: -4.2, .d30: -9.7, .y1: 12.5], noise: 1.3),
+        "dogecoin": .init(price: 0.18, supply: 150e9, ath: 0.74, vol: 1.3e9, ch: [.h1: 0.4, .h24: 3.2, .d7: 6.8, .d30: 2.1, .y1: 45.0], noise: 1.5),
         "helium": .init(price: 3.06, supply: 180e6, ath: 55.2, vol: 11e6, ch: [.h1: 0.0, .h24: 0.6, .d7: -2.2, .d30: 7.1, .y1: -12.4], noise: 1.3),
     ]
 

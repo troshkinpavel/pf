@@ -81,7 +81,7 @@ struct IntelAppTests {
 
     @Test func nineSectionsFilterAndNoLostSettings() {
         let s = store()
-        #expect(s.settingsSections.map(\.id) == AppStore.settingsSectionIDs && AppStore.settingsSectionIDs.count == 9)
+        #expect(s.settingsSections.map(\.id) == AppStore.settingsSectionIDs && AppStore.settingsSectionIDs.count == 10)
         let keys = Set(s.settingsSections.flatMap { $0.groups.flatMap { $0.rows.map(\.k) } })
         // Every 0.6 setting still has a row (notifications became alert delivery + rules).
         for k in ["keep in Dock when closed", "preferred source", "live feeds", "refresh interval", "currency", "coingecko api key",
