@@ -35,7 +35,7 @@
 
 PF Terminal tracks crypto portfolios from a ledger of transactions. It shows positions, cost basis, realized and unrealized P&L, performance and what moved your portfolio and why. It is a native macOS app you can drive entirely from the keyboard. PF Terminal does not execute trades and does not hold funds.
 
-> **Current release: v0.8.1.** Since v0.8.0, "Agent Access": an optional way to connect an AI agent you choose to your local portfolio and manage it through MCP: off by default, read-only to start, every ledger change confirmed in PF, no server. See [What's new](CHANGELOG.md).
+> **Current release: v0.8.2.** Since v0.8.0, "Agent Access": an optional way to connect an AI agent you choose to your local portfolio and manage it through MCP: off by default, read-only to start, every ledger change confirmed in PF, no server. See [What's new](CHANGELOG.md).
 
 ## Why PF?
 
@@ -115,7 +115,7 @@ Details: [How PF works](docs/HOW-IT-WORKS.md) · [Privacy policy](PRIVACY.md) ·
 
 | Platform | Version | Status |
 |---|---:|---|
-| macOS | 0.8.1 | Available · Open source |
+| macOS | 0.8.2 | Available · Open source |
 | iPhone | 0.1.0 | In development |
 
 ## Build from source

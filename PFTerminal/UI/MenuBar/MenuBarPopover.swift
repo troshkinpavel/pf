@@ -17,7 +17,7 @@ struct MenuBarPopover: View {
             HStack { TT("PF · locked", 11, Theme.acc); Spacer() }
             TT("unlock in the main window to see your portfolio", 12, Theme.t2)
             HStack {
-                BracketButton("open & unlock", color: Theme.acc) { store.presentMainWindow(); store.unlock() }
+                BracketButton("open & unlock", color: Theme.acc) { open(); store.unlock() }
                 Spacer()
                 BracketButton("quit", color: Theme.t2) { NSApp.terminate(nil) }
             }
@@ -160,5 +160,29 @@ struct MenuBarPopover: View {
         }
     }
 
-    private func open() { store.presentMainWindow() }
+    /// Opens the main window and closes the popover.
+    private func open() {
+        Self.closePopover()
+        store.presentMainWindow()
+    }
+
+    /// Closes the popover the way SwiftUI does, so the menu bar item opens again on the next click
+    /// (closing the panel directly leaves MenuBarExtra thinking it is still open).
+    /// - macOS 27+: a window MenuBarExtra is presented by an AppKit "expanded interface session"
+    ///   (SPI); cancelling it dismisses the window. Called only when the selectors exist.
+    /// - Earlier: a click on the status item toggles it.
+    /// Approach from MenuBarExtraAccess (MIT).
+    static func closePopover() {
+        let item = NSApp.windows.lazy
+            .filter { $0.className.contains("NSStatusBarWindow") }
+            .compactMap { $0.value(forKey: "statusItem") as? NSStatusItem }
+            .first { !$0.className.contains("Replicant") }
+        guard let item else { return }
+        let session = NSSelectorFromString("expandedInterfaceSession"), cancel = NSSelectorFromString("cancel")
+        if item.responds(to: session) {
+            if let s = item.perform(session)?.takeUnretainedValue() as? NSObject, s.responds(to: cancel) { s.perform(cancel) }
+            return
+        }
+        if item.button?.state != .off { item.button?.performClick(item.button) }
+    }
 }

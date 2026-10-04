@@ -2,6 +2,11 @@
 
 All notable changes to PF Terminal are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.8.2]
+
+### Fixed
+- **Menu bar:** opening PF from the popover (open, details, a position, the alert line, open & unlock) now closes the popover, and the next click on the menu bar item opens it again at once instead of needing a second click (macOS 27 presents menu bar windows differently).
+
 ## [0.8.1]
 
 ### Fixed
