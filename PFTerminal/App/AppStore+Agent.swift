@@ -3,7 +3,7 @@ import PFCoreUI
 import AppKit
 import SwiftUI
 
-// 0.8 Agent Access lifecycle and UI glue (docs/PLAN-0.8.md). Off by default; the socket exists
+// 0.8 Agent Access lifecycle and UI glue (docs/AGENTS.md). Off by default; the socket exists
 // only while it is on, and the kill switch closes it and every connection at once.
 
 extension AppStore {

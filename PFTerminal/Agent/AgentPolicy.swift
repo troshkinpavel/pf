@@ -1,7 +1,7 @@
 import PFCore
 import Foundation
 
-// Agent Access permissions (docs/PLAN-0.8.md §4). Enforced here, in PF, for every tool and
+// Agent Access permissions (docs/AGENTS.md). Enforced here, in PF, for every tool and
 // resource: the agent is never trusted to "not show" something.
 
 /// Mac-local, app-only (not in PFCore's AppSettings, not synced). Off and least-privilege by default.

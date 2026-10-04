@@ -1,8 +1,8 @@
 import Foundation
 
 /// 0.7 "Portfolio Intelligence" data: the watchlist, alert rules (+ their log) and saved
-/// scenarios. Stored in `intel.json` next to `portfolio.json`; local to this Mac in 0.7.0
-/// (see docs/PLAN-0.7.md · decisions). The ledger never depends on it: deleting or
+/// scenarios. Stored in `intel.json` next to `portfolio.json`; local to this Mac in 0.7.0.
+/// The ledger never depends on it: deleting or
 /// corrupting this file can't change a transaction.
 public struct IntelDocument: Codable, Equatable, Sendable {
     public static let currentSchema = 1

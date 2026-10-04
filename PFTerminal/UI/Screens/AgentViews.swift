@@ -2,7 +2,7 @@ import PFCore
 import PFCoreUI
 import SwiftUI
 
-/// An agent asks to change something (docs/PLAN-0.8.md §6). The frozen operation, nothing editable:
+/// An agent asks to change something (docs/AGENTS.md · Confirmation). The frozen operation, nothing editable:
 /// deny or confirm. Never shown while locked (the lock screen says a request waits, without details).
 struct AgentConfirmSheet: View {
     @Environment(AppStore.self) private var store

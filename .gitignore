@@ -36,3 +36,6 @@ Config/Signing.local.xcconfig
 *.dmg
 *.xcarchive
 .env.*
+
+# Internal notes (plans, design decisions) — local only
+internal/

@@ -2,7 +2,7 @@ import Darwin
 import Foundation
 import Security
 
-// Agent Access transport (docs/PLAN-0.8.md §3): a Unix domain socket inside PF's sandbox
+// Agent Access transport (docs/AGENTS.md · How it works): a Unix domain socket inside PF's sandbox
 // container, owned by the running app only while Agent Access is on. No network port.
 // The MCP client launches PF's own binary with `--mcp` (MCPRelay), which connects here.
 

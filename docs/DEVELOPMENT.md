@@ -12,14 +12,11 @@ These are PF Terminal's long-term identity. They are defined once, in `Config/Si
 | PF Widgets (macOS) | `io.github.troskinpavel.pf.widgets` |
 | App Group | `group.io.github.troskinpavel.pf` |
 | CloudKit container | `iCloud.io.github.troskinpavel.pf` |
-| PF Terminal (iOS) | `io.github.troskinpavel.pf.ios` |
-| PF Widgets (iOS) | `io.github.troskinpavel.pf.ios.widgets` |
 | URL scheme | `pfterminal://` (public API, kept stable) |
 | Keychain service | `io.github.troskinpavel.pf` |
 | GitHub | [`troshkinpavel/pf`](https://github.com/troshkinpavel/pf) (the GitHub account is spelled with an "h"; the app identifiers above are not) |
 
 - The repository is `pf`; the product is **PF Terminal**. Xcode targets and the Swift module keep the name `PFTerminal`.
-- **iOS targets** use the same CloudKit container, so iPhone and Mac share one private database through `PFCore`. An App Group is a per-target entitlement: `group.io.github.troskinpavel.pf` must be assigned to the iOS App IDs too, so the iOS app and its widgets can share snapshots (see [Signing and App Groups](#signing-and-app-groups)). Mac and iPhone never share an App Group container; they share data only through CloudKit.
 - Team: your Apple Developer team (set in `Config/Signing.local.xcconfig`, never committed).
 - **Legacy identity.** Up to v0.3.0, PF Terminal used `io.github.pfterminal.PFTerminal`, the widgets used `….PFWidgets`, and the App Group was `<TEAM>.io.github.pfterminal`. The CloudKit container `iCloud.io.github.pfterminal` was provisional and never registered. These identifiers survive only as `LegacyIdentifiers`, for the data migration below. Don't reuse them.
 
@@ -66,15 +63,7 @@ MACOS_BUILD_NUMBER = 4              // CFBundleVersion
 
 - The app and widget targets map them to `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION`.
 - **Bump macOS:** edit `MACOS_MARKETING_VERSION` (semantic version) and increase `MACOS_BUILD_NUMBER`; then update `CHANGELOG.md`, the README platform table and the release notes.
-- **Other platforms are independent.** The iPhone app has its own version line (currently 0.1.0, in development) and is released separately. Roadmap milestones such as "v2.0 · PF Terminal for iPhone" are product milestones, not bundle versions.
-- **README platform table.** Keep it factual. Once the iPhone app ships, its row becomes:
-
-  | Platform | Version | Status |
-  |---|---:|---|
-  | macOS | x.y.z | Available · Open source |
-  | iPhone | 1.0.0 | [Available on the App Store](https://apps.apple.com/…) |
-
-  The iPhone row links to the App Store listing, not to source code. This repository stays the project's public page.
+- **Other PF clients** keep their own version lines and are released separately.
 
 ## Build
 
@@ -124,14 +113,14 @@ iCloud sync is off by default, and default builds don't include the capability. 
 ### Release DMG
 
 ```bash
-ICLOUD=1 NOTARY_PROFILE=pf-notary scripts/make-dmg.sh   # public release: iCloud (Production), notarized + stapled
+ICLOUD=1 NOTARY_PROFILE=<profile> scripts/make-dmg.sh   # iCloud (Production), notarized + stapled
 scripts/make-dmg.sh                                     # → build/release/PF-Terminal.dmg + .sha256, no iCloud, not notarized
 ```
 
 - The script archives Release with automatic signing and exports it for **Developer ID**. The App Group needs a Developer ID provisioning profile, which `-allowProvisioningUpdates` creates. It then packages the app with an Applications shortcut and signs the DMG with `Developer ID Application` (override with `SIGN_IDENTITY`). If the keychain lists the same Developer ID certificate twice, the name is ambiguous. In that case, pass its SHA-1 from `security find-identity -v -p codesigning`.
 - Notarization runs only when `NOTARY_PROFILE` names an `xcrun notarytool store-credentials` profile. Without it, Gatekeeper reports the DMG as "Unnotarized Developer ID". Create the profile once, with an app-specific password or an App Store Connect API key:
   ```bash
-  xcrun notarytool store-credentials pf-notary --apple-id <apple-id> --team-id <TEAM>
+  xcrun notarytool store-credentials <profile> --apple-id <apple-id> --team-id <TEAM>
   ```
 - Check a candidate:
   ```bash
@@ -263,12 +252,12 @@ scripts/        make-icon.swift, make-sample-portfolio.py, frame-screenshot.swif
 
 ## Agent Access (MCP, 0.8)
 
-Design, threat model and decisions: [PLAN-0.8.md](PLAN-0.8.md). User guide: [AGENTS.md](AGENTS.md).
+User guide, permissions and the security model: [AGENTS.md](AGENTS.md).
 
 - **Transport.** `PF Terminal --mcp` (`MCPRelay`) copies stdio ↔ a Unix socket at `<container>/Data/tmp/pf-mcp.sock` (`AgentTransport.socketURL`). The relay runs in PF's sandbox (same binary, same entitlements) and never touches PF data. The app (`AgentServer`) owns the socket only while access is on, checks the peer's audit token against its own designated requirement (`LOCAL_PEERTOKEN` + `SecCodeCheckValidity`), then the handshake credential (Keychain account `agent-mcp-credential`). Lines are capped at 1 MB.
 - **Dispatch.** `AppStore.agentHandle` (JSON-RPC: initialize, ping, tools/*, resources/*, prompts/*) → `agentCallTool`: mode → exposure → lock → handler → confirmation → audit. Handlers read the app's in-memory state and cached calculations; nothing decodes the ledger per request.
 - **Writes.** Each write handler validates with the app's own code (`TransactionPlanner.preview`, `PortfolioEngine.validate`, `AlertCommand`, `Watchlist`, `Scenarios`) and returns a frozen `AgentOperation`. Ledger writes go through `commitTransaction` / `removeTransactionCommitted`, the same path as the transaction sheet, so persistence, rolling snapshots, cache invalidation and iCloud sync behave exactly as for a user edit.
-- **Agent settings** are app-only (`pf.agent.v1`), not `AppSettings`: pf-ios is unaffected. PFCore gained one additive case, `SnapshotStore.Reason.beforeAgent`.
+- **Agent settings** are app-only (`pf.agent.v1`), not `AppSettings`: other PF clients are unaffected. PFCore gained one additive case, `SnapshotStore.Reason.beforeAgent`.
 - **Manual check.** Build Debug, launch with `--ui-testing --mock-market --demo --agent-demo`, then pipe JSON-RPC lines into `PF_MCP_TOKEN=pfm_demo_credential "…/PF Terminal" --mcp`.
 
 ## Market data

@@ -26,7 +26,7 @@ enum MCP {
     }
 }
 
-/// One frozen operation waiting for the user (docs/PLAN-0.8.md §6).
+/// One frozen operation waiting for the user (docs/AGENTS.md · Confirmation).
 struct AgentConfirmation: Identifiable {
     enum State: String { case pending, confirmed, denied, expired, failed }
     let id: String
