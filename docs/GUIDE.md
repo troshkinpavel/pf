@@ -21,7 +21,7 @@ How PF Terminal works, screen by screen. Back to the [README](../README.md).
 ## Multiple portfolios
 
 <p align="center">
-  <img src="../.github/assets/portfolio-switcher.png" width="860" alt="Portfolio switcher: ALL PORTFOLIOS, MAIN, LONG TERM, TRADING, DEGEN, SERGEY with value, 24h and position count">
+  <img src="../.github/assets/portfolio-switcher.png" width="860" alt="Portfolio switcher: ALL PORTFOLIOS, MAIN, LONG TERM, TRADING, DEGEN, SAVINGS with value, 24h and position count">
 </p>
 
 Keep separate books, for example `MAIN`, `LONG TERM`, `TRADING` and `DEGEN`. Each one has its own transactions, positions, P&L, history, movers and analytics.
