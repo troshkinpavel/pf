@@ -26,6 +26,16 @@ Your watchlist (with its notes), alert rules and scenarios are stored locally on
 
 Alerts are evaluated on your device. Alert notifications contain asset symbols, prices and percentages, never the amounts you hold.
 
+## AI agents (MCP)
+
+PF Terminal 0.8 can give an AI agent you choose access to your portfolio through the Model Context Protocol. It is off by default and you turn it on in Settings.
+
+- PF Terminal does not contain an AI model and does not send your portfolio to any PF server; there is none.
+- While on, an MCP client on your Mac can read what you expose (exact values, notes and transaction history are off by default) and, if you allow writes, propose changes that you confirm in PF Terminal.
+- If the agent you connect is a cloud service, the data it reads from PF is processed by that service's provider under its own privacy terms. PF Terminal can't control that; expose only what you're comfortable sharing with it.
+- PF Terminal keeps a local activity log of agent requests (tool, time, result). It contains no notes, amounts or credentials, holds at most 500 entries and can be cleared.
+- The connection credential is stored in the Keychain and in your MCP client's configuration.
+
 ## Market data
 
 PF Terminal connects directly to third-party market-data services, including:

@@ -23,9 +23,9 @@
 
 <p align="center">
   <a href="../../releases/latest"><b>Download latest</b></a> &nbsp;·&nbsp;
-  <a href="#icloud-sync">iCloud sync</a> &nbsp;·&nbsp;
-  <a href="#build-from-source">Build from source</a> &nbsp;·&nbsp;
-  <a href="#roadmap">Roadmap</a> &nbsp;·&nbsp;
+  <a href="docs/GUIDE.md">User guide</a> &nbsp;·&nbsp;
+  <a href="docs/AGENTS.md">AI agents (optional)</a> &nbsp;·&nbsp;
+  <a href="docs/ROADMAP.md">Roadmap</a> &nbsp;·&nbsp;
   <a href="#support-pf">Support</a>
 </p>
 
@@ -33,28 +33,15 @@
   <img src=".github/assets/hero.png" width="1100" alt="PF Terminal: portfolio overview with net value, total P&L and return, today's movers, stepped performance chart and positions table">
 </p>
 
-PF Terminal tracks crypto portfolios from a ledger of transactions. It shows positions, cost basis, realized and unrealized P&L, performance and 24h movement. The interface is a native macOS window that you can drive entirely from the keyboard. PF Terminal does not execute trades and does not hold funds.
+PF Terminal tracks crypto portfolios from a ledger of transactions. It shows positions, cost basis, realized and unrealized P&L, performance and what moved your portfolio and why. It is a native macOS app you can drive entirely from the keyboard. PF Terminal does not execute trades and does not hold funds.
 
-> **Status:** the current release is v0.7.0, "Portfolio Intelligence". v0.4.0 was the first public release. PF Terminal is distributed as a `.dmg` through GitHub Releases. There is no Homebrew package.
->
-> **New in v0.7.0:** What Changed (market move vs money in / out), a watchlist with watch → position, local alert rules, scenarios, a benchmark vs BTC / ETH, new share cards with effects and MP4 / GIF animation, a redesigned menu bar popover, and a reworked navigation, Settings and status bar. See the [CHANGELOG](CHANGELOG.md).
-
-## Platforms
-
-| Platform | Version | Status |
-|---|---:|---|
-| macOS | 0.7.0 | Available · Open source |
-| iPhone | 0.1.0 | In development |
-
-The iPhone companion app is currently in development.
-
----
+> **Current release: v0.8.0, "Agent Access".** An optional way to connect an AI agent you choose to your local portfolio and manage it through MCP: off by default, read-only to start, every ledger change confirmed in PF, no server. See [What's new](CHANGELOG.md).
 
 ## Why PF?
 
 Most portfolio trackers are cloud accounts. PF Terminal is a desktop instrument instead:
 
-- **Local-first.** The ledger is a human-readable JSON file on your Mac. There is no PF account or server. Optional iCloud sync uses your own private iCloud, not a PF service.
+- **Local-first.** The ledger is a human-readable JSON file on your Mac. There is no PF account or server. Optional iCloud sync uses your own private iCloud.
 - **Real accounting.** Transactions are the source of truth. Holdings, average entry, cost basis and P&L are always derived from them.
 - **Keyboard-first.** A command palette, the arrow keys, `↵` and `esc`, and a tmux-style status bar. The mouse is optional.
 - **Honest data.** `LIVE` appears only when every quote is fresh. A missing price is shown as `$—`, never as `$0`.
@@ -64,290 +51,76 @@ Most portfolio trackers are cloud accounts. PF Terminal is a desktop instrument 
 
 | | |
 |---|---|
-| **Portfolios** | Multiple independent portfolios and an **ALL PORTFOLIOS** aggregate. Buy, sell, transfer in and transfer out. Average-cost accounting with fees. Realized and unrealized P&L. Editable transactions. |
-| **Market** | Live prices from Binance and Bybit, CoinGecko as a batched fallback, DexScreener by verified contract. A built-in registry of the top 1,000 assets for instant, offline search. Each price shows where it comes from (LIVE, CACHED, FALLBACK, STALE). A preferred source, globally or per asset. Stablecoins valued at their peg, with depeg detection. USD, EUR and CHF. |
-| **Analysis** | Performance charts (value or P&L). Total P&L, total return and TWR. Flow-adjusted 24h contribution. Movers by % or $ impact. What Changed: market move vs money in / out, per-asset impact, allocation drift. Benchmark vs BTC / ETH. Allocation and a positions P&L table. Time-weighted drawdown. Scenarios of target prices. |
-| **Terminal UX** | `⌘K` palette with structured commands. Portfolio switching with `⌘P` and `[ ]`. ASCII-style charts. Adjustable density. Themes: dark, light, midnight, graphite, or follow macOS. |
-| **Intelligence** | Watchlist with watch → position. Local alert rules (price, P&L, value, weight, 24h move, depeg, scenario target, drawdown) with a backtest before arming. Everything evaluated on your Mac. |
-| **macOS** | Menu bar companion. Desktop widgets (small, medium, large). Share cards: copy, save PNG, MP4 or GIF, share sheet. Alert notifications. Touch ID app lock. |
-| **Sync** | Optional iCloud sync through your private CloudKit database. Off by default. It includes an offline queue, conflict review with restore, and a safe merge when you turn it on. |
-| **Recovery** | Local recovery snapshots after ledger changes and before anything that replaces data; restore with a preview. Data Health check. Diagnostic report without portfolio data. |
-| **Privacy** | No telemetry. Only public market-data requests leave your Mac. Share cards and widgets have privacy modes. Optional API key stored in the Keychain. |
+| **[Portfolios](docs/GUIDE.md#multiple-portfolios)** | Multiple independent portfolios and an **ALL PORTFOLIOS** aggregate. Buy, sell, transfer in and out. Average-cost accounting with fees. Realized and unrealized P&L. |
+| **[Intelligence](docs/GUIDE.md#portfolio-intelligence)** | What Changed (market move vs money in / out), watchlist with watch → position, local alert rules with a backtest, scenarios of target prices, benchmark vs BTC / ETH. |
+| **[Analytics](docs/GUIDE.md#analytics)** | Performance as value or P&L, total return and TWR, time-weighted drawdown, allocation, positions P&L, target simulator. |
+| **[Market data](docs/HOW-IT-WORKS.md#market-data)** | Live Binance and Bybit feeds, CoinGecko fallback, DexScreener by verified contract. A bundled registry of the top 1,000 assets. Source status on every price. Stablecoin peg monitoring. USD, EUR, CHF. |
+| **[Keyboard-first](docs/GUIDE.md#keyboard-first)** | `⌘K` palette with structured commands (`buy eth 0.5 @ 3500`), `g` + key navigation, themes and density. |
+| **[macOS](docs/GUIDE.md#menu-bar)** | Menu bar companion, [desktop widgets](docs/GUIDE.md#desktop-widgets), [share cards](docs/GUIDE.md#share-cards) (PNG, MP4, GIF), notifications, Touch ID app lock. |
+| **[iCloud sync](docs/ICLOUD-SYNC.md)** | Optional, off by default, through your private CloudKit database. Offline queue, conflict review, safe merge. |
+| **[Recovery](docs/HOW-IT-WORKS.md#local-first-and-privacy)** | Local recovery snapshots with restore, Data Health, a diagnostic report without portfolio data. |
+| **[AI agents (optional)](docs/AGENTS.md)** | Connect an MCP client you choose to your local portfolio: ask about it, and, if you allow it, record transactions and manage watchlist, alerts and scenarios, each change confirmed in PF. |
 
 ## Install
 
-### Download
-
 Requires **macOS 14 Sonoma** or later.
 
-**[Download the latest release →](../../releases/latest)**
-
 1. From the [latest release](../../releases/latest), download **`PF-Terminal.dmg`**.
-2. Open the `.dmg` and drag **PF Terminal** into **Applications**.
-3. Launch PF Terminal from Applications. The first time, macOS asks you to confirm opening an app downloaded from the internet. Click **Open**.
+2. Open it and drag **PF Terminal** into **Applications**.
+3. Launch it. Releases are signed with a Developer ID and notarized by Apple.
 
-Releases are signed with a Developer ID and notarized by Apple, so Gatekeeper accepts them with no extra steps.
+To verify the download: `shasum -a 256 -c PF-Terminal.dmg.sha256`. The app doesn't update itself: **Check for Updates…** (app menu) opens the newest release; replace the app in Applications and your data is kept.
 
-You don't need an account, Xcode or any other dependencies. Releases are versioned. Each release has release notes and a `PF-Terminal.dmg.sha256` checksum. To verify the download:
+**First run.** Create an empty portfolio, load the demo (marked DEMO, removable) or import a backup. Add a transaction with `⌘N`, or type `buy eth 0.5 @ 3500` in the palette (`⌘K`).
 
-```bash
-shasum -a 256 -c PF-Terminal.dmg.sha256
-```
+## Optional: connect an AI agent (MCP)
 
-The app does not update itself.
-- **Checking for updates.** **Check for Updates…** (in the app menu, or under Settings → GENERAL) compares your version with the latest GitHub release. If a newer one exists, it opens that release page.
-- **Updating.** Download the new release and replace the app in Applications. Your portfolio data is kept, because it lives outside the app bundle.
+PF Terminal works fully on its own; no AI is needed or included. If you want, you can connect an AI agent of your choice — Claude Desktop, Claude Code, Cursor or any other [MCP](https://modelcontextprotocol.io) client — to **your local portfolio** and manage it in plain language:
 
-
-## First run
-
-1. Create an empty portfolio, load the demo portfolio (clearly marked DEMO and removable), or import a backup.
-2. Add a transaction with `⌘N`, or type `buy eth 0.5 @ 3500` in the palette (`⌘K`).
-3. PF Terminal fetches market prices and calculates the portfolio from your transactions.
-
-## Multiple portfolios
+> *"What hurt my portfolio most this week?"* · *"Compare my portfolio with BTC over 3 months"* ·
+> *"Record a buy of 10 SOL at 120 in MAIN"* · *"Alert me if BTC drops below 80,000"*
 
 <p align="center">
-  <img src=".github/assets/portfolio-switcher.png" width="860" alt="Portfolio switcher: ALL PORTFOLIOS, MAIN, LONG TERM, TRADING, DEGEN, SERGEY with value, 24h and position count">
+  <img src=".github/assets/agent-request.png" width="860" alt="AGENT REQUEST sheet in PF Terminal: an agent wants to add a transaction; deny or confirm">
 </p>
 
-Keep separate books, for example `MAIN`, `LONG TERM`, `TRADING` and `DEGEN`. Each one has its own transactions, positions, P&L, history, movers and analytics.
+- **Off by default.** Turn it on in **Settings → agents + mcp**, then paste the configuration PF gives you into your client. Nothing listens while it is off.
+- **You stay in control.** Read-only to start. With read + write, every change to the ledger and every deletion waits for your **confirm** in PF. Agents can preview a transaction first.
+- **You choose what is exposed.** Exact values, notes and transaction history are hidden from agents unless you turn them on.
+- **Local.** PF runs no server and opens no network port; the agent's client talks to the PF app on your Mac. If the agent itself is a cloud service, it processes what you expose to it.
+- **Revocable at any time.** `⌘K` → *Disable MCP access*.
 
-- **Switching.** `⌘P` opens the switcher. `[` and `]` step through the portfolios without opening it. Switching recomputes from cached prices, so it is instant.
-- **ALL PORTFOLIOS** is computed, never stored. The app calculates each portfolio with its own average cost, then adds the results. The same coin held in two portfolios is not double-counted, and sells are not re-averaged across portfolios.
-- **Management.** Rename, archive/restore and delete (with confirmation) on the `/ portfolios` screen. Archived portfolios keep their data but disappear from the switcher, ALL, the menu bar and the widgets.
+Setup for each client, the full tool list and troubleshooting: **[docs/AGENTS.md](docs/AGENTS.md)**.
 
-<p align="center">
-  <img src=".github/assets/all-portfolios.png" width="860" alt="ALL PORTFOLIOS overview with a per-portfolio drill-in table">
-</p>
+## Privacy at a glance
 
-## Keyboard-first
+- Your transactions, quantities and portfolio names stay on your Mac (and in your private iCloud if you turn sync on).
+- Network requests go only to public market-data APIs (asset identifiers, never quantities or values), Apple's iCloud if you turn on sync, and GitHub when you check for updates.
+- No account, no analytics, no crash reporting, no advertising.
 
-<p align="center">
-  <img src=".github/assets/command-palette.png" width="860" alt="Command palette parsing 'buy eth 0.5 @ 3500 in trading' into a transaction preview">
-</p>
+Details: [How PF works](docs/HOW-IT-WORKS.md) · [Privacy policy](PRIVACY.md) · [Security](SECURITY.md).
 
-The palette understands commands as well as fuzzy search. Commands that change data always open a preview first. Nothing is written until you confirm.
+## Documentation
 
-```text
-buy eth 0.5 @ 3500               sell btc 0.1 at 90000         in eth 2   ·   out btc 0.05
-buy eth 0.5 @ 3500 in trading    (choose the destination portfolio)
-target eth 10k                   target btc 150k               target eth 25x
-portfolio long term              pf all                        new portfolio swing
-share 24h public                 share value portrait phosphor
-movers   pnl   allocation   settings   refresh   export   import
-```
+| | |
+|---|---|
+| [User guide](docs/GUIDE.md) | Portfolios, keyboard, intelligence, analytics, menu bar, widgets, share cards |
+| [AI agents (MCP)](docs/AGENTS.md) | Optional agent access: setup per client, permissions, confirmation, tools |
+| [iCloud sync](docs/ICLOUD-SYNC.md) | How sync works, conflicts, protection against stale data |
+| [How PF works](docs/HOW-IT-WORKS.md) | Privacy model, market data, accounting, architecture, tests |
+| [Development](docs/DEVELOPMENT.md) | Build, signing, data formats, providers, releases |
+| [Roadmap](docs/ROADMAP.md) · [Changelog](CHANGELOG.md) | Where PF is going, and what changed |
 
-| Action | Keys | | Action | Keys |
-|---|---|---|---|---|
-| Command palette | `⌘K` | | Switch portfolio | `⌘P` |
-| New transaction | `⌘N` | | Previous / next portfolio | `[` `]` |
-| Refresh prices | `⌘R` | | Quick share | `⌘⇧S` |
-| Portfolio · Changes · Analytics · Watch | `⌘1`–`⌘4` | | Copy / save card | `⌘C` / `⌘S` |
-| Select · open · back | `↑↓` `↵` `esc` | | Chart range | `←` `→` |
-| Search assets | `/` | | Target (asset) · edit · delete tx | `t` · `e` · `⌫` |
-| Export backup | `⌘⇧E` | | Remove position | right-click a position |
-| Go to any screen | `g` then a key | | Keys of this view · Settings | `?` · `⌘,` |
+## Platforms
 
-Shortcuts are bound to physical key positions, so they also work with non-Latin keyboard layouts. Keys without modifiers are ignored while a text field has focus.
-
-## Portfolio intelligence
-
-<p align="center">
-  <img src=".github/assets/what-changed.png" width="860" alt="What Changed over 7 days: change split into market move and flows, a summary line, start → now bridge, allocation drift and movers by portfolio impact">
-</p>
-
-- **What Changed** (`2`, or `d` from the portfolio). Today, 7d or 30d, split into the market move and money in / out (excluded from performance), with a one-line summary, a start → now bridge, allocation drift and each asset's impact on the portfolio. A missing start price is named, never estimated.
-- **Watchlist** (`4`). Assets you follow without holding them: price since added, distance to your entry, target, alert and note. `⌘↵` turns a watch into a position through the add-transaction sheet.
-- **Alerts** (`g a`). Price above / below, position P&L, portfolio value, weight, 24h move, stablecoin depeg, scenario target and drawdown. Each rule fires once, on every cross or daily, never on stale prices. The setup shows a 30-day backtest before you arm it. Rules run on your Mac, also from the menu bar while the window is closed.
-- **Scenarios** (`g s`). Conservative · base · bull sets of target prices projected onto your holdings, compared side by side. Your targets, not forecasts.
-- **Benchmark** (Analytics, `b`). TWR vs BTC and ETH buy-and-hold over 1M to ALL, in percentage points.
-
-<p align="center">
-  <img src=".github/assets/watchlist.png" width="860" alt="Watchlist: assets with price, 24h, since added, entry, distance to entry, target, alert and note">
-</p>
-
-<p align="center">
-  <img src=".github/assets/alerts.png" width="860" alt="Alerts: rules table with state, condition, distance and repeat mode, the log and delivery settings">
-</p>
-
-Watchlist, alert rules and scenarios stay on this Mac (`intel.json`, `alerts.json`); they are not synced in 0.7.
-
-## Analytics
-
-<p align="center">
-  <img src=".github/assets/analytics.png" width="860" alt="Analytics: value, contributions, unrealized and realized P&L, total return and TWR, P&L performance with drawdown, allocation, positions P&L table">
-</p>
-
-- **Performance charts** switch between **value** and **P&L** (value minus net money invested). P&L shows the drawdown periods that deposits would otherwise hide.
-- **Performance headers** show the P&L change and a money-weighted return.
-- **Return figures**. **Total P&L** is realized + unrealized. **Total return** is total P&L over everything ever invested, so taking profit doesn't change it. **TWR** (time-weighted return) shows market performance with deposits and withdrawals removed. **Unrealized %** is labelled as such: it only covers what is still held.
-- **Drawdown** uses a time-weighted index.
-- **Portfolio history** is rebuilt from what you held at each point in time. It never multiplies today's holdings by past prices.
-- **The target simulator** turns a price target into position value, profit, multiple and implied market cap. It is a calculator, not a prediction.
-
-<p align="center">
-  <img src=".github/assets/target-simulator.png" width="860" alt="Target price simulator with presets, log-scale ruler and scenario table">
-</p>
-
-## Menu bar
-
-<p align="center">
-  <img src=".github/assets/menubar.png" width="380" alt="Menu bar popover: value, 24h, total P&L, positions with 24h, impact and sparklines, what moved and flows">
-</p>
-
-PF Terminal stays in the menu bar when the main window is closed, and leaves the Dock until you open the window again. To keep the Dock icon, turn on Settings → GENERAL → keep in Dock when closed.
-
-- **Menu bar item.** Four display formats. It follows the active portfolio or is pinned to ALL.
-- **Popover.** 24h change, total P&L, the top positions with value, 24h, $ impact and sparklines, what moved today, money in / out, the newest unseen alert, and buttons to open the app or the details of the day.
-- **While the app is locked**, the menu bar item shows `PF 🔒` and the popover shows no portfolio data.
-
-## Desktop widgets
-
-<p align="center">
-  <img src=".github/assets/widget-large.png" width="346" alt="Large widget: value, unrealized P&L, 24h chart, positions table">
-  &nbsp;
-  <img src=".github/assets/widget-medium.png" width="346" alt="Medium widget: value, 24h, stepped chart, top movers">
-  &nbsp;
-  <img src=".github/assets/widget-small.png" width="166" alt="Small widget: value, 24h percentage, 24h change">
-</p>
-
-Widgets come in small, medium and large sizes. You configure each widget separately:
-
-- **Portfolio.** Any portfolio, ALL, or follow the app.
-- **Display.** Value + 24h, 24h only, or value only.
-- **Privacy.** Value shown or hidden.
-- **Movers.** Top gainers or biggest portfolio impact.
-
-Widgets render a snapshot that the app has already prepared. They are not realtime terminals. The age of the data is always shown: `● now`, `upd 7m` or `STALE · 3h`. With **Settings → Widget privacy** off, the app removes dollar amounts from the widget data before writing it. Clicking a widget opens PF Terminal. In the medium and large widgets, clicking a row opens that asset.
-
-## Share cards
-
-<p align="center">
-  <img src=".github/assets/share.png" width="860" alt="Share screen: source, period, privacy, content toggles, privacy check and card preview">
-</p>
-
-PF Terminal draws dedicated share images; it does not screenshot the window. There are three cards: **performance**, **what changed** and **vs benchmark**. The formats are square 1080×1080, landscape 1200×675 and portrait 1080×1350, in three themes, with optional effects (scanlines, glow, dither, glitch, CRT). You can copy the image, save it as PNG, or use the macOS share sheet. Animated cards (3 s: count up, typewriter or scan) export as MP4 or GIF, rendered on your Mac.
-
-<p align="center">
-  <img src=".github/assets/share-card-terminal.png" width="270" alt="Share card, terminal theme">
-  <img src=".github/assets/share-card-monochrome.png" width="270" alt="Share card, monochrome theme">
-  <img src=".github/assets/share-card-phosphor.png" width="270" alt="Share card, phosphor theme">
-</p>
-
-<p align="center">
-  <img src=".github/assets/share-card-changes.png" width="270" alt="Share card: what changed over 7 days, market move and impact per asset">
-  <img src=".github/assets/share-card-benchmark.png" width="270" alt="Share card: TWR vs BTC and ETH buy-and-hold">
-  <img src=".github/assets/share-card-glitch.png" width="270" alt="Share card with the glitch effect">
-</p>
-
-- **Who sees what.** The panel lists every field as visible or hidden and checks the card before you share it.
-- **Privacy.** **PUBLIC** is the default. It shows percentage performance, the chart and the movers, but no value, holdings or amounts. **VALUE VISIBLE** adds the total value. In **CUSTOM**, sensitive fields (P&L, position values, average entries, portfolio name) must be switched on explicitly.
-- **What the card contains.** Hidden fields never enter the card's data model, so they cannot appear in the image. Tests check this.
-
-## iCloud sync
-
-iCloud sync keeps your portfolios in step across your own devices. It is **off by default**. Nothing is uploaded until you turn it on in **Settings → DATA & SYNC** and confirm.
-
-- **Your iCloud, not ours.** Data goes to the **private** CloudKit database of the Apple Account signed in on your Mac. PF has no server and no account, and it cannot see your data. Transaction data is stored in CloudKit's encrypted fields.
-- **What syncs.** Portfolios, transactions and asset identities. Records are matched by stable IDs, so renaming a portfolio or importing the same backup twice never creates duplicates.
-- **What never syncs.** Market prices and caches, charts and P&L (every device recalculates them), widget data, settings, and API keys or anything else in the Keychain.
-- **Turning it on.** PF first compares this Mac with iCloud, then asks what to do:
-  - iCloud is empty → **upload**.
-  - This Mac is empty → **use iCloud**.
-  - Both have data → **merge** or **use iCloud**. Before replacing anything, PF saves a backup of this Mac's ledger (a verified recovery snapshot).
-- **Offline.** Changes are saved locally first and queued. They upload when iCloud is reachable again, even after a restart.
-- **Conflicts.** Sometimes the same transaction changes on two devices before they sync. PF keeps the newer edit, and an edit always wins over a delete. The other version stays in **Settings → DATA & SYNC → conflicts**, where you can restore it.
-- **Protection against stale data**:
-  - A copy that was never synced (for example, a restored backup or an old Mac) never overrides what is in iCloud, and never brings back something deleted.
-  - An older version arriving from another device never replaces a newer one.
-  - If this Mac's ledger is reset or unreadable while sync is on, PF fetches your portfolios back from iCloud instead of deleting them there.
-- **Turning it off.** Your portfolios stay on your Mac, and the iCloud copy is not deleted. If you turn sync on again later, PF compares both sides again first.
-- **Availability.** iCloud sync ships in v0.4.0 and is off by default. It needs macOS 14 or later and an Apple Account signed in to iCloud. If you build from source, sync needs a build signed with the iCloud capability (see [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md#icloud-sync-optional)). The iPhone companion app (in development) uses the same sync and the same private database.
-- **Validation.**
-  - The sync engine has automated tests against a simulated CloudKit store.
-  - The full flow was also checked between two independent PF stores, in both CloudKit's development and production environments. It covered upload and download, edits, renames, archiving, deletes, the offline queue across a restart, conflicts and restore, and turning sync off and on again.
-  - The notarized v0.4.0 release app was checked against production CloudKit.
-
-## Local-first and privacy
-
-```text
-your transactions ─▶ PF engine (on your Mac) ─▶ ~/Library/Containers/…/pf/portfolio.json
-                                                  market cache (SwiftData, same container)
-                         └─ optional iCloud sync ─▶ your private CloudKit database (portfolios, transactions)
-
-market-data APIs ◀── coin identifiers only (e.g. "bitcoin", "BTCUSDT", chain + contract)
-```
-
-- **Portfolio data** stays on your Mac: transactions, quantities, cost basis and portfolio names. If you turn on [iCloud sync](#icloud-sync), it is also copied to your private iCloud. PF has no account, no backend, no analytics and no crash reporting.
-- **Network requests** go only to Binance, Bybit, CoinGecko and DexScreener (public market data, no account), Apple's iCloud if you turn on sync, and `api.github.com` when you choose **Check for Updates** (it reads the latest release; nothing about you or your portfolio is sent). Market requests carry asset identifiers, plus your search text when you look up a new asset. They use an ephemeral HTTP session, with no cookies. No quantities or values are ever sent.
-- **API key.** You can add an optional CoinGecko key. It is stored in the Keychain and sent only to `api.coingecko.com`.
-- **Sandboxing.** The app is sandboxed, with outgoing network access and access to files you choose. Widgets read a small snapshot from a shared App Group container. That snapshot contains no transactions.
-- **Backups.** Export writes a readable `.json` backup. Import validates the whole file and asks for confirmation before it replaces anything.
-- **Recovery snapshots**. PF keeps a bounded set of local snapshots of the ledger in `backups/` next to `portfolio.json`. Each is verified after writing. They hold only portfolios, transactions and asset identities: no settings, keys or caches. They never sync, and like `portfolio.json` they are not encrypted by PF.
-- **App lock**. Touch ID or your login password. It locks at launch, as soon as you turn it on, when the Mac sleeps or the screen locks, and after 5 minutes in the background. If the system can't authenticate, PF stays locked; it never unlocks by default.
-- **Diagnostics**. A local log of operational events, and a report you can copy from Settings → DIAGNOSTICS. It holds versions, sync and source status and error types, but no portfolio names, values, quantities, notes, keys or account identifiers. Nothing is sent anywhere unless you paste the report somewhere yourself.
-
-## Market data
-
-- **Asset registry.** The app includes a registry of the top 1,000 assets, with their verified exchange pairs and contracts. Searching for an asset is instant and works offline. Tickers that belong to more than one asset are never picked for you.
-- **Where prices come from.** With **Auto** (the default), each asset uses live exchange feeds first: Binance, then Bybit. CoinGecko is the batched fallback, and DexScreener is used only for an asset's verified contract. A source is used only when the asset is verified to trade there; nothing is matched by ticker alone.
-- **Price status.** Asset Detail shows the source and state of each price: `LIVE · BINANCE`, `CACHED · 2m`, `DELAYED · 6m`, `FALLBACK · COINGECKO`, `STALE · 18m` or `NO PRICE`. If your preferred source fails, the fallback is labeled as such.
-- **Preferred source.** Choose Auto, Binance, Bybit or CoinGecko in Settings → MARKET DATA. For a single asset, use **Asset Detail → price source**, which only offers the sources that asset actually has.
-- **Refresh.** Live feeds update prices continuously. Other prices refresh every 60 s by default (15 s to 5 min), less often in the background, never during sleep. Cached prices appear immediately at launch. CoinGecko is asked much less often than before, so rate limits rarely leave a gap.
-- **Stablecoins.** USDT, USDC and other USD stablecoins are valued at exactly $1.00 while within ±0.5% of the peg. Their peg is checked every few minutes. Outside that band they're marked **DEPEG** and valued at the real market price.
-
-## Accounting model
-
-Transactions are the source of truth. PF never stores a balance; it derives everything from the ledger:
-
-- **Average cost.** Fees are added to the cost basis on buys and subtracted from the proceeds on sells. A sell realizes P&L against the average cost. A full exit clears the cost basis exactly.
-- **Exact decimals.** Ledger maths uses `Decimal`.
-- **24h change is flow-adjusted.** A buy made today is not counted as a gain. **TODAY · WHAT MOVED** lists the three positions that moved the portfolio's value the most; the first is that moved the portfolio's value the most, which is not necessarily the one with the largest percentage move.
-- **Validation.** A sell can't exceed what the portfolio held at that date.
-- **Total return** = (realized + unrealized P&L) ÷ everything ever invested (buys and transfers in, at cost, with fees).
-- **Prices you leave blank**. A buy or sell dated today uses the market price. A backdated one uses that day's price from history, or asks you for it; it never uses today's price. A transfer in uses the average entry of a matching transfer out, or asks for its cost basis (0 is allowed, but must be entered). The preview always says when a price was filled in automatically.
-
-## Architecture
-
-```text
-Package.swift      the PFCore Swift package (products PFCore, PFCoreUI, PFCoreTestSupport)
-PFCore/            platform-neutral core (no AppKit/UIKit/SwiftUI), shared by PF Terminal clients
-├── Domain/        portfolio engine, history, movers, scenarios, transaction planner, command parser, share privacy
-├── Market/        provider router · Binance + Bybit (REST, LiveFeeds WebSockets) · CoinGecko · DexScreener · sources · mock
-├── Registry/      bundled canonical asset registry (top 1,000) + validated overlay store
-├── Persistence/   JSON ledger (schema-versioned, migrated), recovery snapshots, settings, SwiftData market cache
-├── Platform/      Keychain, notifications, app lock (LocalAuthentication), reachability, diagnostics log
-├── Updates/       GitHub release check, semantic versions
-├── Sync/          sync engine, record model, CloudKit store (private database), host helpers
-├── Formatting/    number and date formatting
-└── Widgets/       widget snapshot model and App Group store
-PFCoreUI/          shared SwiftUI: design tokens, widget layouts, share card
-PFCoreTestSupport/ in-memory CloudKit stand-in for tests      PFCoreTests/ package tests (wire format)
-PFTerminal/        macOS app (App, Persistence, UI; System: DEBUG-only snapshots, CloudKit self-test, sync E2E, WidgetCheck)
-PFWidgets/         macOS WidgetKit extension (App Intents configuration)
-PFTerminalTests/   unit tests (Swift Testing)                 PFTerminalUITests/ UI tests (XCUITest)
-```
-
-The app is built with Swift, SwiftUI and AppKit. It also uses SwiftData (the market cache), WidgetKit and App Intents, and `URLSession` (REST and WebSocket). Charts are custom SwiftUI drawing; Swift Charts is not used.
-
-**Tests.**
-- Unit tests cover:
-  - accounting and history;
-  - multiple portfolios and the ALL aggregate;
-  - migrations, including the move from the earlier app identity;
-  - backup validation, command parsing and provider fallback;
-  - share-card and widget privacy;
-  - sync, against a simulated CloudKit store with two devices, including a second client exchanging portfolios, transactions and deletes with the real Mac app state;
-  - the PFCore package tests pin the sync payloads and CloudKit record fields that every PF client shares.
-  - return semantics, blank-price rules, recovery snapshots and restore, import classification, Data Health, diagnostic report redaction, app-lock and menu bar privacy, depeg alerts, a 10,000-transaction benchmark, and the sync hardening matrix.
-- UI tests cover onboarding, a palette trade with confirmation, quick share, and the Dock / menu bar lifecycle.
-
-The build, signing, data formats and how to add a market-data provider are documented in **[docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)**.
+| Platform | Version | Status |
+|---|---:|---|
+| macOS | 0.8.0 | Available · Open source |
+| iPhone | 0.1.0 | In development |
 
 ## Build from source
 
-This section is for developers and contributors. You need macOS 14 Sonoma or later and Xcode 16 or later. There are no third-party dependencies.
+For developers and contributors: macOS 14+, Xcode 16+, no third-party dependencies.
 
 ```bash
 git clone https://github.com/troshkinpavel/pf.git
@@ -355,49 +128,11 @@ cd pf
 open PFTerminal.xcodeproj
 ```
 
-Select the **PFTerminal** scheme and press `⌘R`. Or build from the command line:
-
-```bash
-xcodebuild -project PFTerminal.xcodeproj -scheme PFTerminal -configuration Release -derivedDataPath build build
-open "build/Build/Products/Release/PF Terminal.app"
-```
-
-A fresh clone builds ad hoc and runs immediately. The desktop widgets are the exception: they share data through an App Group, which needs a signing team and a provisioning profile. To enable them, add `Config/Signing.local.xcconfig`. The file is gitignored.
-
-```text
-DEVELOPMENT_TEAM = YOURTEAMID
-CODE_SIGN_IDENTITY = Apple Development
-CODE_SIGN_STYLE = Automatic
-```
-
-`scripts/make-dmg.sh` produces the release `PF-Terminal.dmg` and its checksum. It signs with Developer ID. When `NOTARY_PROFILE` is set, it also notarizes and staples the app and the DMG, then checks them with Gatekeeper.
-
-## Roadmap
-
-> Local-first is a feature, not a temporary limitation.
-
-Roadmap milestones are product milestones, not app version numbers. The iPhone app has its own version line.
-
-| Version | Scope | Status |
-|---|---|---|
-| v0.1 · Core terminal | Overview, movers, analytics, asset detail, transactions, command palette, share cards, menu bar, settings | **done** · internal milestone |
-| v0.2 · Multiple portfolios | Independent portfolios, ALL aggregate, switcher, management, v1 → v2 migration | **done** · internal milestone |
-| v0.3 · Widgets & alerts | Desktop widgets, portfolio 24h-move notification | **done** · internal milestone |
-| v0.4 · iCloud sync | Optional sync between your own devices through your private iCloud (CloudKit) database, off by default | **done** |
-| v0.5 · Market data | Canonical Asset Registry (bundled top-1000) · offline local asset search · Binance + Bybit live pricing · selectable preferred source · LIVE / CACHED / FALLBACK source status · far fewer CoinGecko requests · canonical-contract DexScreener fallback · stablecoin / cash-like support with peg monitoring · stale-while-revalidate caching | **done** |
-| v0.6 · A ledger you can trust | Hardened iCloud sync, recovery snapshots and restore, correct total return and TWR, safer transaction prices and imports, app lock that holds, Data Health and diagnostics without portfolio data, appearance themes ([plan](docs/ROADMAP-0.6.md)) | **done** |
-| v0.7 · Portfolio Intelligence | What Changed (market move vs money in/out), watchlist with watch → position, local alert rules, scenarios (c · b · u), benchmark vs BTC / ETH, share cards with effects and animation, redesigned navigation, settings, status bar and menu bar ([plan](docs/PLAN-0.7.md)) | **done** · current |
-| v0.8 · Automation | Shortcuts / App Intents actions, scheduled exports and share cards, synced watchlist / alerts / scenarios | planned |
-| v0.9 · Wallets & exchanges | Read-only on-chain addresses (watch-only wallets), read-only exchange APIs, CSV import | planned |
-| v1.0 · Stable PF Terminal for macOS | Stable, signed and notarized macOS release | planned |
-| v2.0 · PF Terminal for iPhone | Native iOS app sharing the portfolio and accounting core | **in development** |
-| v2.1 · iOS widgets | Home and lock screen widgets | **in development** |
-| v2.2 · Apple ecosystem | Deeper system integration across Apple platforms | planned |
-| v3.0 · PF Cloud | Optional hosted features | exploratory |
+Select the **PFTerminal** scheme and press `⌘R`. Signing, widgets, iCloud and release builds are described in [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
 
 ## Contributing
 
-Issues and pull requests are welcome. Please report bugs and feature requests through GitHub Issues. [CONTRIBUTING.md](CONTRIBUTING.md) explains how to build, test and submit changes.
+Issues and pull requests are welcome. [CONTRIBUTING.md](CONTRIBUTING.md) explains how to build, test and submit changes.
 
 ## Support PF
 
@@ -423,4 +158,4 @@ To swap into a token first, use the [Uniswap app](https://app.uniswap.org) and t
 
 ## Disclaimer
 
-PF Terminal is portfolio tracking and analytics software. It is not financial advice, and it does not execute trades or hold assets. Market data comes from third-party providers and may be delayed or wrong. Verify it before you make decisions.
+PF Terminal is portfolio tracking and analytics software. It is not financial advice, and it does not execute trades or hold assets. AI agents you connect are third-party software; check what they propose before you confirm it. Market data comes from third-party providers and may be delayed or wrong. Verify it before you make decisions.

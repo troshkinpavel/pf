@@ -1,6 +1,6 @@
 # PF Terminal 0.7.0: Portfolio Intelligence (implementation plan)
 
-**Status:** implemented on `release/0.7.0` (phases 1–10); prepared for the 0.7.0 release, not tagged yet.
+**Status:** released as v0.7.0.
 
 **Specification:** `pf Terminal 0.7.dc.html` in the Claude Design project (sections 01–14). All states, notes, keys and copy in that file are requirements.
 

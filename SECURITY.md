@@ -6,8 +6,8 @@ Security fixes go into the latest release.
 
 | Version | Supported |
 |---|---|
-| 0.7.x | yes |
-| 0.6.x and older | no · please update |
+| 0.8.x | yes |
+| 0.7.x and older | no · please update |
 
 ## Reporting a vulnerability
 
@@ -31,6 +31,7 @@ Examples of what counts as a security problem:
 - privacy-mode bypasses in share cards or widgets;
 - portfolio data visible while the app lock is on, for example in the menu bar;
 - portfolio data in the diagnostic report (Settings → DIAGNOSTICS);
-- sandbox or entitlement problems.
+- sandbox or entitlement problems;
+- agent access (MCP): a connection without the credential or from another program, data returned that the exposure settings hide, a ledger change or deletion without the in-app confirmation, access while PF or the Mac is locked, or anything listening on a network port.
 
-PF Terminal has no server and no account system. It uses public market-data APIs (Binance, Bybit, CoinGecko, DexScreener), `api.github.com` when you check for updates, and, only when you turn sync on, your own private iCloud database.
+PF Terminal has no server and no account system. Agent access (0.8) is off by default and uses a Unix socket inside PF's sandbox container, never a network port. It uses public market-data APIs (Binance, Bybit, CoinGecko, DexScreener), `api.github.com` when you check for updates, and, only when you turn sync on, your own private iCloud database.

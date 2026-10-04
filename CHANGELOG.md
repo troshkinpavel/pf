@@ -2,6 +2,27 @@
 
 All notable changes to PF Terminal are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.8.0] - Agent Access
+
+Your portfolio. Your data. Your agent. An optional way to connect an AI agent you choose to your local portfolio and manage it through MCP, with every ledger change confirmed in PF.
+
+### Added
+- **Agent access (MCP)**, off by default: an MCP client you choose (Claude Desktop, Cursor, local agents) connects to PF on this Mac by launching PF's own executable with `--mcp`. No network port, no server, no account. See [docs/AGENTS.md](docs/AGENTS.md).
+- **Settings → agents + mcp**: access on / off, read only (default) or read + write, confirm writes, exposure toggles (exact values, notes and transaction history off by default; watchlist, alerts, scenarios), connection status, copy configuration, reveal executable, test connection, regenerate credential, activity log.
+- **Tools**: portfolio context, summary, positions, asset, transactions, What Changed, analytics, benchmark, watchlist, alerts, scenarios, health; with read + write, transactions (add / update / delete), watch → position, watchlist, alert and scenario changes. Resources (`pf://…`) and review prompts.
+- **In-app confirmation**: ledger changes and deletions always wait for **AGENT REQUEST** in PF (`⌘↵` confirm, `esc` deny), run exactly once as shown, expire after 2 minutes, and re-check the data before running. A recovery snapshot is taken before an agent's edit or deletion of a transaction.
+- **Dry runs**: agents can preview a transaction (validation, weight and value after) or an alert (30-day backtest) without saving anything.
+- **Any coin**: agents can ask about and record coins you don't hold yet, including ones outside the bundled registry (found online, priced for the request), as the transaction sheet does. Ambiguous tickers come back with the candidates, never a guess.
+- **Connect a client**: Settings shows the steps for Claude Desktop, Claude Code and Cursor, with *copy json* and a ready-to-run Claude Code command.
+- **Kill switch**: `⌘K` → *Disable MCP access* closes every connection at once. Status bar shows `⌁` only while a request waits, a client is connected or an agent just wrote.
+
+### Changed
+- **README** split into a short front page and [docs/GUIDE.md](docs/GUIDE.md), [docs/ICLOUD-SYNC.md](docs/ICLOUD-SYNC.md), [docs/HOW-IT-WORKS.md](docs/HOW-IT-WORKS.md), [docs/AGENTS.md](docs/AGENTS.md) and [docs/ROADMAP.md](docs/ROADMAP.md).
+- Settings has a tenth section (agents + mcp, `⌘9`); shortcuts moved to `⌘0`.
+
+### Data
+- New, local only: `agent-audit.json` (bounded activity log, no notes or amounts), the agent credential in the Keychain, agent settings in preferences. The ledger, `intel.json`, `alerts.json`, iCloud sync and widgets are unchanged.
+
 ## [0.7.0] - Portfolio Intelligence
 
 Know what changed. Know what matters: what moved your portfolio and why, a watchlist, local alert rules, scenarios, a benchmark, and share cards with effects and animation.

@@ -19,8 +19,8 @@ These are PF Terminal's long-term identity. They are defined once, in `Config/Si
 | GitHub | [`troshkinpavel/pf`](https://github.com/troshkinpavel/pf) (the GitHub account is spelled with an "h"; the app identifiers above are not) |
 
 - The repository is `pf`; the product is **PF Terminal**. Xcode targets and the Swift module keep the name `PFTerminal`.
-- **iOS targets** use the same CloudKit container, so iPhone and Mac share one private database through `PFCore`. An App Group is a per-target entitlement: `group.io.github.troskinpavel.pf` must be assigned to the iOS App IDs too, so the iOS app and its widgets can share snapshots (see [iPhone › Signing](#signing)). Mac and iPhone never share an App Group container; they share data only through CloudKit.
-- Team: `2F2PZP9T66` (set in `Config/Signing.local.xcconfig`, never committed).
+- **iOS targets** use the same CloudKit container, so iPhone and Mac share one private database through `PFCore`. An App Group is a per-target entitlement: `group.io.github.troskinpavel.pf` must be assigned to the iOS App IDs too, so the iOS app and its widgets can share snapshots (see [Signing and App Groups](#signing-and-app-groups)). Mac and iPhone never share an App Group container; they share data only through CloudKit.
+- Team: your Apple Developer team (set in `Config/Signing.local.xcconfig`, never committed).
 - **Legacy identity.** Up to v0.3.0, PF Terminal used `io.github.pfterminal.PFTerminal`, the widgets used `….PFWidgets`, and the App Group was `<TEAM>.io.github.pfterminal`. The CloudKit container `iCloud.io.github.pfterminal` was provisional and never registered. These identifiers survive only as `LegacyIdentifiers`, for the data migration below. Don't reuse them.
 
 ### Migration from the legacy identity
@@ -155,6 +155,9 @@ These are launch arguments. They are in the scheme but disabled by default.
 | `--demo` | Loads the demo ledger, which is marked **DEMO**. |
 | `--ui-testing` | Throwaway storage and separate preferences. Your real portfolio is never touched, and no widget snapshots are published. |
 | `--snapshots` | DEBUG only. Walks every screen, renders the window, the share-card variants and the widget layouts, then quits. Add `--snapshots-stdout` to stream the PNGs to stdout (a team-signed app's container is protected), and `--snapshots-chrome` to include the title bar. `--stablecoin-shots` renders the peg screens. |
+| `--mcp` | Not a debug flag: the MCP stdio relay that agent clients launch (see Agent Access). Reads `PF_MCP_TOKEN`, optional `PF_MCP_DEBUG=1`. |
+| `--agent-demo` | DEBUG only, with `--ui-testing`. Agent Access on, read + write, with the fixed credential `pfm_demo_credential` (never the Keychain), for trying a client against the demo ledger. |
+| `--agent-shots` | DEBUG only, with `--snapshots`. Renders the agents settings section, confirmation sheets, activity log and status indicator. |
 | `--sync-e2e` | DEBUG only, with `--ui-testing`. Two independent clients against CloudKit **Development** in a throwaway `PFE2E-*` zone (deleted at the end): enable plans, propagation, offline queue, restarts, conflicts and restore, merge / use iCloud, plus the 0.6 soak (repeated launch/foreground/reconnect, offline edits on both sides, same-record conflict, delete vs stale copy, reset ledger, interrupted pass, disable mid-pass, idempotence). Prints PASS/FAIL. |
 | `--cloudkit-selftest` · `--list-pfzone` | DEBUG only. Round trip in a throwaway `PFSelfTest-*` zone · list `PFZone` record metadata. |
 | `--render-conflicts` · `--widget-check` | DEBUG only. Render the conflict sheet · write and check a widget snapshot. |
@@ -227,8 +230,11 @@ swift test -c release --filter LargePortfolioBenchmark   # 10,000-transaction ti
 
 ```
 PFTerminal/
-  App/          PFTerminalApp (scenes, commands, key routing), AppStore (+Commands, +Transactions,
-                +Portfolios, +Sources, +Market, +Widgets, +Sync, +Lifecycle, +Integrity)
+  App/          PFTerminalApp (entry: app or `--mcp` relay; scenes, commands, key routing), AppStore (+Commands,
+                +Transactions, +Portfolios, +Sources, +Market, +Widgets, +Sync, +Lifecycle, +Integrity, +Agent)
+  Agent/        0.8 Agent Access: JSONValue, AgentTransport (socket server + MCPRelay), MCP (JSON-RPC
+                dispatch, confirmations), AgentPolicy (settings, tiers, exposure, audit), AgentTools
+                (catalogue, schemas, args), AgentReads, AgentWrites, AgentResources (+ prompts)
   Persistence/  LegacyMigration
   System/       DEBUG snapshots, CloudKit self-test, sync E2E + soak, WidgetCheck
   UI/           Components, Screens, Share, MenuBar
@@ -254,6 +260,16 @@ PFTerminalTests/, PFTerminalUITests/
 scripts/        make-icon.swift, make-sample-portfolio.py, frame-screenshot.swift, make-dmg.sh,
                 cross-version/XV050.swift (0.5.0 half of the upgrade/downgrade check)
 ```
+
+## Agent Access (MCP, 0.8)
+
+Design, threat model and decisions: [PLAN-0.8.md](PLAN-0.8.md). User guide: [AGENTS.md](AGENTS.md).
+
+- **Transport.** `PF Terminal --mcp` (`MCPRelay`) copies stdio ↔ a Unix socket at `<container>/Data/tmp/pf-mcp.sock` (`AgentTransport.socketURL`). The relay runs in PF's sandbox (same binary, same entitlements) and never touches PF data. The app (`AgentServer`) owns the socket only while access is on, checks the peer's audit token against its own designated requirement (`LOCAL_PEERTOKEN` + `SecCodeCheckValidity`), then the handshake credential (Keychain account `agent-mcp-credential`). Lines are capped at 1 MB.
+- **Dispatch.** `AppStore.agentHandle` (JSON-RPC: initialize, ping, tools/*, resources/*, prompts/*) → `agentCallTool`: mode → exposure → lock → handler → confirmation → audit. Handlers read the app's in-memory state and cached calculations; nothing decodes the ledger per request.
+- **Writes.** Each write handler validates with the app's own code (`TransactionPlanner.preview`, `PortfolioEngine.validate`, `AlertCommand`, `Watchlist`, `Scenarios`) and returns a frozen `AgentOperation`. Ledger writes go through `commitTransaction` / `removeTransactionCommitted`, the same path as the transaction sheet, so persistence, rolling snapshots, cache invalidation and iCloud sync behave exactly as for a user edit.
+- **Agent settings** are app-only (`pf.agent.v1`), not `AppSettings`: pf-ios is unaffected. PFCore gained one additive case, `SnapshotStore.Reason.beforeAgent`.
+- **Manual check.** Build Debug, launch with `--ui-testing --mock-market --demo --agent-demo`, then pipe JSON-RPC lines into `PF_MCP_TOKEN=pfm_demo_credential "…/PF Terminal" --mcp`.
 
 ## Market data
 
@@ -434,6 +450,7 @@ The app is sandboxed:
   sync-state.json            iCloud sync bookkeeping (device-local; only when sync was used)
   backups/pf-*.json          recovery snapshots (0.6): versioned envelope, verified on write, bounded
   diagnostics.json           last 200 operational events (0.6): category, level, fixed code, error kind
+  agent-audit.json           agent activity (0.8): newest 500 calls, no notes / amounts / credential
   legacy-migration.json      what was copied from the legacy container (see Identifiers)
   market.store               SwiftData cache: quotes, price history, per-portfolio snapshots
 ~/Library/Group Containers/group.io.github.troskinpavel.pf/

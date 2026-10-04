@@ -1,0 +1,25 @@
+# iCloud sync
+
+Back to the [README](../README.md).
+
+iCloud sync keeps your portfolios in step across your own devices. It is **off by default**. Nothing is uploaded until you turn it on in **Settings → DATA & SYNC** and confirm.
+
+- **Your iCloud, not ours.** Data goes to the **private** CloudKit database of the Apple Account signed in on your Mac. PF has no server and no account, and it cannot see your data. Transaction data is stored in CloudKit's encrypted fields.
+- **What syncs.** Portfolios, transactions and asset identities. Records are matched by stable IDs, so renaming a portfolio or importing the same backup twice never creates duplicates.
+- **What never syncs.** Market prices and caches, charts and P&L (every device recalculates them), widget data, settings, and API keys or anything else in the Keychain.
+- **Turning it on.** PF first compares this Mac with iCloud, then asks what to do:
+  - iCloud is empty → **upload**.
+  - This Mac is empty → **use iCloud**.
+  - Both have data → **merge** or **use iCloud**. Before replacing anything, PF saves a backup of this Mac's ledger (a verified recovery snapshot).
+- **Offline.** Changes are saved locally first and queued. They upload when iCloud is reachable again, even after a restart.
+- **Conflicts.** Sometimes the same transaction changes on two devices before they sync. PF keeps the newer edit, and an edit always wins over a delete. The other version stays in **Settings → DATA & SYNC → conflicts**, where you can restore it.
+- **Protection against stale data**:
+  - A copy that was never synced (for example, a restored backup or an old Mac) never overrides what is in iCloud, and never brings back something deleted.
+  - An older version arriving from another device never replaces a newer one.
+  - If this Mac's ledger is reset or unreadable while sync is on, PF fetches your portfolios back from iCloud instead of deleting them there.
+- **Turning it off.** Your portfolios stay on your Mac, and the iCloud copy is not deleted. If you turn sync on again later, PF compares both sides again first.
+- **Availability.** iCloud sync ships in v0.4.0 and is off by default. It needs macOS 14 or later and an Apple Account signed in to iCloud. If you build from source, sync needs a build signed with the iCloud capability (see [docs/DEVELOPMENT.md](DEVELOPMENT.md#icloud-sync-optional)). The iPhone companion app (in development) uses the same sync and the same private database.
+- **Validation.**
+  - The sync engine has automated tests against a simulated CloudKit store.
+  - The full flow was also checked between two independent PF stores, in both CloudKit's development and production environments. It covered upload and download, edits, renames, archiving, deletes, the offline queue across a restart, conflicts and restore, and turning sync off and on again.
+  - The notarized v0.4.0 release app was checked against production CloudKit.
