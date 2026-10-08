@@ -9,6 +9,8 @@ Security fixes go into the latest release.
 | 0.8.x | yes |
 | 0.7.x and older | no · please update |
 
+PF Terminal for iPhone: the latest version on the App Store.
+
 ## Reporting a vulnerability
 
 Please do **not** open a public issue for security problems.
@@ -16,7 +18,7 @@ Please do **not** open a public issue for security problems.
 Report them privately through GitHub: open the repository's **Security** tab and choose **Report a vulnerability**. If that option is unavailable, open an issue that only asks for a private contact. Leave out any details.
 
 Please include:
-- the PF Terminal version and your macOS version;
+- the PF Terminal version, and whether it's the macOS or iPhone app, with your macOS or iOS version;
 - the steps to reproduce;
 - the impact you expect.
 
@@ -25,13 +27,13 @@ Never include real balances, wallet addresses, API keys or portfolio exports.
 ## Scope
 
 Examples of what counts as a security problem:
-- portfolio data leaving the Mac other than through iCloud sync you turned on;
+- portfolio data leaving your Mac or iPhone other than through iCloud sync you turned on;
 - market-data requests that carry quantities or values;
 - secrets stored outside the Keychain;
-- privacy-mode bypasses in share cards or widgets;
-- portfolio data visible while the app lock is on, for example in the menu bar;
+- privacy-mode bypasses in share cards or widgets (including iPhone Home Screen and Lock Screen widgets);
+- portfolio data visible while the app lock is on, for example in the menu bar or, on iPhone, the app switcher;
 - portfolio data in the diagnostic report (Settings → DIAGNOSTICS);
 - sandbox or entitlement problems;
 - agent access (MCP): a connection without the credential or from another program, data returned that the exposure settings hide, a ledger change or deletion without the in-app confirmation, access while PF or the Mac is locked, or anything listening on a network port.
 
-PF Terminal has no server and no account system. Agent access (0.8) is off by default and uses a Unix socket inside PF's sandbox container, never a network port. It uses public market-data APIs (Binance, Bybit, CoinGecko, DexScreener), `api.github.com` when you check for updates, and, only when you turn sync on, your own private iCloud database.
+PF Terminal has no server, no account system and holds no funds. On both platforms, app lock uses the system's Face ID / Touch ID authentication. Agent access (macOS, 0.8) is off by default and uses a Unix socket inside PF's sandbox container, never a network port. It uses public market-data APIs (Binance, Bybit, CoinGecko, DexScreener), `api.github.com` when you check for updates on the Mac, and, only when you turn sync on, your own private iCloud database.

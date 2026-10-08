@@ -176,7 +176,7 @@ extension AppStore {
             ro("syncs", "portfolios · transactions", .muted),
             ro("on this Mac only", "watchlist · alerts · scenarios", .muted),
             ro("never syncs", "prices · keys · settings", .muted),
-            ro("iPhone", "in development", .muted),
+            ro("iPhone", "App Store · same iCloud sync", .muted),
         ]
         let d = doc
         var files: [SettingRow] = [

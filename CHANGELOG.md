@@ -2,6 +2,15 @@
 
 All notable changes to PF Terminal are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Notes
+- **PF Terminal for iPhone is now available on the [App Store](https://apps.apple.com/us/app/pf-terminal/id6817097908).** It has its own version line (1.0.0), uses the same optional iCloud sync and the same shared core (PFCore), and isn't open source. This is not a macOS release.
+
+### Changed
+- Settings → DATA + SYNC lists the iPhone app as available on the App Store (it said "in development").
+- README, roadmap, privacy policy, security policy and iCloud sync docs describe both apps.
+
 ## [0.8.2]
 
 ### Fixed
