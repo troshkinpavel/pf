@@ -5,8 +5,8 @@
 <h1 align="center">PF Terminal</h1>
 
 <p align="center">
-  <b>A local-first crypto portfolio terminal for macOS and iPhone.</b><br>
-  Native. Private. Keyboard-driven on the Mac.
+  <b>Native, local-first crypto portfolio tracking for macOS and iPhone.</b><br>
+  Private by design: no account, no tracking, no custody.
 </p>
 
 <p align="center">
@@ -18,17 +18,18 @@
 </p>
 
 <p align="center">
-  No account. No tracking. No custody.<br>
-  Your portfolio stays on your devices, or in your own iCloud if you choose.
+  Your portfolio stays on your devices, or in your own private iCloud if you choose.<br>
+  Free on iPhone. Open source on macOS.
 </p>
 
 <p align="center">
-  <b>Available on macOS and iPhone.</b>
+  <a href="https://apps.apple.com/us/app/pf-terminal/id6817097908"><img src=".github/assets/app-store-badge.svg" height="44" alt="Download on the App Store"></a>
+  &nbsp;&nbsp;
+  <a href="../../releases/latest"><b>Download for macOS</b></a> · signed &amp; notarized DMG
 </p>
 
 <p align="center">
-  <a href="../../releases/latest"><b>Download for Mac</b></a> &nbsp;·&nbsp;
-  <a href="https://apps.apple.com/us/app/pf-terminal/id6817097908"><b>Download on the App Store</b></a> &nbsp;·&nbsp;
+  <a href="#available-on">Platforms</a> &nbsp;·&nbsp;
   <a href="docs/GUIDE.md">User guide</a> &nbsp;·&nbsp;
   <a href="docs/AGENTS.md">AI agents (optional)</a> &nbsp;·&nbsp;
   <a href="docs/ROADMAP.md">Roadmap</a> &nbsp;·&nbsp;
@@ -39,11 +40,11 @@
   <img src=".github/assets/hero.png" width="1100" alt="PF Terminal: portfolio overview with net value, total P&L and return, today's movers, stepped performance chart and positions table">
 </p>
 
-PF Terminal is a native, local-first crypto portfolio tracker for Apple devices. It tracks crypto portfolios from a ledger of transactions and shows positions, cost basis, realized and unrealized P&L, performance and what moved your portfolio and why. On the Mac you can drive it entirely from the keyboard; on iPhone it adds Home Screen and Lock Screen widgets. PF Terminal does not execute trades and does not hold funds.
+PF Terminal is a native, local-first crypto portfolio tracker for macOS and iPhone. It tracks crypto portfolios from a ledger of transactions and shows positions, cost basis, realized and unrealized P&L, performance and what moved your portfolio and why. On the Mac you can drive it entirely from the keyboard; on iPhone it adds Home Screen and Lock Screen widgets. PF Terminal does not execute trades and does not hold funds.
 
-The macOS app and its shared portfolio core (PFCore) are open source in this repository. The iPhone app is available on the [App Store](https://apps.apple.com/us/app/pf-terminal/id6817097908); its source is not published here.
+PF Terminal for macOS and its shared portfolio core (PFCore) are open source in this repository. PF Terminal for iPhone is free on the App Store; its source is not published here.
 
-> **Current releases: macOS v0.8.2 · iPhone 1.0.0 on the [App Store](https://apps.apple.com/us/app/pf-terminal/id6817097908).** Since v0.8.0, "Agent Access": an optional way to connect an AI agent you choose to your local portfolio and manage it through MCP: off by default, read-only to start, every ledger change confirmed in PF, no server. See [What's new](CHANGELOG.md).
+> **Current releases: macOS v0.8.2 · iPhone 1.0.0.** Since v0.8.0, "Agent Access": an optional way to connect an AI agent you choose to your local portfolio and manage it through MCP: off by default, read-only to start, every ledger change confirmed in PF, no server. See [What's new](CHANGELOG.md).
 
 ## Why PF?
 
@@ -65,17 +66,28 @@ Most portfolio trackers are cloud accounts. PF Terminal is a local instrument in
 | **[Market data](docs/HOW-IT-WORKS.md#market-data)** | Live Binance and Bybit feeds, CoinGecko fallback, DexScreener by verified contract. A bundled registry of the top 1,000 assets. Source status on every price. Stablecoin peg monitoring. USD, EUR, CHF. |
 | **[Keyboard-first](docs/GUIDE.md#keyboard-first)** | `⌘K` palette with structured commands (`buy eth 0.5 @ 3500`), `g` + key navigation, themes and density. |
 | **[macOS](docs/GUIDE.md#menu-bar)** | Menu bar companion, [desktop widgets](docs/GUIDE.md#desktop-widgets), [share cards](docs/GUIDE.md#share-cards) (PNG, MP4, GIF), notifications, Touch ID app lock. |
-| **[iPhone](https://apps.apple.com/us/app/pf-terminal/id6817097908)** | Overview, movers, analytics, transactions and a command line, Home Screen and Lock Screen widgets with privacy modes, Face ID lock. Syncs with the Mac through the same optional iCloud sync. |
+| **[iPhone](#available-on)** | Overview, movers, analytics, transactions and a command line, Home Screen and Lock Screen widgets with privacy modes, Face ID lock. Syncs with the Mac through the same optional iCloud sync. |
 | **[iCloud sync](docs/ICLOUD-SYNC.md)** | Optional, off by default, through your private CloudKit database. Offline queue, conflict review, safe merge. |
 | **[Recovery](docs/HOW-IT-WORKS.md#local-first-and-privacy)** | Local recovery snapshots with restore, Data Health, a diagnostic report without portfolio data. |
 | **[AI agents (optional)](docs/AGENTS.md)** | Connect an MCP client you choose to your local portfolio: ask about it, and, if you allow it, record transactions and manage watchlist, alerts and scenarios, each change confirmed in PF. |
 
-## Install
+## Available on
 
-| | |
-|---|---|
-| **macOS** | [GitHub Releases](../../releases/latest): a signed and notarized DMG. Open source. |
-| **iPhone** | [Download on the App Store](https://apps.apple.com/us/app/pf-terminal/id6817097908). Requires iOS 17 or later. |
+**macOS** · v0.8.2 · native app · open source · [signed &amp; notarized DMG on GitHub Releases](../../releases/latest) · macOS 14 or later
+- Keyboard-first terminal: `⌘K` command palette, `g` + key navigation.
+- Portfolio Intelligence: What Changed, watchlist, local alert rules, scenarios, benchmark vs BTC / ETH.
+- Menu bar companion, desktop widgets, share cards (PNG, MP4, GIF), notifications, Touch ID app lock.
+- Optional Agent Access (MCP) for an AI agent you choose.
+- Recovery snapshots, Data Health, optional private iCloud sync.
+
+**iPhone** · v1.0.0 · native app · free · [App Store](https://apps.apple.com/us/app/pf-terminal/id6817097908) · iOS 17 or later
+- Multiple portfolios and ALL, overview, movers, analytics, asset detail, target simulator.
+- Transactions by form or command line, share cards.
+- Home Screen and Lock Screen widgets, performance-only by default.
+- Face ID lock and app-switcher privacy.
+- Optional private iCloud sync with your Mac. Local-first: the ledger stays on the iPhone, and the last prices are shown offline.
+
+## Install
 
 ### macOS
 
@@ -130,15 +142,6 @@ Details: [How PF works](docs/HOW-IT-WORKS.md) · [Privacy policy](PRIVACY.md) ·
 | [How PF works](docs/HOW-IT-WORKS.md) | Privacy model, market data, accounting, architecture, tests |
 | [Development](docs/DEVELOPMENT.md) | Build, signing, data formats, providers, releases |
 | [Roadmap](docs/ROADMAP.md) · [Changelog](CHANGELOG.md) | Where PF is going, and what changed |
-
-## Platforms
-
-| Platform | Version | Status |
-|---|---:|---|
-| macOS | 0.8.2 | Available · [GitHub Releases](../../releases/latest) · Open source |
-| iPhone | 1.0.0 | Available · [App Store](https://apps.apple.com/us/app/pf-terminal/id6817097908) |
-
-The macOS app and the shared core are open source. The iPhone app is distributed through the App Store; its source isn't part of this repository.
 
 ## Build from source
 

@@ -10,6 +10,10 @@ PF Terminal does not collect, sell, track, or use personal data for advertising 
 
 There is no PF Terminal account system and no PF Terminal backend server.
 
+PF Terminal for iPhone's App Store privacy label is "Data Not Collected".
+
+PF Terminal does not hold, move or trade funds and has no access to wallets or exchange accounts. It records the transactions you enter.
+
 ## Portfolio data
 
 Portfolio data, transactions, settings, and related information are stored locally on your device, on your Mac and on your iPhone.
