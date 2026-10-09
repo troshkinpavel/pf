@@ -6,6 +6,12 @@ import Foundation
     var intelSyncState: SyncState { get set }
     /// False while intel.json can't be read or written (locked, newer schema): a pass stops first.
     var intelSyncCanPersist: Bool { get }
+    /// Records the store refused this pass, by error code only (diagnostics). They stay queued.
+    func syncRecordsFailed(_ kinds: [String])
+}
+
+extension IntelSyncHost {
+    public func syncRecordsFailed(_ kinds: [String]) {}
 }
 
 /// 0.8.3: the watchlist, alert rules and scenarios in iCloud. Same record format and rules as the
@@ -217,6 +223,7 @@ public enum IntelSyncEngine {
                 st.known[k]?.version = version
                 if st.known[k]?.hash == sentHash[k] { st.known[k]?.pending = false }
             case let .conflict(_, server): conflicts.append(server)
+            case let .missing(k): SyncEngine.resendUntagged(k, &st)
             case .failed: break
             }
         }
@@ -279,13 +286,15 @@ public enum IntelSyncEngine {
             if sent.isEmpty { break }
             let outcomes = try await remote.save(sent)
             try active()
+            let failed = SyncEngine.failureKinds(outcomes)
+            if !failed.isEmpty { host.syncRecordsFailed(failed) }
             doc = host.intelSyncDocument; st = host.intelSyncState
             detectLocalChanges(doc, &st, now: now())
             applySaveOutcomes(sent: sent, outcomes, &doc, &st, now: now())
             normalize(&doc)
             detectLocalChanges(doc, &st, now: now())
             try commit(host, doc, st)
-            if !outcomes.contains(where: { if case .conflict = $0 { true } else { false } }) { break }
+            if !SyncEngine.needsAnotherRound(outcomes) { break }
         }
         host.intelSyncState.lastSync = now()
     }

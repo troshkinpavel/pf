@@ -28,8 +28,9 @@ public final class DiagnosticLog {
         if let url, let d = try? Data(contentsOf: url), let e = try? JSONDecoder().decode([Event].self, from: d) { events = Array(e.suffix(Self.capacity)) }
     }
 
-    public func record(_ category: Category, _ level: Level, _ code: StaticString, error: Error? = nil, source: MarketSource? = nil, now: Date = Date()) {
-        var kind = error.map(Self.kind)
+    /// `kind`: an error code the caller built from fixed parts (e.g. "ck11"), never runtime text.
+    public func record(_ category: Category, _ level: Level, _ code: StaticString, error: Error? = nil, kind detail: String? = nil, source: MarketSource? = nil, now: Date = Date()) {
+        var kind = error.map(Self.kind) ?? detail
         if let source { kind = source.rawValue + (kind.map { " " + $0 } ?? "") }
         let e = Event(at: now, category: category, level: level, code: "\(code)", kind: kind)
         events.append(e)

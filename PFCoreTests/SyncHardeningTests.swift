@@ -219,6 +219,58 @@ struct SyncHardeningTests {
         #expect(a.doc == b.doc || (Set(a.doc.transactions) == Set(b.doc.transactions)))
         #expect(a.syncState.conflicts.isEmpty && b.syncState.conflicts.isEmpty)
     }
+
+    // 0.8.4: a sync state that holds change tags for records this zone never had (seen on a Mac
+    // whose deletes stayed "queued" forever: CloudKit answered unknownItem every pass).
+
+    @Test func deleteOfRecordMissingFromZoneClears() async throws {
+        let (r, a, b) = try await pair(3)
+        let key = SyncRecord.key(.transaction, a.doc.transactions[0].id.uuidString)
+        await r.vanish(key)
+        a.doc.transactions.removeFirst(); a.tick()
+        try await a.sync(r)
+        #expect(a.syncState.pendingCount == 0, "the delete is done, not queued forever")
+        #expect(await r.records[key]?.isTombstone == true, "sent again as a new tombstone")
+        try await b.sync(r)
+        #expect(b.doc.transactions.count == 2)
+        let saves = await r.saveCalls
+        try await a.sync(r)
+        #expect(await r.saveCalls == saves)
+    }
+
+    @Test func editOfRecordMissingFromZoneStaysQueued() async throws {
+        let (r, a, _) = try await pair()
+        let key = SyncRecord.key(.transaction, a.doc.transactions[0].id.uuidString)
+        await r.vanish(key)
+        a.doc.transactions[0].quantity = 42; a.tick()
+        try await a.sync(r)
+        #expect(a.syncState.known[key]?.pending == true)
+        #expect(await r.records[key] == nil, "not re-created: it may have been deleted")
+    }
+
+    @Test func assetMissingFromZoneIsSentWithNextTransaction() async throws {
+        let (r, a, _) = try await pair()
+        let key = SyncRecord.key(.asset, btc.id)
+        await r.vanish(key)
+        a.doc.transactions.append(buy(a.doc.portfolios[0].id, 7)); a.tick()
+        try await a.sync(r)
+        #expect(await r.records[key] != nil && a.syncState.pendingCount == 0)
+        let c = Device("C")
+        try await c.enable(r, .useCloud)
+        #expect(c.doc.validationErrors().isEmpty, "a fresh device gets the asset with the transactions")
+    }
+
+    @Test func prunedAssetComesBackWithAnotherDevicesTransaction() async throws {
+        let (r, a, b) = try await pair(1)
+        try a.doc.removeTransaction(a.doc.transactions[0])   // prunes BTC on A
+        a.tick(); try await a.sync(r)
+        try await b.sync(r)                                  // B keeps the BTC identity
+        b.doc.upsert(buy(b.doc.portfolios[0].id, 5), asset: btc); b.tick()
+        try await b.sync(r)
+        try await a.sync(r)
+        #expect(a.doc.transactions.count == 1)
+        #expect(a.doc.validationErrors().isEmpty, "the transaction arrives with its asset")
+    }
 }
 
 /// Same account, but every fetch comes back empty (partial/empty server answer).

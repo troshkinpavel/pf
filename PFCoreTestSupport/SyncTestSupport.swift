@@ -28,6 +28,8 @@ public actor MockRemote: SyncRemoteStore {
     public func setUser(_ id: String) { userID = id }
     public func setAccount(_ a: SyncAccountStatus) { account = a }
     public func inject(_ r: SyncRecord) { var r = r; r.remoteVersion = "x\(log.count)"; records[r.key] = r; log.append(r.key) }
+    /// The record is no longer in the zone (a sync state built against another zone or environment).
+    public func vanish(_ key: String) { records[key] = nil }
 
     public func accountStatus() async -> SyncAccountStatus { account }
     public func accountID() async throws -> String? { if offline { throw SyncStoreError.offline }; return userID }
@@ -47,6 +49,8 @@ public actor MockRemote: SyncRemoteStore {
         if offline { throw SyncStoreError.offline }
         saveCalls += 1
         let out: [SyncSaveOutcome] = rs.map { r in
+            // CloudKit: system fields for a record the zone doesn't have → unknownItem.
+            if records[r.key] == nil, r.remoteVersion != nil { return .missing(key: r.key) }
             if let cur = records[r.key], cur.remoteVersion != r.remoteVersion { return .conflict(key: r.key, server: cur) }
             var s = r
             s.remoteVersion = "v\(log.count + 1)"

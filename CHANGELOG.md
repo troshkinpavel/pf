@@ -2,6 +2,15 @@
 
 All notable changes to PF Terminal are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## [Unreleased] - 0.8.4
+
+### Fixed
+- **iCloud sync: deletes no longer stay "queued" forever.** If iCloud had no copy of a record this Mac deleted (its sync bookkeeping pointed at a version that isn't in your iCloud data), every pass failed again and Settings kept showing it as queued. The delete is now sent again as a new delete. An edit in the same situation stays queued; PF never re-creates a record that may have been deleted.
+- **A transaction could arrive on another device without its coin.** A Mac that removed a coin's last transaction dropped the coin, and a later transaction for that coin from another device came without it ("1 problem" in data health). Each transaction now syncs with its coin.
+
+### Data
+- Diagnostics log the error code of a record iCloud refused (`record-save-failed`), never which record. No CloudKit schema change.
+
 ## [0.8.3] - Sync compatibility
 
 A compatibility and sync-hardening release, so PF for Mac and PF Terminal for iPhone 1.1 share your watchlist, alerts and scenarios. Nothing else changes on the Mac.

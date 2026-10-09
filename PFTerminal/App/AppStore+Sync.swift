@@ -34,6 +34,11 @@ extension AppStore: SyncHost {
             recompute()
         }
     }
+
+    /// Ledger and intel passes: one warning per error code, never which record.
+    func syncRecordsFailed(_ kinds: [String]) {
+        for k in Set(kinds).sorted() { diagnostics.record(.sync, .warning, "record-save-failed", kind: k) }
+    }
 }
 
 extension AppStore {

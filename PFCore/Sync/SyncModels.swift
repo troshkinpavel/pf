@@ -67,7 +67,10 @@ public struct SyncFetchResult: Sendable {
 public enum SyncSaveOutcome: Sendable {
     case saved(key: String, tag: Data?, version: String?)
     case conflict(key: String, server: SyncRecord)   // server has a newer version than our tag
-    case failed(key: String)
+    /// 0.8.4: the server has no record for the tag sent (CloudKit `unknownItem`): it was never in this zone.
+    case missing(key: String)
+    /// `kind`: the store's error code for diagnostics (e.g. "ck14"), never a message or an id.
+    case failed(key: String, kind: String? = nil)
 }
 
 /// The remote side. CloudKit in the app; a deterministic in-memory store in tests.

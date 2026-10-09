@@ -11,10 +11,13 @@ import Foundation
     /// Mac is locked, a failed save waiting to be retried). A pass then stops before anything,
     /// including the change token, moves past what is safely on disk.
     var syncCanPersist: Bool { get }
+    /// Records the store refused this pass, by error code only (diagnostics). They stay queued.
+    func syncRecordsFailed(_ kinds: [String])
 }
 
 extension SyncHost {
     public var syncCanPersist: Bool { true }
+    public func syncRecordsFailed(_ kinds: [String]) {}
 }
 
 /// A pass stopped because the host can't persist right now. Nothing was committed; the same
@@ -155,8 +158,14 @@ public enum SyncEngine {
 
     public static func pendingRecords(_ doc: PortfolioDocument, _ st: SyncState) -> [SyncRecord] {
         let local = localObjects(doc)
-        return st.known.filter { $0.value.pending && !st.blocked.contains($0.key) }.keys.sorted()
-            .compactMap { record($0, doc, st, local: local) }
+        var keys = Set(st.known.filter { $0.value.pending && !st.blocked.contains($0.key) }.keys)
+        // Each transaction sent takes its asset along: a device that pruned that asset, or a zone
+        // that never got it, would otherwise receive the transaction without it.
+        for t in doc.transactions where keys.contains(SyncRecord.key(.transaction, t.id.uuidString)) {
+            let a = SyncRecord.key(.asset, t.assetID)
+            if local[a] != nil, !st.blocked.contains(a) { keys.insert(a) }
+        }
+        return keys.sorted().compactMap { record($0, doc, st, local: local) }
     }
 
     /// Apply fetched records. Local pending changes are resolved per the rules above.
@@ -291,11 +300,32 @@ public enum SyncEngine {
                 if st.known[k]?.hash == sentHash[k] { st.known[k]?.pending = false }   // unless edited again meanwhile
             case let .conflict(_, server):
                 conflicts.append(server)
+            case let .missing(k):
+                resendUntagged(k, &st)
             case .failed:
                 break   // stays queued
             }
         }
         if !conflicts.isEmpty { applyRemote(conflicts, &doc, &st, now: now) }
+    }
+
+    /// The server has no record for the tag sent (e.g. a sync state built against another zone or
+    /// environment). A delete, or an asset identity (never deleted), is sent again as a new record:
+    /// that can't bring back deleted data. Anything else stays queued.
+    static func resendUntagged(_ k: String, _ st: inout SyncState) {
+        guard let e = st.known[k], e.deletedAt != nil || k.hasPrefix("asset.") else { return }
+        st.known[k]?.tag = nil
+        st.known[k]?.version = nil
+        st.known[k]?.pending = true
+    }
+
+    /// Repeat a save round only for conflicts or records re-sent without their stale tag.
+    static func needsAnotherRound(_ outcomes: [SyncSaveOutcome]) -> Bool {
+        outcomes.contains { switch $0 { case .conflict, .missing: true; default: false } }
+    }
+
+    static func failureKinds(_ outcomes: [SyncSaveOutcome]) -> [String] {
+        outcomes.compactMap { if case let .failed(_, kind) = $0 { kind ?? "unknown" } else { nil } }
     }
 
     // MARK: - cycle
@@ -345,13 +375,15 @@ public enum SyncEngine {
             if sent.isEmpty { break }
             let outcomes = try await remote.save(sent)
             try stillActive(host)
+            let failed = failureKinds(outcomes)
+            if !failed.isEmpty { host.syncRecordsFailed(failed) }
             doc = host.syncDocument; st = host.syncState
             detectLocalChanges(doc, &st, now: now())
             applySaveOutcomes(sent: sent, outcomes, &doc, &st, now: now())
             normalize(&doc, st, now: now())
             detectLocalChanges(doc, &st, now: now())
             try commit(host, doc, st)
-            if !outcomes.contains(where: { if case .conflict = $0 { true } else { false } }) { break }
+            if !needsAnotherRound(outcomes) { break }
         }
         host.syncState.lastSync = now()
     }

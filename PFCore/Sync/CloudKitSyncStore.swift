@@ -95,11 +95,13 @@ public final class CloudKitSyncStore: SyncRemoteStore, @unchecked Sendable {
                     out.append(.saved(key: key, tag: Self.systemFields(rec), version: rec.recordChangeTag))
                 case let .failure(e as CKError) where e.code == .serverRecordChanged:
                     if let server = e.serverRecord.flatMap(Self.record) { out.append(.conflict(key: key, server: server)) }
-                    else { out.append(.failed(key: key)) }
+                    else { out.append(.failed(key: key, kind: "ck\(e.code.rawValue)-noServerRecord")) }
+                case let .failure(e as CKError) where e.code == .unknownItem:
+                    out.append(.missing(key: key))
                 case let .failure(e):
                     let m = Self.map(e)
                     if m == .offline || m == .notAuthenticated || m == .quotaExceeded { throw m }
-                    out.append(.failed(key: key))
+                    out.append(.failed(key: key, kind: (e as? CKError).map { "ck\($0.code.rawValue)" } ?? "other"))
                 }
             }
         }
