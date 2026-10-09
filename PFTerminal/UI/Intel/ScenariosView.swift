@@ -14,7 +14,8 @@ struct ScenariosView: View {
     var body: some View {
         let list = store.orderedScenarios
         VStack(alignment: .leading, spacing: 18) {
-            ScreenHeader(title: "SCENARIOS", sub: "your targets, not forecasts · saved on this Mac") {
+            ScreenHeader(title: "SCENARIOS", sub: "your targets, not forecasts · " + (store.syncEnabled ? "synced via iCloud" : "saved on this Mac")) {
+                    IntelSyncBadge()
                 if !list.isEmpty {
                     BracketButton("+ new n", color: Theme.acc) { store.newScenario() }
                     BracketButton("duplicate ⌘D") { store.duplicateScenario() }

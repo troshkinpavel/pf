@@ -173,11 +173,23 @@ extension AppStore {
             icloud.append(act("sync now", "⟳") { self.syncNow(reason: .manual) })
         }
         icloud += [
-            ro("syncs", "portfolios · transactions", .muted),
-            ro("on this Mac only", "watchlist · alerts · scenarios", .muted),
+            ro("syncs", "portfolios · transactions · watchlist · alerts · scenarios", .muted),
+            ro("on this Mac only", "alert history", .muted),
             ro("never syncs", "prices · keys · settings", .muted),
             ro("iPhone", "App Store · same iCloud sync", .muted),
         ]
+        // Design §28: per-domain rows only while one needs attention.
+        let intelAttention = syncEnabled && (!intelSyncState.conflicts.isEmpty || { if case .error = intelSyncStatus { true } else { false } }())
+        var domains: [SettingRow] = []
+        if intelAttention {
+            domains.append(ro("portfolios + transactions", syncStatus == .synced ? "synced" : syncStatusLabel, syncStatus == .synced ? .ok : .info))
+            for (k, label) in [(SyncKind.watch, "watchlist"), (.alert, "alerts"), (.scenario, "scenarios")] {
+                let (v, kind) = intelDomainStatus(k)
+                if kind == .bad, intelSyncState.conflicts.contains(where: { $0.kind == k }) {
+                    domains.append(act(label, v) { self.syncSheet = .intelConflict })
+                } else { domains.append(ro(label, v, kind)) }
+            }
+        }
         let d = doc
         var files: [SettingRow] = [
             act("portfolios", "manage · \(d.livePortfolios.count) active") { self.go(.portfolios) },
@@ -192,6 +204,7 @@ extension AppStore {
                                   statusColor: syncEnabled && syncStatus == .synced ? Theme.pos : Theme.t3,
                                   sub: syncEnabled ? "this Mac + your iCloud private database" : "this Mac only", groups: [
             SettingGroup(h: "ICLOUD", rows: icloud),
+        ] + (domains.isEmpty ? [] : [SettingGroup(h: "DOMAINS", rows: domains)]) + [
             SettingGroup(h: "PORTFOLIOS + FILES", rows: files),
         ])
 

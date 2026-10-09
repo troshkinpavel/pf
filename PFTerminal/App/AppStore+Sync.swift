@@ -14,6 +14,8 @@ enum SyncSheet: Equatable {
     case unavailable(String)
     case disable
     case conflicts
+    /// 0.8.3: one held watchlist / alert / scenario conflict (keep this Mac / keep the other).
+    case intelConflict
 }
 
 enum SyncTrigger { case launch, edit, network, timer, active, account, manual }
@@ -127,6 +129,7 @@ extension AppStore {
                 self.diagnostics.record(.sync, .info, recovering ? "pass-recovered" : "pass-ok")
                 if recovering { self.message = "✓ portfolios restored from iCloud · \(self.doc.livePortfolios.count) portfolios · \(self.doc.transactions.count) transactions" }
                 self.syncStatus = self.syncState.conflicts.isEmpty ? .synced : .conflict(self.syncState.conflicts.count)
+                self.intelSyncNow()
             } catch is SyncDeferredError {
                 // The ledger write failed mid-pass (locked): nothing committed, token unchanged.
                 self.syncStatus = .error("waiting for unlock")
@@ -145,7 +148,7 @@ extension AppStore {
         // Sync was turned off (or the pass superseded) mid-pass: nothing was written, nothing failed.
         if error is CancellationError { syncStatus = syncEnabled ? .offline : .localOnly; return }
         let (status, turnsOff) = SyncStatus.after(error)
-        if turnsOff { SyncEngine.disable(self) }
+        if turnsOff { SyncEngine.disable(self); intelSyncDisable() }
         syncStatus = status
         switch error as? SyncStoreError {
         case .accountChanged?: message = "iCloud account changed · sync turned off · your portfolios stay on this Mac"
@@ -195,6 +198,7 @@ extension AppStore {
                 syncStatus = syncState.conflicts.isEmpty ? .synced : .conflict(syncState.conflicts.count)
                 syncSheet = syncState.conflicts.isEmpty ? nil : .conflicts
                 message = "✓ iCloud sync on · \(doc.portfolios.count) portfolios · \(doc.transactions.count) transactions"
+                intelSyncNow()
             } catch {
                 if syncEnabled {
                     syncState.environment = syncRemoteEnvironment
@@ -215,6 +219,7 @@ extension AppStore {
         syncTask?.cancel()
         syncTask = nil
         SyncEngine.disable(self)
+        intelSyncDisable()
         syncStatus = .localOnly
         syncSheet = nil
         message = "iCloud sync off · portfolios stay on this Mac · the iCloud copy is not deleted"
@@ -256,8 +261,8 @@ extension AppStore {
             return "\(t.type.short) \(Fmt.current.amount(t.quantity)) \(asset(t.assetID)?.symbol ?? "") · \(DateFmt.ymd(t.timestamp))"
         case .asset:
             return "asset \(id)"
-        case .watch, .alert, .scenario:   // intel kinds live in their own zone; never a ledger conflict
-            return "\(c.kind.rawValue) \(id.prefix(8))"
+        case .watch, .alert, .scenario:   // intel conflicts (IntelSyncEngine); never in the ledger zone
+            return intelConflictTitle(c)
         }
     }
 

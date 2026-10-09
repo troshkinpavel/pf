@@ -11,8 +11,17 @@ extension AppStore {
     var intelPrivate: IntelPrivate { IntelPrivate(watchlist: intel.watchlist, scenarios: intel.scenarios) }
 
     func loadIntel() {
+        // Which files exist before anything is written: a domain whose file is missing or gets set
+        // aside was replaced, not emptied by the user (see `intelVerifyLoad`).
+        let fm = FileManager.default
+        let hadRuntime = fm.fileExists(atPath: intelStore.runtimeURL.path), hadPrivate = fm.fileExists(atPath: intelStore.url.path)
         do {
             let loaded = try intelStore.load()
+            var unverified = Self.intelKinds(setAside: loaded?.setAside ?? [])
+            // A schema 1 intel.json holds the alerts too.
+            if !hadRuntime && !(hadPrivate && loaded?.needsSplit == true) { unverified.insert(.alert) }
+            if !hadPrivate { unverified.formUnion([.watch, .scenario]) }
+            intelLoadUnverified.formUnion(unverified)
             var d = loaded?.doc ?? IntelDocument()
             intelPrivateDeferred = loaded?.privateDeferred ?? false
             let before = d
@@ -30,6 +39,7 @@ extension AppStore {
             }
             if d != before || loaded?.needsSplit == true { saveIntel() }
             if intelPrivateDeferred { enterProtectedWait("intel-private-deferred") }
+            intelVerifyLoad()
         } catch let e as IntelStoreError {
             intelReadOnly = e.description
             intelRetry = e == .unavailable
@@ -54,6 +64,9 @@ extension AppStore {
     func resumeIntelPrivate() -> Bool {
         if intelPrivateDeferred {
             guard let l = try? intelStore.load(), !l.privateDeferred else { return false }
+            // intel.json turned out unreadable (set aside): its empty placeholder is not a delete-all.
+            intelLoadUnverified.formUnion(Self.intelKinds(setAside: l.setAside))
+            intelVerifyLoad()
             intel.watchlist = l.doc.watchlist
             intel.scenarios = l.doc.scenarios
             intelPrivateDeferred = false
@@ -88,8 +101,29 @@ extension AppStore {
         intel.scenarios.first { $0.id == scenarioID } ?? Scenarios.base(intel)
     }
 
+    /// Kinds whose file was set aside as unreadable ("alerts.unreadable-…", "intel.unreadable-…").
+    static func intelKinds(setAside: [String]) -> Set<SyncKind> {
+        var k = Set<SyncKind>()
+        if setAside.contains(where: { $0.hasPrefix("alerts.") }) { k.insert(.alert) }
+        if setAside.contains(where: { $0.hasPrefix("intel.") }) { k.formUnion([.watch, .scenario]) }
+        return k
+    }
+
+    /// Intel sync tells an intentional empty list (a delete-all: tombstones) from data that was
+    /// replaced (missing or unreadable file: rebase and fetch iCloud's records back). Runs once the
+    /// sync state is loaded; only kinds the state knows live records of are affected.
+    func intelVerifyLoad() {
+        guard !intelLoadUnverified.isEmpty, intelSyncState.mode == .iCloud else { return }
+        let kinds = intelLoadUnverified.intersection(IntelSyncEngine.knownLiveKinds(intelSyncState))
+        intelLoadUnverified = []
+        guard !kinds.isEmpty else { return }
+        IntelSyncEngine.rebase(&intelSyncState, kinds: kinds)
+        diagnostics.record(.sync, .warning, "intel-rebase")
+    }
+
     func saveIntel() {
         guard intelReadOnly == nil else { return }
+        defer { if !intelSyncApplying { scheduleIntelSync() } }
         do { try intelStore.saveRuntime(intel) }
         catch {
             message = "✗ could not save alerts · \(error.localizedDescription)"

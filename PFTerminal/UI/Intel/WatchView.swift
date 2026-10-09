@@ -12,7 +12,8 @@ struct WatchView: View {
         let rows = store.watchRows
         ScrollView(.vertical) {
             VStack(alignment: .leading, spacing: 18) {
-                ScreenHeader(title: "WATCHLIST", sub: "\(rows.count) asset\(rows.count == 1 ? "" : "s") · not held · shared across portfolios · on this Mac") {
+                ScreenHeader(title: "WATCHLIST", sub: "\(rows.count) asset\(rows.count == 1 ? "" : "s") · not held · shared across portfolios · " + (store.syncEnabled ? "iCloud" : "on this Mac")) {
+                    IntelSyncBadge()
                     BracketButton("+ watch asset n", color: Theme.acc) { store.openWatchAdd() }
                         .accessibilityIdentifier("watch-add")
                 }

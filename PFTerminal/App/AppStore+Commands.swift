@@ -217,6 +217,8 @@ extension AppStore {
             return true
         }
         if isEsc { back(); return true }
+        // An intel conflict: ⌘↵ keeps the newer side (design §28); nothing else changes data.
+        if syncSheet == .intelConflict, cmd, isReturn, let c = intelConflict { resolveIntelConflict(c, keepOther: intelConflictOtherIsNewer(c)); return true }
         if syncSheet != nil { return true }   // confirmations are mouse-only: nothing toggles sync by accident
 
         if let sw = switcher {

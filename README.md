@@ -44,7 +44,7 @@ PF Terminal is a native, local-first crypto portfolio tracker for macOS and iPho
 
 PF Terminal for macOS and its shared portfolio core (PFCore) are open source in this repository. PF Terminal for iPhone is free on the App Store; its source is not published here.
 
-> **Current releases: macOS v0.8.2 · iPhone 1.0.0.** Since v0.8.0, "Agent Access": an optional way to connect an AI agent you choose to your local portfolio and manage it through MCP: off by default, read-only to start, every ledger change confirmed in PF, no server. See [What's new](CHANGELOG.md).
+> **Current releases: macOS v0.8.3 · iPhone 1.0.0.** v0.8.3 adds iCloud sync for your watchlist, alerts and scenarios. Since v0.8.0, "Agent Access": an optional way to connect an AI agent you choose to your local portfolio and manage it through MCP: off by default, read-only to start, every ledger change confirmed in PF, no server. See [What's new](CHANGELOG.md).
 
 ## Why PF?
 
@@ -67,13 +67,13 @@ Most portfolio trackers are cloud accounts. PF Terminal is a local instrument in
 | **[Keyboard-first](docs/GUIDE.md#keyboard-first)** | `⌘K` palette with structured commands (`buy eth 0.5 @ 3500`), `g` + key navigation, themes and density. |
 | **[macOS](docs/GUIDE.md#menu-bar)** | Menu bar companion, [desktop widgets](docs/GUIDE.md#desktop-widgets), [share cards](docs/GUIDE.md#share-cards) (PNG, MP4, GIF), notifications, Touch ID app lock. |
 | **[iPhone](#available-on)** | Overview, movers, analytics, transactions and a command line, Home Screen and Lock Screen widgets with privacy modes, Face ID lock. Syncs with the Mac through the same optional iCloud sync. |
-| **[iCloud sync](docs/ICLOUD-SYNC.md)** | Optional, off by default, through your private CloudKit database. Offline queue, conflict review, safe merge. |
+| **[iCloud sync](docs/ICLOUD-SYNC.md)** | Optional, off by default, through your private CloudKit database: portfolios, transactions, watchlist, alerts and scenarios. Offline queue, conflict review, safe merge. |
 | **[Recovery](docs/HOW-IT-WORKS.md#local-first-and-privacy)** | Local recovery snapshots with restore, Data Health, a diagnostic report without portfolio data. |
 | **[AI agents (optional)](docs/AGENTS.md)** | Connect an MCP client you choose to your local portfolio: ask about it, and, if you allow it, record transactions and manage watchlist, alerts and scenarios, each change confirmed in PF. |
 
 ## Available on
 
-**macOS** · v0.8.2 · native app · open source · [signed &amp; notarized DMG on GitHub Releases](../../releases/latest) · macOS 14 or later
+**macOS** · v0.8.3 · native app · open source · [signed &amp; notarized DMG on GitHub Releases](../../releases/latest) · macOS 14 or later
 - Keyboard-first terminal: `⌘K` command palette, `g` + key navigation.
 - Portfolio Intelligence: What Changed, watchlist, local alert rules, scenarios, benchmark vs BTC / ETH.
 - Menu bar companion, desktop widgets, share cards (PNG, MP4, GIF), notifications, Touch ID app lock.

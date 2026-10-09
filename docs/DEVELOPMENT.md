@@ -238,11 +238,11 @@ PFCore/         platform-neutral core, no AppKit/UIKit/SwiftUI:
   Persistence/  PortfolioDocument (JSON ledger/backup, schema v2), LedgerSnapshots, AppSettings, MarketCache (SwiftData)
   Platform/     Keychain, notifications, app lock (LocalAuthentication), reachability, Diagnostics
   Updates/      SemanticVersion, UpdateState, UpdateChecking, GitHubReleaseChecker
-  Sync/         SyncModels, SyncEngine, CloudKitSyncStore, SyncHostSupport
+  Sync/         SyncModels, SyncEngine, IntelSync (0.8.3), CloudKitSyncStore, SyncHostSupport
   Formatting/   Fmt, DateFmt, NumberInput
   Widgets/      WidgetPortfolioSnapshot, WidgetSnapshotStore, PFLink
 PFCoreUI/       design tokens (Theme), widget layouts, step chart, share card
-PFCoreTestSupport/  MockRemote + Device (sync), LargeFixture (10k-transaction benchmark)
+PFCoreTestSupport/  MockRemote + Device / IntelDevice (sync), LargeFixture (10k-transaction benchmark)
 PFCoreTests/
 PFWidgets/      WidgetKit extension: App Intents configuration, timeline provider, previews
 PFTerminalTests/, PFTerminalUITests/
@@ -437,6 +437,7 @@ The app is sandboxed:
   portfolio.json             canonical ledger (human-readable, schema-versioned)
   portfolio.v1-backup.json   written once if a v1 file was migrated
   sync-state.json            iCloud sync bookkeeping (device-local; only when sync was used)
+  intel-sync-state.json      0.8.3: the same for watchlist / alerts / scenarios (own zone, own conflicts)
   backups/pf-*.json          recovery snapshots (0.6): versioned envelope, verified on write, bounded
   diagnostics.json           last 200 operational events (0.6): category, level, fixed code, error kind
   agent-audit.json           agent activity (0.8): newest 500 calls, no notes / amounts / credential
@@ -526,6 +527,7 @@ AppStore (+Sync) ── SyncHost ──▶ SyncEngine (PFCore/Sync, pure + async
   - A record from a newer schema is neither applied nor overwritten. It is listed in `SyncState.blocked` until the app is updated.
   - A breaking payload change needs a new version and a decode step in `SyncEngine.apply`.
 - **Widgets.** Widgets never query CloudKit. They render the snapshot that the app writes after each (synced) recalculation.
+- **Watchlist, alerts, scenarios (0.8.3).** `IntelSyncEngine` (PFCore/Sync/IntelSync.swift) syncs `IntelDocument`'s watchlist, alert rules and scenarios as `watch.<UUID>`, `alert.<UUID>`, `scenario.<UUID>` records in a second private zone, `PFIntelZone`, with its own `intel-sync-state.json`. Same `PFRecord` type and fields, so **no CloudKit schema change** (the zone is created at runtime). The ledger engine is unchanged and ignores these kinds (`SyncEngine.apply` returns false). Rules: whole-record conflicts are *held* (kept locally, not pushed, listed in the intel state's `conflicts`) until the user keeps one side; an alert whose definition is equal and only state differs resolves newer-wins; edit beats delete. An empty list is a real delete-all and propagates as tombstones; data that was *replaced* is not: at load the app records, per domain, whether its file was missing or unreadable (set aside) and, if the intel state knows live records of that domain, calls `IntelSyncEngine.rebase` (forget those records, keep queued deletions, reset the token) so a full fetch brings iCloud's copy back. Locked, newer or unwritten files never reach the engine (`intelSyncCanPersist`). `normalize` dedupes deterministically (preset keys, duplicate watches archived at their own `addedAt`, migrated 0.6 rules, alert numbers). Passes run after each successful ledger pass and after intel edits (2 s debounce), and stop while intel.json is locked, read-only or waiting to be written. The alert log never syncs.
 - **Market cache.** `MarketCache` sets `cloudKitDatabase: .none`. With the iCloud entitlement, SwiftData would otherwise mirror the cache to CloudKit automatically. The DEBUG checks verify that no `com.apple.coredata.cloudkit.zone` exists.
 
 ### CloudKit schema (Development)
@@ -539,7 +541,7 @@ AppStore (+Sync) ── SyncHost ──▶ SyncEngine (PFCore/Sync, pure + async
 
 | Field | Type | Notes |
 |---|---|---|
-| `kind` | String | `portfolio`, `transaction` or `asset` |
+| `kind` | String | `portfolio`, `transaction` or `asset`; in `PFIntelZone` (0.8.3): `watch`, `alert` or `scenario` |
 | `id` | String | Stable identity. It is never a name or a ticker. |
 | `schemaVersion` | Int64 | Payload format. It is currently 1. |
 | `modifiedAt` | Date/Time | When the change was made on the originating device |
@@ -556,6 +558,7 @@ AppStore (+Sync) ── SyncHost ──▶ SyncEngine (PFCore/Sync, pure + async
   - Do this only right before the first public build that ships iCloud sync: in the CloudKit Console, open Schema → Deploy to Production.
   - Release builds must then set `PF_ICLOUD_ENV = Production`, which `ICLOUD=1 scripts/make-dmg.sh` does.
   - `xcrun cktool export-schema` (it needs a CloudKit management token) exports the Development schema, so you can diff it against this table first.
+- **0.8.3 and the iPhone app.** `SyncKind` gained `watch`, `alert`, `scenario`. A client that switches exhaustively over `SyncKind` needs a `default:` when it moves to this PFCore (0.8.3, PF for iPhone 1.1) (the iPhone app's `PhoneStore+Sync.swift` does). Ledger records never use these kinds, and clients before 0.8.3 never read `PFIntelZone`.
 - **Other clients.**
   - Every PF client (the iPhone app included) uses this schema unchanged: same container, private database, `PFZone`, `PFRecord`, same payloads. There is no client-specific record type or field.
   - Payloads are the `PFCore` Codable models, and all sync logic is `PFCore/Sync`. `PFCoreTests/SyncCompatibilityTests` pins the payload bytes and CloudKit fields.

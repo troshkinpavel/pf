@@ -15,7 +15,8 @@ struct AlertsView: View {
         let armed = rows.count - fired - paused
         ScrollView(.vertical) {
             VStack(alignment: .leading, spacing: 18) {
-                ScreenHeader(title: "ALERTS", sub: "evaluated on this Mac every \(store.settings.intervalLabel) · last " + (store.lastSuccess.map(DateFmt.hms) ?? "—") + " · nothing leaves the device") {
+                ScreenHeader(title: "ALERTS", sub: "evaluated on this Mac every \(store.settings.intervalLabel) · last " + (store.lastSuccess.map(DateFmt.hms) ?? "—") + (store.syncEnabled ? " · rules sync via iCloud" : " · nothing leaves the device")) {
+                    IntelSyncBadge()
                     BracketButton("+ new alert n", color: Theme.acc) { store.openAlertSetup() }
                         .accessibilityIdentifier("alert-new")
                 }

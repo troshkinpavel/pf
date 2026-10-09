@@ -25,6 +25,7 @@ struct SyncSheetView: View {
         switch store.syncSheet {
         case .disable?: "TURN OFF ICLOUD SYNC"
         case .conflicts?: "SYNC CONFLICTS"
+        case .intelConflict?: "SYNC CONFLICT" + (store.intelConflict.map { "  " + store.intelConflictTitle($0) } ?? "")
         default: "ICLOUD SYNC"
         }
     }
@@ -54,6 +55,8 @@ struct SyncSheetView: View {
             }
         case .conflicts?:
             conflicts
+        case .intelConflict?:
+            intelConflict
         }
     }
 
@@ -121,6 +124,30 @@ struct SyncSheetView: View {
         }
     }
 
+    /// Design §28: whole record, pick a side, newer is the default (⌘↵).
+    @ViewBuilder private var intelConflict: some View {
+        if let c = store.intelConflict {
+            let other = store.otherDevice(c), otherNewer = store.intelConflictOtherIsNewer(c)
+            VStack(alignment: .leading, spacing: 8) {
+                note(c.reason, Theme.t3)
+                Hairline().padding(.vertical, 4)
+                note("this Mac   " + store.intelConflictLine(c, other: false) + (otherNewer ? "" : " · newer"), Theme.t1)
+                note(other + "   " + store.intelConflictLine(c, other: true) + " · " + DateFmt.hm(c.other.modifiedAt) + (otherNewer ? " · newer" : ""), Theme.t1)
+                note("until you choose, this Mac evaluates its own version. no fields are merged.", Theme.t4)
+                if store.intelSyncState.conflicts.count > 1 { note("+\(store.intelSyncState.conflicts.count - 1) more after this one", Theme.t4) }
+            }
+            buttons {
+                BracketButton("later esc", color: Theme.t2) { store.syncSheet = nil }
+                Spacer()
+                BracketButton("keep this Mac" + (otherNewer ? "" : " ⌘↵"), color: otherNewer ? Theme.t1 : Theme.acc) { store.resolveIntelConflict(c, keepOther: false) }
+                BracketButton("keep \(other)" + (otherNewer ? " ⌘↵" : ""), color: otherNewer ? Theme.acc : Theme.t1) { store.resolveIntelConflict(c, keepOther: true) }
+            }
+        } else {
+            note("no conflicts left", Theme.t3)
+            buttons { Spacer(); BracketButton("close", color: Theme.t2) { store.syncSheet = nil } }
+        }
+    }
+
     private func note(_ s: String, _ c: Color) -> some View {
         Text(s).font(Theme.mono(12)).foregroundStyle(c).fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -128,5 +155,18 @@ struct SyncSheetView: View {
 
     private func buttons<C: View>(@ViewBuilder _ c: () -> C) -> some View {
         HStack(spacing: 10) { c() }.padding(.top, 14)
+    }
+}
+
+/// Screen header, right slot, watchlist / alerts / scenarios only (design §28). Clicking opens
+/// Settings › data + sync, or the conflict.
+struct IntelSyncBadge: View {
+    @Environment(AppStore.self) private var store
+    var body: some View {
+        if let i = store.intelSyncIndicator {
+            TermButton(action: i.action) { TT(i.text, 11, i.color).fixedSize() }
+                .help("watchlist · alerts · scenarios sync with iCloud · click for details")
+                .accessibilityIdentifier("intel-sync-badge")
+        }
     }
 }

@@ -8,7 +8,7 @@ import Foundation
 
 public enum SyncKind: String, Codable, CaseIterable, Sendable {
     case portfolio, transaction, asset
-    /// 0.9: watchlist items, alert rules, scenarios (their own zone; see IntelSyncEngine).
+    /// 0.8.3: watchlist items, alert rules, scenarios (their own zone; see IntelSyncEngine).
     case watch, alert, scenario
 }
 

@@ -2,14 +2,20 @@
 
 All notable changes to PF Terminal are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.8.3] - Sync compatibility
 
-### Notes
-- **PF Terminal for iPhone is now available on the [App Store](https://apps.apple.com/us/app/pf-terminal/id6817097908).** It has its own version line (1.0.0), uses the same optional iCloud sync and the same shared core (PFCore), and isn't open source. This is not a macOS release.
+A compatibility and sync-hardening release, so PF for Mac and PF Terminal for iPhone 1.1 share your watchlist, alerts and scenarios. Nothing else changes on the Mac.
+
+### Added
+- **iCloud sync for watchlist, alerts and scenarios** (with iCloud sync on): they sync like your portfolios, in a separate area of your private iCloud database with their own sync state, so Macs on 0.8.2 and earlier keep working unchanged and never see these records. If the same rule, watch or scenario was edited on two devices before they synced, nothing is merged field by field: you choose *keep this Mac* or *keep the other* (newer is the default, `⌘↵`). An alert that only fired or was seen elsewhere updates without asking. The first sync merges duplicates (preset scenarios, the same coin watched twice, alert numbers, the same migrated alert).
+- Deleting your last watch, alert or scenario deletes it everywhere; a file that went missing, couldn't be read or is locked is never taken as a deletion: PF fetches your records back from iCloud or waits.
 
 ### Changed
 - Settings → DATA + SYNC lists the iPhone app as available on the App Store (it said "in development").
-- README, roadmap, privacy policy, security policy and iCloud sync docs describe both apps.
+- README, roadmap, privacy policy, security policy and iCloud sync docs describe both apps. [PF Terminal for iPhone](https://apps.apple.com/us/app/pf-terminal/id6817097908) has its own version line, uses the same optional iCloud sync and the same shared core (PFCore), and isn't open source.
+
+### Data
+- New, local only: `intel-sync-state.json` (iCloud bookkeeping for watchlist, alerts and scenarios). The alert history never syncs. Your ledger and its iCloud records are unchanged. No CloudKit schema change.
 
 ## [0.8.2]
 

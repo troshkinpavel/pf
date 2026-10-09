@@ -5,8 +5,9 @@ Back to the [README](../README.md).
 iCloud sync keeps your portfolios in step across your own devices. It is **off by default**. Nothing is uploaded until you turn it on in **Settings → DATA & SYNC** and confirm.
 
 - **Your iCloud, not ours.** Data goes to the **private** CloudKit database of the Apple Account signed in on your Mac. PF has no server and no account, and it cannot see your data. Transaction data is stored in CloudKit's encrypted fields.
-- **What syncs.** Portfolios, transactions and asset identities. Records are matched by stable IDs, so renaming a portfolio or importing the same backup twice never creates duplicates.
-- **What never syncs.** Market prices and caches, charts and P&L (every device recalculates them), widget data, settings, and API keys or anything else in the Keychain.
+- **What syncs.** Portfolios, transactions and asset identities; since 0.8.3 also your watchlist, alert rules and scenarios. Records are matched by stable IDs, so renaming a portfolio or importing the same backup twice never creates duplicates.
+- **What never syncs.** Market prices and caches, charts and P&L (every device recalculates them), the alert history, widget data, settings, and API keys or anything else in the Keychain.
+- **Watchlist, alerts and scenarios (0.8.3).** They follow the iCloud switch, in a separate area of your private database, so Macs on 0.8.2 and earlier keep working unchanged. The first sync on each device merges: preset scenarios that exist on both get a suffix (BASE 2), a coin watched on both stays once (the other entry is archived), duplicate alert numbers are renumbered, and the same migrated 0.6 alert becomes one. If the same rule, watch or scenario was edited on two devices before they synced, nothing is merged field by field: the header shows **! 1 conflict**, and you choose *keep this Mac* or *keep the other* (newer is the default, `⌘↵`); until then each device uses its own version. An alert that only fired or was seen on another device updates without asking. Deleting your last watch, alert or scenario deletes it everywhere; a file that went missing or couldn't be read is never taken as a deletion — PF fetches your records back from iCloud instead.
 - **Turning it on.** PF first compares this Mac with iCloud, then asks what to do:
   - iCloud is empty → **upload**.
   - This Mac is empty → **use iCloud**.

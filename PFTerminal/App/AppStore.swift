@@ -195,6 +195,15 @@ final class AppStore {
     @ObservationIgnored var syncDebounce: Task<Void, Never>?
     @ObservationIgnored var syncApplying = false
     @ObservationIgnored var lastSyncAttempt: Date = .distantPast
+    /// 0.8.3: watchlist, alerts and scenarios in iCloud (own zone, own intel-sync-state.json).
+    var intelSyncState = SyncState() { didSet { persistIntelSyncState() } }
+    var intelSyncStatus: SyncStatus = .localOnly
+    @ObservationIgnored var intelSyncRemote: SyncRemoteStore?
+    @ObservationIgnored var intelSyncTask: Task<Void, Never>?
+    @ObservationIgnored var intelSyncDebounce: Task<Void, Never>?
+    @ObservationIgnored var intelSyncApplying = false
+    /// Intel domains whose file was missing or unreadable at load (not a delete-all).
+    @ObservationIgnored var intelLoadUnverified: Set<SyncKind> = []
     @ObservationIgnored var syncRemote: SyncRemoteStore?
     /// CloudKit environment of `syncRemote`; nil for injected (test) stores.
     @ObservationIgnored var syncRemoteEnvironment: String?
@@ -216,6 +225,7 @@ final class AppStore {
         var defaults: UserDefaults = .standard
         /// nil: CloudKit when the build is entitled. Tests and the DEBUG sync check inject their own.
         var syncRemote: SyncRemoteStore?
+        var intelSyncRemote: SyncRemoteStore?
         /// Tests: an error every ledger read / write fails with while it returns one
         /// (simulates the locked Mac, where "complete" protection refuses access).
         var ledgerFault: (() -> Error?)?
@@ -268,7 +278,9 @@ final class AppStore {
         loadSyncState()
         syncRemote = o.syncRemote ?? Self.makeSyncRemote()
         if o.syncRemote == nil, syncRemote != nil { syncRemoteEnvironment = Self.cloudEnvironment }
+        intelSyncRemote = o.intelSyncRemote ?? (o.syncRemote == nil ? Self.makeIntelSyncRemote() : nil)
         loadIntel()
+        loadIntelSyncState()
         quotes = cache.quotes(currency: s.currency).filter { k, _ in pricedIDs.contains(k) }
         snapshotList = snapshots.list()
         recompute()

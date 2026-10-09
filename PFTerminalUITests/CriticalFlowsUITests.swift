@@ -54,7 +54,7 @@ final class CriticalFlowsUITests: XCTestCase {
         app.menuItems["Quick Share"].click()
         XCTAssertTrue(app.staticTexts["QUICK SHARE"].waitForExistence(timeout: 3))
         app.typeKey(.return, modifierFlags: [])
-        XCTAssertTrue(app.staticTexts["CONFIGURE"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["2 · WHO SEES WHAT"].waitForExistence(timeout: 3), "↵ opens the Share screen")
         let window = app.windows.firstMatch
         let before = window.frame
         func el(_ text: String) -> XCUIElement {

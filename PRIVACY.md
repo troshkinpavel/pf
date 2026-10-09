@@ -28,7 +28,7 @@ On macOS, the portfolio ledger and recovery snapshots use "complete" file protec
 
 ## Watchlist, alerts and scenarios (macOS)
 
-Your watchlist (with its notes), alert rules and scenarios are stored locally on your device, on that Mac only; they are not synced and not sent anywhere. Watchlist and scenarios use the same "complete" protection as the ledger. Alert rules and their log use "until first unlock" protection so alerts can run from the menu bar while the Mac is locked; they hold no notes or scenario values.
+Your watchlist (with its notes), alert rules and scenarios are stored locally on your device. Since 0.8.3, if you turn on iCloud sync, they also sync through your private iCloud database like your portfolios; the alert history never does. Watchlist and scenarios use the same "complete" protection as the ledger. Alert rules and their log use "until first unlock" protection so alerts can run from the menu bar while the Mac is locked; they hold no notes or scenario values.
 
 Alerts are evaluated on your device. Alert notifications contain asset symbols, prices and percentages, never the amounts you hold.
 

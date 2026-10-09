@@ -40,10 +40,10 @@ final class LifecycleUITests: XCTestCase {
         waitForPolicy(.accessory, "closed: menu bar only, not in Dock")
         XCTAssertNotEqual(app.state, .notRunning, "close is not quit")
 
-        // Menu bar item → open portfolio
+        // Menu bar item → open ↵
         app.statusItems.firstMatch.click()
-        let open = el(app, "open portfolio")
-        XCTAssertTrue(open.waitForExistence(timeout: 5))
+        let open = el(app, "open ↵")
+        XCTAssertTrue(open.waitForExistence(timeout: 5), "popover opened (the status item must be on screen: quit other PF instances if the menu bar is full)")
         open.click()
         XCTAssertTrue(app.staticTexts["DEMO"].waitForExistence(timeout: 5), "main window back")
         waitForPolicy(.regular, "reopened from menu bar: in Dock")

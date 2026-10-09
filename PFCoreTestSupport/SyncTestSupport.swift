@@ -82,7 +82,7 @@ public final class Device: SyncHost {
     }
 }
 
-/// 0.9: a Mac's watchlist / alerts / scenarios, synced through `IntelSyncEngine`.
+/// 0.8.3: a Mac's watchlist / alerts / scenarios, synced through `IntelSyncEngine`.
 @MainActor
 public final class IntelDevice: IntelSyncHost {
     public var intelSyncDocument: IntelDocument

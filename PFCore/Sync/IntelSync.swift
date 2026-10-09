@@ -8,11 +8,10 @@ import Foundation
     var intelSyncCanPersist: Bool { get }
 }
 
-/// 0.9: the watchlist, alert rules and scenarios in iCloud. Same record format and rules as the
+/// 0.8.3: the watchlist, alert rules and scenarios in iCloud. Same record format and rules as the
 /// ledger (`SyncEngine`), in their own CloudKit zone (`PFIntelZone`, same `PFRecord` type: no
-/// schema change) with their own state file, so clients before 0.9 never see these records and a
-/// downgrade never meets an intel conflict in `sync-state.json`. The alert log never syncs;
-/// automation rules never sync.
+/// schema change) with their own state file, so clients before 0.8.3 never see these records and a
+/// downgrade never meets an intel conflict in `sync-state.json`. The alert log never syncs.
 ///
 /// Conflicts are whole-record and held: until the user picks a side, this Mac keeps (and
 /// evaluates) its own version and doesn't send it; no fields are merged. Exceptions:
