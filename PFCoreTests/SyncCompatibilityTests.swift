@@ -75,7 +75,9 @@ struct SyncCompatibilityTests {
 
     /// Market data, caches and settings are not sync record kinds.
     @Test func onlyUserOwnedRecordsSync() {
-        #expect(Set(SyncKind.allCases.map(\.rawValue)) == ["portfolio", "transaction", "asset"])
+        // 0.9 adds the user's watchlist, alert rules and scenarios (their own zone; IntelSyncEngine).
+        #expect(Set(SyncKind.allCases.map(\.rawValue)) == ["portfolio", "transaction", "asset", "watch", "alert", "scenario"])
+        #expect(IntelSyncEngine.kinds == [.watch, .alert, .scenario])
         var doc = fixtureDoc()
         doc.settings = AppSettings()
         let payloads = SyncEngine.localObjects(doc).values.map { String(decoding: $0.payload, as: UTF8.self) }
@@ -174,5 +176,26 @@ struct PartialTotalLabelTests {
         #expect(summary(priced: [0]).isPartial)
         let back = summary(priced: [0, 1, 2])
         #expect(!back.isPartial && back.totalLabel(f, 0) == "$96,380")
+    }
+
+    /// Intel records (iPhone 1.1, Mac 0.9) next to older clients: their own zone, which builds up
+    /// to 0.8.2 never open; the existing PFRecord type and fields (no Production schema change);
+    /// and a kind a client doesn't know is skipped, never read as a delete.
+    @Test func intelRecordsAreInvisibleToOlderClients() {
+        #expect(IntelSyncEngine.zoneName == "PFIntelZone" && CloudKitSyncStore.zoneName == "PFZone")
+        let intelZone = CKRecordZone.ID(zoneName: IntelSyncEngine.zoneName, ownerName: CKCurrentUserDefaultName)
+        let ledgerZone = CKRecordZone.ID(zoneName: CloudKitSyncStore.zoneName, ownerName: CKCurrentUserDefaultName)
+        let w = SyncRecord(kind: .watch, id: "w1", modifiedAt: Date(timeIntervalSince1970: 1_800_000_000), deviceID: "phone", deviceName: "iPhone",
+                           payload: Data("{}".utf8))
+        let t = SyncRecord(kind: .transaction, id: "t1", modifiedAt: Date(timeIntervalSince1970: 1_800_000_000), deviceID: "phone", deviceName: "iPhone",
+                           payload: Data("{}".utf8), portfolioID: "p1")
+        let ci = CloudKitSyncStore.ckRecord(w, zoneID: intelZone), cl = CloudKitSyncStore.ckRecord(t, zoneID: ledgerZone)
+        #expect(ci.recordType == cl.recordType && ci.recordType == "PFRecord")
+        // Same field set as a ledger record (portfolioID is optional on both).
+        #expect(Set(ci.allKeys()).union(ci.encryptedValues.allKeys()).subtracting(["portfolioID"])
+                == Set(cl.allKeys()).union(cl.encryptedValues.allKeys()).subtracting(["portfolioID"]))
+        let unknown = CloudKitSyncStore.ckRecord(w, zoneID: ledgerZone)
+        unknown["kind"] = "future-kind"
+        #expect(CloudKitSyncStore.record(unknown) == nil, "an unknown kind is skipped by the decoder")
     }
 }

@@ -250,6 +250,8 @@ public enum SyncEngine {
             if r.isTombstone { return true }
             guard let a = try? dec.decode(Asset.self, from: r.payload ?? Data()), a.id == r.id else { return false }
             if let i = doc.assets.firstIndex(where: { $0.id == a.id }) { doc.assets[i] = a } else { doc.assets.append(a) }
+        case .watch, .alert, .scenario:
+            return false   // intel records live in their own zone (IntelSyncEngine); never in the ledger
         }
         return true
     }

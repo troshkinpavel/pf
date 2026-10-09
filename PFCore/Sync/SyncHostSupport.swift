@@ -5,17 +5,18 @@ import Foundation
 
 /// `sync-state.json`, next to `portfolio.json`. Device-local, never synced.
 public enum SyncStateFile {
-    public static func url(in dir: URL) -> URL { dir.appendingPathComponent("sync-state.json") }
+    public static let intelFile = "intel-sync-state.json"
+    public static func url(in dir: URL, file: String = "sync-state.json") -> URL { dir.appendingPathComponent(file) }
 
-    public static func load(from dir: URL) -> SyncState? {
-        guard let d = try? Data(contentsOf: url(in: dir)) else { return nil }
+    public static func load(from dir: URL, file: String = "sync-state.json") -> SyncState? {
+        guard let d = try? Data(contentsOf: url(in: dir, file: file)) else { return nil }
         return try? JSONDecoder().decode(SyncState.self, from: d)
     }
 
-    public static func save(_ s: SyncState, to dir: URL) {
+    public static func save(_ s: SyncState, to dir: URL, file: String = "sync-state.json") {
         guard let d = try? JSONEncoder().encode(s) else { return }
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        try? d.write(to: url(in: dir), options: .atomic)
+        try? d.write(to: url(in: dir, file: file), options: .atomic)
     }
 }
 

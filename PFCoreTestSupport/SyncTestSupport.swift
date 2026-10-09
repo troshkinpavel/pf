@@ -81,3 +81,19 @@ public final class Device: SyncHost {
         try await SyncEngine.enable(self, remote: r, choice: c, deviceName: name, now: { [unowned self] in self.clock })
     }
 }
+
+/// 0.9: a Mac's watchlist / alerts / scenarios, synced through `IntelSyncEngine`.
+@MainActor
+public final class IntelDevice: IntelSyncHost {
+    public var intelSyncDocument: IntelDocument
+    public var intelSyncState = SyncState()
+    public var intelSyncCanPersist = true
+    public var clock: Date
+    public init(_ name: String, _ doc: IntelDocument = IntelDocument(), clock: Date = Date(timeIntervalSince1970: 1_800_000_000)) {
+        intelSyncDocument = doc; self.clock = clock
+        intelSyncState.mode = .iCloud; intelSyncState.deviceName = name
+    }
+    public var doc: IntelDocument { get { intelSyncDocument } set { intelSyncDocument = newValue } }
+    public func tick(_ s: TimeInterval = 10) { clock += s }
+    public func sync(_ r: MockRemote) async throws { try await IntelSyncEngine.cycle(self, remote: r, now: { [unowned self] in self.clock }) }
+}

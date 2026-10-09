@@ -8,6 +8,8 @@ import Foundation
 
 public enum SyncKind: String, Codable, CaseIterable, Sendable {
     case portfolio, transaction, asset
+    /// 0.9: watchlist items, alert rules, scenarios (their own zone; see IntelSyncEngine).
+    case watch, alert, scenario
 }
 
 /// One synchronized domain object, as exchanged with the remote store.

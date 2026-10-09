@@ -256,6 +256,8 @@ extension AppStore {
             return "\(t.type.short) \(Fmt.current.amount(t.quantity)) \(asset(t.assetID)?.symbol ?? "") · \(DateFmt.ymd(t.timestamp))"
         case .asset:
             return "asset \(id)"
+        case .watch, .alert, .scenario:   // intel kinds live in their own zone; never a ledger conflict
+            return "\(c.kind.rawValue) \(id.prefix(8))"
         }
     }
 
