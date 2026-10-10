@@ -44,7 +44,7 @@ PF Terminal is a native, local-first crypto portfolio tracker for macOS and iPho
 
 PF Terminal for macOS and its shared portfolio core (PFCore) are open source in this repository. PF Terminal for iPhone is free on the App Store; its source is not published here.
 
-> **Current releases: macOS v0.8.4 · iPhone 1.0.0.** v0.8.4 hardens iCloud sync (deletes can no longer stay queued; transactions sync with their coin); v0.8.3 added iCloud sync for your watchlist, alerts and scenarios. Since v0.8.0, "Agent Access": an optional way to connect an AI agent you choose to your local portfolio and manage it through MCP: off by default, read-only to start, every ledger change confirmed in PF, no server. See [What's new](CHANGELOG.md).
+> **Current releases: macOS v0.8.4 · iPhone 1.1.0.** iPhone 1.1.0 brings What Changed, the watchlist, alerts and scenarios to iPhone, synced with the Mac. v0.8.4 hardens iCloud sync (deletes can no longer stay queued; transactions sync with their coin); v0.8.3 added iCloud sync for your watchlist, alerts and scenarios. Since v0.8.0, "Agent Access": an optional way to connect an AI agent you choose to your local portfolio and manage it through MCP: off by default, read-only to start, every ledger change confirmed in PF, no server. See [What's new](CHANGELOG.md).
 
 ## Why PF?
 
@@ -80,12 +80,13 @@ Most portfolio trackers are cloud accounts. PF Terminal is a local instrument in
 - Optional Agent Access (MCP) for an AI agent you choose.
 - Recovery snapshots, Data Health, optional private iCloud sync.
 
-**iPhone** · v1.0.0 · native app · free · [App Store](https://apps.apple.com/us/app/pf-terminal/id6817097908) · iOS 17 or later
+**iPhone** · v1.1.0 · native app · free · [App Store](https://apps.apple.com/us/app/pf-terminal/id6817097908) · iOS 17 or later
 - Multiple portfolios and ALL, overview, movers, analytics, asset detail, target simulator.
-- Transactions by form or command line, share cards.
+- What Changed, watchlist, alerts (local notifications), scenarios and benchmark vs BTC / ETH.
+- Transactions by form or command line, four themes, share cards.
 - Home Screen and Lock Screen widgets, performance-only by default.
 - Face ID lock and app-switcher privacy.
-- Optional private iCloud sync with your Mac. Local-first: the ledger stays on the iPhone, and the last prices are shown offline.
+- Optional private iCloud sync with your Mac, including the watchlist, alerts and scenarios (macOS v0.8.3 or later). Local-first: the ledger stays on the iPhone, and the last prices are shown offline.
 
 ## Install
 
